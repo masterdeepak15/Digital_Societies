@@ -1,0 +1,45 @@
+# ── Secrets (NEVER commit these) ─────────────────────────────────────────────
+.env
+*.env
+!.env.example
+**/appsettings.Production.json
+**/user-secrets.json
+
+# ── .NET ─────────────────────────────────────────────────────────────────────
+bin/
+obj/
+*.user
+*.suo
+.vs/
+**/appsettings.*.json
+!**/appsettings.json
+!**/appsettings.Development.json
+TestResults/
+*.coverage
+coverage/
+*.nupkg
+
+# ── Node / React Native ───────────────────────────────────────────────────────
+node_modules/
+.expo/
+dist/
+build/
+*.tsbuildinfo
+*.log
+npm-debug.log*
+.next/
+out/
+
+# ── Docker / Infra ────────────────────────────────────────────────────────────
+infra/docker/.env
+infra/docker/postgres-data/
+
+# ── OS ────────────────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+*.swp
+
+# ── IDE ───────────────────────────────────────────────────────────────────────
+.vscode/settings.json
+.idea/
+*.iml

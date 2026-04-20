@@ -1,0 +1,157 @@
+# ──────────────────────────────────────────────────────────────────────────────
+# Digital Societies — Self-Host Stack
+# One-command install:  docker compose up -d
+# First-run setup:      https://<your-domain>/setup
+# ──────────────────────────────────────────────────────────────────────────────
+name: digital-societies
+
+services:
+
+  # ── API (ASP.NET Core 8) ───────────────────────────────────────────────────
+  api:
+    image: ghcr.io/masterdeepak15/digital-societies-api:latest
+    build:
+      context: ../../services
+      dockerfile: DigitalSocieties.Api/Dockerfile
+    restart: unless-stopped
+    environment:
+      ASPNETCORE_ENVIRONMENT:    Production
+      ASPNETCORE_URLS:           http://+:8080
+      ConnectionStrings__Postgres: "Host=postgres;Port=5432;Database=digital_societies;Username=ds_app;Password=${POSTGRES_PASSWORD}"
+      ConnectionStrings__Redis:    "redis:6379"
+      Jwt__Issuer:               ${JWT_ISSUER}
+      Jwt__Audience:             ${JWT_AUDIENCE}
+      Jwt__SecretKey:            ${JWT_SECRET_KEY}
+      Notification__Sms__ApiKey: ${MSG91_API_KEY}
+      Storage__AccessKey:        ${MINIO_ACCESS_KEY}
+      Storage__SecretKey:        ${MINIO_SECRET_KEY}
+      AllowedOrigins__0:         ${WEB_ADMIN_URL}
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis:    { condition: service_healthy }
+      minio:    { condition: service_started }
+    networks: [ds-net]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # ── Web Admin (Next.js) ────────────────────────────────────────────────────
+  web-admin:
+    image: ghcr.io/masterdeepak15/digital-societies-web:latest
+    build:
+      context: ../../apps/web-admin
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      NEXT_PUBLIC_API_URL: ${API_URL:-http://api:8080}
+    ports:
+      - "3000:3000"
+    depends_on:
+      api: { condition: service_healthy }
+    networks: [ds-net]
+
+  # ── PostgreSQL 16 ──────────────────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB:       digital_societies
+      POSTGRES_USER:     ds_app
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_INITDB_ARGS: "--locale=en_IN.UTF-8"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./postgres-init:/docker-entrypoint-initdb.d:ro   # RLS setup scripts
+    ports:
+      - "5432:5432"   # expose for dev; remove in prod
+    networks: [ds-net]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ds_app -d digital_societies"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── Redis 7 (rate limiting, caching, refresh-token allow-list) ─────────────
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: redis-server --requirepass ${REDIS_PASSWORD} --save 60 1 --loglevel warning
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"   # remove in prod
+    networks: [ds-net]
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── MinIO (S3-compatible object storage — complaint images, docs, avatars) ──
+  minio:
+    image: minio/minio:latest
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER:     ${MINIO_ACCESS_KEY}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY}
+      MINIO_BROWSER:       "on"
+    volumes:
+      - minio_data:/data
+    ports:
+      - "9000:9000"   # API
+      - "9001:9001"   # Console — remove in prod
+    networks: [ds-net]
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+
+  # ── Caddy (reverse proxy + automatic TLS via Let's Encrypt) ───────────────
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    environment:
+      DOMAIN:        ${DOMAIN}
+      API_URL:       http://api:8080
+      WEB_ADMIN_URL: http://web-admin:3000
+    depends_on:
+      - api
+      - web-admin
+    networks: [ds-net]
+
+  # ── OpenTelemetry Collector (observability) ───────────────────────────────
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:latest
+    restart: unless-stopped
+    command: ["--config=/etc/otelcol/config.yml"]
+    volumes:
+      - ./otel-config.yml:/etc/otelcol/config.yml:ro
+    ports:
+      - "4317:4317"   # gRPC
+      - "4318:4318"   # HTTP
+    networks: [ds-net]
+
+volumes:
+  postgres_data:
+  redis_data:
+  minio_data:
+  caddy_data:
+  caddy_config:
+
+networks:
+  ds-net:
+    driver: bridge

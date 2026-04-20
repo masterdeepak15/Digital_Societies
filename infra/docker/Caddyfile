@@ -1,0 +1,40 @@
+# Caddy auto-provisions TLS via Let's Encrypt. No certbot needed.
+{$DOMAIN} {
+    # Web Admin (Next.js)
+    handle /* {
+        reverse_proxy {$WEB_ADMIN_URL}
+    }
+
+    # API
+    handle /api/* {
+        reverse_proxy {$API_URL}
+    }
+
+    # SignalR WebSockets
+    handle /hubs/* {
+        reverse_proxy {$API_URL} {
+            header_up Upgrade {http.request.header.Upgrade}
+            header_up Connection "Upgrade"
+        }
+    }
+
+    # Health check (public)
+    handle /health {
+        reverse_proxy {$API_URL}
+    }
+
+    # Security headers
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+        X-Content-Type-Options    "nosniff"
+        X-Frame-Options           "DENY"
+        Referrer-Policy           "strict-origin-when-cross-origin"
+        Content-Security-Policy   "default-src 'self'; img-src 'self' data: blob:; connect-src 'self' wss:;"
+        -Server
+    }
+
+    log {
+        output file /var/log/caddy/access.log
+        format json
+    }
+}
