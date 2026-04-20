@@ -9,6 +9,7 @@ const BillsScreen      = React.lazy(() => import('../screens/resident/BillsScree
 const VisitorsScreen   = React.lazy(() => import('../screens/resident/VisitorsScreen'));
 const ComplaintsScreen = React.lazy(() => import('../screens/resident/ComplaintsScreen'));
 const NoticesScreen    = React.lazy(() => import('../screens/resident/NoticesScreen'));
+const FeedScreen       = React.lazy(() => import('../screens/resident/FeedScreen'));
 const ProfileScreen    = React.lazy(() => import('../screens/resident/ProfileScreen'));
 
 export default function ResidentTabs() {
@@ -16,6 +17,7 @@ export default function ResidentTabs() {
     <Tab.Navigator
       screenOptions={{ tabBarActiveTintColor: Colors.primary, headerShown: false }}>
       <Tab.Screen name="Home"       component={HomeScreen}       options={{ title: 'Home' }}        />
+      <Tab.Screen name="Feed"       component={FeedScreen}       options={{ title: 'Community' }}   />
       <Tab.Screen name="Bills"      component={BillsScreen}      options={{ title: 'My Bills' }}    />
       <Tab.Screen name="Visitors"   component={VisitorsScreen}   options={{ title: 'Visitors' }}    />
       <Tab.Screen name="Complaints" component={ComplaintsScreen} options={{ title: 'Complaints' }}  />

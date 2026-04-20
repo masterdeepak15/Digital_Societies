@@ -14,6 +14,7 @@
     <ProjectReference Include="..\DigitalSocieties.Visitor\DigitalSocieties.Visitor.csproj" />
     <ProjectReference Include="..\DigitalSocieties.Complaint\DigitalSocieties.Complaint.csproj" />
     <ProjectReference Include="..\DigitalSocieties.Communication\DigitalSocieties.Communication.csproj" />
+    <ProjectReference Include="..\DigitalSocieties.Social\DigitalSocieties.Social.csproj" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="MediatR"                                     Version="12.2.0" />

@@ -16,7 +16,9 @@ using DigitalSocieties.Api.Endpoints.Billing;
 using DigitalSocieties.Api.Endpoints.Visitor;
 using DigitalSocieties.Api.Endpoints.Complaint;
 using DigitalSocieties.Api.Endpoints.Notice;
+using DigitalSocieties.Api.Endpoints.Social;
 using DigitalSocieties.Api.Infrastructure.Storage;
+using DigitalSocieties.Social.Infrastructure;
 
 // ── Bootstrap logger (captures startup errors before Serilog is fully configured)
 Log.Logger = new LoggerConfiguration()
@@ -125,6 +127,7 @@ try
     builder.Services.AddVisitorModule(config);
     builder.Services.AddComplaintModule(config);
     builder.Services.AddCommunicationModule(config);   // ← registers SignalRHubNotifier, overriding NullHubNotifier
+    builder.Services.AddSocialModule(config);          // ← Society Feed, Groups, Marketplace, Polls, Directory
 
     // ── IStorageProvider — MinIO S3-compatible (OCP: swap to AWS S3 by changing this line)
     builder.Services.Configure<MinioSettings>(config.GetSection(MinioSettings.SectionName));
@@ -174,6 +177,7 @@ try
     app.MapGroup("/api/v1/visitors").MapVisitorEndpoints();
     app.MapGroup("/api/v1/complaints").MapComplaintEndpoints();
     app.MapGroup("/api/v1/notices").MapNoticeEndpoints();
+    app.MapGroup("/api/v1/social").MapSocialEndpoints();
 
     // SignalR Hub — clients connect at wss://{host}/hubs/society?access_token={jwt}
     app.MapHub<SocietyHub>("/hubs/society");
