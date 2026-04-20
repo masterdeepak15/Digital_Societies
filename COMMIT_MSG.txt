@@ -1,0 +1,33 @@
+feat(p1): wire all modules into API host + complete mobile screens
+
+Backend:
+- sln: add Billing, Visitor, Complaint, Communication to solution
+- Api.csproj: add 4 module project refs + Minio 6.0.3 + SignalR packages
+- Program.cs: register AddBillingModule/AddVisitorModule/AddComplaintModule/
+  AddCommunicationModule; add MinioStorageProvider (IStorageProvider);
+  map all route groups + MapHub<SocietyHub>("/hubs/society")
+- BillingEndpoints: generate, summary, my, /{id}/pay, /webhook/razorpay
+- VisitorEndpoints: POST /, approve, reject, /enter (QR scan), exit, GET /
+- ComplaintEndpoints: raise, upload-url, assign, status, my, /, /{id}
+- NoticeEndpoints: post, pin, expire, /, /{id}
+- MinioSettings + MinioStorageProvider: pre-signed PUT (client→MinIO direct
+  upload, no file via API), pre-signed GET, Delete, auto-bucket creation
+- Missing command/query handlers:
+  Visitor: RejectVisitor, MarkVisitorEntered (QR validate+nonce), MarkVisitorExited, GetVisitors
+  Complaint: AssignComplaint, UpdateComplaintStatus, GetMyComplaints,
+             GetSocietyComplaints, GetComplaintDetail
+  Communication: PinNotice, ExpireNotice, GetSocietyNotices, GetNoticeDetail
+- appsettings.json: add Storage:Minio, Msg91, Razorpay config sections
+
+Mobile:
+- package.json: add @microsoft/signalr ^8.0.7, expo-image-picker ~15.0.7
+- VisitorsScreen: real-time SignalR (VisitorPendingApproval event),
+  pending/all/approved filter tabs, Approve/Reject actions with Alert
+- ComplaintsScreen: full complaint raise modal — category chips, priority
+  selector, photo picker (up to 3), direct MinIO upload via pre-signed URL
+- NoticesScreen (new): notice feed with Emergency/Event/Circular filter,
+  expandable cards, real-time NewNotice + EmergencyAlert SignalR events
+- Admin DashboardScreen: live billing summary (collection progress bar,
+  stat grid, defaulters list), recent complaints, recent notices,
+  Generate Bills button
+- ResidentTabs: add Notices tab (lazy loaded)

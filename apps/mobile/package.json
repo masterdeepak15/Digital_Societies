@@ -35,7 +35,10 @@
     "react-native-mmkv":             "^2.12.2",
     "date-fns":                      "^3.6.0",
     "react-hook-form":               "^7.52.0",
-    "zod":                           "^3.23.8"
+    "zod":                           "^3.23.8",
+    "@microsoft/signalr":            "^8.0.7",
+    "expo-image-picker":             "~15.0.7",
+    "@netinfo":                      "^11.3.1"
   },
   "devDependencies": {
     "@babel/core":     "^7.24.0",

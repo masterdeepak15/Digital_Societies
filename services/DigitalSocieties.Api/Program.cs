@@ -4,9 +4,19 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using DigitalSocieties.Identity.Infrastructure;
 using DigitalSocieties.Identity.Infrastructure.Security;
+using DigitalSocieties.Billing.Infrastructure;
+using DigitalSocieties.Visitor.Infrastructure;
+using DigitalSocieties.Complaint.Infrastructure;
+using DigitalSocieties.Communication.Infrastructure;
+using DigitalSocieties.Communication.Infrastructure.Hubs;
 using DigitalSocieties.Api.Middleware;
 using DigitalSocieties.Api.Extensions;
 using DigitalSocieties.Api.Endpoints.Identity;
+using DigitalSocieties.Api.Endpoints.Billing;
+using DigitalSocieties.Api.Endpoints.Visitor;
+using DigitalSocieties.Api.Endpoints.Complaint;
+using DigitalSocieties.Api.Endpoints.Notice;
+using DigitalSocieties.Api.Infrastructure.Storage;
 
 // ── Bootstrap logger (captures startup errors before Serilog is fully configured)
 Log.Logger = new LoggerConfiguration()
@@ -34,7 +44,7 @@ try
 
     // ── Services ──────────────────────────────────────────────────────────────
 
-    // Redis (used for rate limiting + refresh token allow-list)
+    // Redis (rate limiting + refresh token allow-list)
     builder.Services.AddStackExchangeRedisCache(opts =>
         opts.Configuration = config.GetConnectionString("Redis"));
 
@@ -57,7 +67,7 @@ try
                 ClockSkew                = TimeSpan.FromSeconds(30),
             };
 
-            // Support JWT in SignalR query string (for WebSocket connections)
+            // Support JWT in SignalR WebSocket query string
             opts.Events = new JwtBearerEvents
             {
                 OnMessageReceived = ctx =>
@@ -73,15 +83,16 @@ try
 
     builder.Services.AddAuthorization(opts =>
     {
-        opts.AddPolicy("AdminOnly",     p => p.RequireClaim("role", "admin"));
+        opts.AddPolicy("AdminOnly",       p => p.RequireClaim("role", "admin"));
         opts.AddPolicy("ResidentOrAdmin", p => p.RequireClaim("role", "resident", "admin"));
-        opts.AddPolicy("GuardOnly",     p => p.RequireClaim("role", "guard"));
+        opts.AddPolicy("GuardOnly",       p => p.RequireClaim("role", "guard"));
+        opts.AddPolicy("GuardOrAdmin",    p => p.RequireClaim("role", "guard", "admin"));
     });
 
     // HttpContext accessor (for ICurrentUser middleware)
     builder.Services.AddHttpContextAccessor();
 
-    // ICurrentUser — extracted from JWT by middleware, available everywhere via DI
+    // ICurrentUser — extracted from JWT, available everywhere via DI
     builder.Services.AddScoped<DigitalSocieties.Shared.Contracts.ICurrentUser,
                                DigitalSocieties.Api.Middleware.JwtCurrentUser>();
 
@@ -107,10 +118,19 @@ try
     // OpenAPI / Scalar (replaces Swagger UI — cleaner, works with .NET 8 minimal APIs)
     builder.Services.AddOpenApi();
 
-    // ── Domain modules (each module registers its own dependencies via extension method)
+    // ── Domain modules (each registers its own EF context, MediatR handlers, etc.)
+    // OCP: adding a new module = one line here, no changes anywhere else
     builder.Services.AddIdentityModule(config);
+    builder.Services.AddBillingModule(config);
+    builder.Services.AddVisitorModule(config);
+    builder.Services.AddComplaintModule(config);
+    builder.Services.AddCommunicationModule(config);   // ← registers SignalRHubNotifier, overriding NullHubNotifier
 
-    // ── MediatR pipeline behaviors (order matters: logging → validation → handler)
+    // ── IStorageProvider — MinIO S3-compatible (OCP: swap to AWS S3 by changing this line)
+    builder.Services.Configure<MinioSettings>(config.GetSection(MinioSettings.SectionName));
+    builder.Services.AddScoped<DigitalSocieties.Shared.Contracts.IStorageProvider, MinioStorageProvider>();
+
+    // ── MediatR pipeline behaviors (order: logging → validation → handler)
     builder.Services.AddMediatR(cfg =>
     {
         cfg.RegisterServicesFromAssembly(typeof(Program).Assembly);
@@ -120,8 +140,12 @@ try
 
     builder.Services.AddFluentValidationAutoValidation();
 
-    // SignalR (real-time notifications for visitor approvals, alerts)
-    builder.Services.AddSignalR();
+    // SignalR — real-time push for visitor approvals, notices, emergencies
+    builder.Services.AddSignalR(opts =>
+    {
+        opts.EnableDetailedErrors = !builder.Environment.IsProduction();
+        opts.MaximumReceiveMessageSize = 32 * 1024; // 32 KB
+    });
 
     // ── Build the app ─────────────────────────────────────────────────────────
     var app = builder.Build();
@@ -130,7 +154,8 @@ try
     app.UseIpRateLimiting();
 
     app.UseSerilogRequestLogging(opts =>
-        opts.MessageTemplate = "HTTP {RequestMethod} {RequestPath} responded {StatusCode} in {Elapsed:0.0000}ms");
+        opts.MessageTemplate =
+            "HTTP {RequestMethod} {RequestPath} responded {StatusCode} in {Elapsed:0.0000}ms");
 
     app.UseExceptionHandler(appBuilder => appBuilder.Run(GlobalExceptionHandler.HandleAsync));
 
@@ -140,14 +165,22 @@ try
     app.UseHttpsRedirection();
     app.UseCors("Default");
     app.UseAuthentication();
-    app.UseMiddleware<TenantResolutionMiddleware>();   // extracts society_id from JWT → sets DB RLS
+    app.UseMiddleware<TenantResolutionMiddleware>();   // sets Postgres RLS variable per request
     app.UseAuthorization();
 
-    // ── Endpoint registration (each module registers its own endpoints) ───────
+    // ── Endpoint registration ─────────────────────────────────────────────────
     app.MapGroup("/api/v1/auth").MapIdentityEndpoints();
+    app.MapGroup("/api/v1/billing").MapBillingEndpoints();
+    app.MapGroup("/api/v1/visitors").MapVisitorEndpoints();
+    app.MapGroup("/api/v1/complaints").MapComplaintEndpoints();
+    app.MapGroup("/api/v1/notices").MapNoticeEndpoints();
+
+    // SignalR Hub — clients connect at wss://{host}/hubs/society?access_token={jwt}
+    app.MapHub<SocietyHub>("/hubs/society");
+
     app.MapHealthChecks("/health");
 
-    // ── Auto-migrate on startup (dev only — use flyway/liquibase in prod) ─────
+    // ── Auto-migrate on startup (dev only — use Flyway / Liquibase in prod) ───
     if (app.Environment.IsDevelopment())
         await app.Services.MigrateAsync();
 

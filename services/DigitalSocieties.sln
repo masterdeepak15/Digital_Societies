@@ -8,6 +8,14 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DigitalSocieties.Shared", "
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DigitalSocieties.Identity", "DigitalSocieties.Identity\DigitalSocieties.Identity.csproj", "{A1B2C3D4-0002-0000-0000-000000000002}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DigitalSocieties.Billing", "DigitalSocieties.Billing\DigitalSocieties.Billing.csproj", "{A1B2C3D4-0004-0000-0000-000000000004}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DigitalSocieties.Visitor", "DigitalSocieties.Visitor\DigitalSocieties.Visitor.csproj", "{A1B2C3D4-0005-0000-0000-000000000005}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DigitalSocieties.Complaint", "DigitalSocieties.Complaint\DigitalSocieties.Complaint.csproj", "{A1B2C3D4-0006-0000-0000-000000000006}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DigitalSocieties.Communication", "DigitalSocieties.Communication\DigitalSocieties.Communication.csproj", "{A1B2C3D4-0007-0000-0000-000000000007}"
+EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DigitalSocieties.Api", "DigitalSocieties.Api\DigitalSocieties.Api.csproj", "{A1B2C3D4-0003-0000-0000-000000000003}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{A1B2C3D4-AAAA-0000-0000-000000000000}"
@@ -25,6 +33,14 @@ Global
     {A1B2C3D4-0001-0000-0000-000000000001}.Debug|Any CPU.Build.0 = Debug|Any CPU
     {A1B2C3D4-0002-0000-0000-000000000002}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
     {A1B2C3D4-0002-0000-0000-000000000002}.Debug|Any CPU.Build.0 = Debug|Any CPU
+    {A1B2C3D4-0004-0000-0000-000000000004}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+    {A1B2C3D4-0004-0000-0000-000000000004}.Debug|Any CPU.Build.0 = Debug|Any CPU
+    {A1B2C3D4-0005-0000-0000-000000000005}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+    {A1B2C3D4-0005-0000-0000-000000000005}.Debug|Any CPU.Build.0 = Debug|Any CPU
+    {A1B2C3D4-0006-0000-0000-000000000006}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+    {A1B2C3D4-0006-0000-0000-000000000006}.Debug|Any CPU.Build.0 = Debug|Any CPU
+    {A1B2C3D4-0007-0000-0000-000000000007}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+    {A1B2C3D4-0007-0000-0000-000000000007}.Debug|Any CPU.Build.0 = Debug|Any CPU
     {A1B2C3D4-0003-0000-0000-000000000003}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
     {A1B2C3D4-0003-0000-0000-000000000003}.Debug|Any CPU.Build.0 = Debug|Any CPU
     {A1B2C3D4-0010-0000-0000-000000000010}.Debug|Any CPU.ActiveCfg = Debug|Any CPU

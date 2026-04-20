@@ -7,21 +7,30 @@
     <UserSecretsId>digital-societies-api</UserSecretsId>
   </PropertyGroup>
   <ItemGroup>
+    <!-- Domain modules — DIP: Api depends on abstractions, not concrete DBs -->
     <ProjectReference Include="..\DigitalSocieties.Shared\DigitalSocieties.Shared.csproj" />
     <ProjectReference Include="..\DigitalSocieties.Identity\DigitalSocieties.Identity.csproj" />
+    <ProjectReference Include="..\DigitalSocieties.Billing\DigitalSocieties.Billing.csproj" />
+    <ProjectReference Include="..\DigitalSocieties.Visitor\DigitalSocieties.Visitor.csproj" />
+    <ProjectReference Include="..\DigitalSocieties.Complaint\DigitalSocieties.Complaint.csproj" />
+    <ProjectReference Include="..\DigitalSocieties.Communication\DigitalSocieties.Communication.csproj" />
   </ItemGroup>
   <ItemGroup>
-    <PackageReference Include="MediatR"                               Version="12.2.0" />
-    <PackageReference Include="FluentValidation.AspNetCore"           Version="11.3.0" />
+    <PackageReference Include="MediatR"                                     Version="12.2.0" />
+    <PackageReference Include="FluentValidation.AspNetCore"                  Version="11.3.0" />
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="8.0.4" />
-    <PackageReference Include="AspNetCoreRateLimit"                   Version="5.0.0" />
-    <PackageReference Include="Serilog.AspNetCore"                    Version="8.0.1" />
-    <PackageReference Include="Serilog.Sinks.Console"                 Version="5.0.1" />
-    <PackageReference Include="OpenTelemetry.Extensions.Hosting"      Version="1.8.1" />
-    <PackageReference Include="OpenTelemetry.Instrumentation.AspNetCore" Version="1.8.1" />
-    <PackageReference Include="Scalar.AspNetCore"                     Version="1.2.24" />
-    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL"  Version="8.0.4" />
-    <PackageReference Include="StackExchange.Redis"                   Version="2.7.33" />
+    <PackageReference Include="AspNetCoreRateLimit"                          Version="5.0.0" />
+    <PackageReference Include="Serilog.AspNetCore"                           Version="8.0.1" />
+    <PackageReference Include="Serilog.Sinks.Console"                        Version="5.0.1" />
+    <PackageReference Include="OpenTelemetry.Extensions.Hosting"             Version="1.8.1" />
+    <PackageReference Include="OpenTelemetry.Instrumentation.AspNetCore"     Version="1.8.1" />
+    <PackageReference Include="Scalar.AspNetCore"                            Version="1.2.24" />
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL"        Version="8.0.4" />
+    <PackageReference Include="StackExchange.Redis"                          Version="2.7.33" />
     <PackageReference Include="Microsoft.Extensions.Caching.StackExchangeRedis" Version="8.0.4" />
+    <!-- MinIO S3-compatible object storage -->
+    <PackageReference Include="Minio"                                        Version="6.0.3" />
+    <!-- SignalR for real-time push -->
+    <PackageReference Include="Microsoft.AspNetCore.SignalR"                 Version="8.0.4" />
   </ItemGroup>
 </Project>
