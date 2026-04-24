@@ -84,7 +84,6 @@ internal sealed class ReportPostCommandHandler(SocialDbContext db)
 
         var report = new Domain.Entities.PostReport
         {
-            Id              = Guid.NewGuid(),
             PostId          = request.PostId,
             ReportedByUserId = request.ReportedByUserId,
             Reason          = request.Reason ?? string.Empty,

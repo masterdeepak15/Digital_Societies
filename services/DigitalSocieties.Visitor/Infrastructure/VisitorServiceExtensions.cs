@@ -12,7 +12,8 @@ public static class VisitorServiceExtensions
     public static IServiceCollection AddVisitorModule(
         this IServiceCollection services, IConfiguration config)
     {
-        services.Configure<QrTokenSettings>(config.GetSection(QrTokenSettings.SectionName));
+        services.Configure<QrTokenSettings>(
+            options => config.GetSection(QrTokenSettings.SectionName).Bind(options));
 
         services.AddDbContext<VisitorDbContext>(opts =>
             opts.UseNpgsql(config.GetConnectionString("Postgres"),

@@ -3,8 +3,6 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using DigitalSocieties.Identity.Infrastructure.Persistence;
 
-[assembly: DbContext(typeof(IdentityDbContext))]
-
 namespace DigitalSocieties.Identity.Infrastructure.Persistence.Migrations;
 
 [DbContext(typeof(IdentityDbContext))]

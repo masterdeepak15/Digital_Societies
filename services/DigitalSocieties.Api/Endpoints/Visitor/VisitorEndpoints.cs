@@ -43,7 +43,7 @@ public static class VisitorEndpoints
             ICurrentUser currentUser,
             CancellationToken ct) =>
         {
-            var cmd = new ApproveVisitorCommand(visitorId, currentUser.UserId, currentUser.SocietyId!.Value);
+            var cmd = new ApproveVisitorCommand(visitorId);
             var result = await mediator.Send(cmd, ct);
             return result.IsSuccess
                 ? Results.Ok(new { qrToken = result.Value })  // QR token → guard scans to allow entry
@@ -63,7 +63,7 @@ public static class VisitorEndpoints
             ICurrentUser currentUser,
             CancellationToken ct) =>
         {
-            var cmd = new RejectVisitorCommand(visitorId, currentUser.UserId, body.Reason);
+            var cmd = new RejectVisitorCommand(visitorId, currentUser.UserId!.Value, body.Reason);
             var result = await mediator.Send(cmd, ct);
             return result.IsSuccess
                 ? Results.Ok()

@@ -34,24 +34,26 @@ public sealed class MinioStorageProvider : IStorageProvider
 
     // ── IStorageProvider: Upload (server-side, for small files like OTP proof) ──
     public async Task<string> UploadAsync(
-        string objectKey,
-        Stream data,
-        string contentType,
+        UploadRequest request,
         CancellationToken ct = default)
     {
         await EnsureBucketExistsAsync(ct);
 
+        var bucket = string.IsNullOrWhiteSpace(request.Bucket) ? _settings.BucketName : request.Bucket;
+        var objectKey = string.IsNullOrWhiteSpace(request.Prefix)
+            ? request.FileName
+            : $"{request.Prefix.TrimEnd('/')}/{request.FileName}";
+
         var putArgs = new PutObjectArgs()
-            .WithBucket(_settings.BucketName)
+            .WithBucket(bucket)
             .WithObject(objectKey)
-            .WithStreamData(data)
-            .WithObjectSize(data.Length)
-            .WithContentType(contentType);
+            .WithStreamData(request.Content)
+            .WithObjectSize(request.Content.Length)
+            .WithContentType(request.ContentType);
 
         await _minio.PutObjectAsync(putArgs, ct);
 
-        _logger.LogInformation("Uploaded {ObjectKey} to MinIO bucket {Bucket}",
-            objectKey, _settings.BucketName);
+        _logger.LogInformation("Uploaded {ObjectKey} to MinIO bucket {Bucket}", objectKey, bucket);
 
         return BuildPublicKey(objectKey);
     }
@@ -62,22 +64,23 @@ public sealed class MinioStorageProvider : IStorageProvider
     /// This means no file payload passes through the API server — scalable and cheap.
     /// </summary>
     public async Task<string> GetPresignedUrlAsync(
-        string objectKey,
-        int ttlSeconds = 0,
+        string key,
+        TimeSpan expires,
         CancellationToken ct = default)
     {
         await EnsureBucketExistsAsync(ct);
 
-        var expiry = ttlSeconds > 0 ? ttlSeconds : _settings.PresignedUploadTtlSeconds;
+        var ttlSeconds = (int)expires.TotalSeconds;
+        if (ttlSeconds <= 0) ttlSeconds = _settings.PresignedUploadTtlSeconds;
 
         var presignArgs = new PresignedPutObjectArgs()
             .WithBucket(_settings.BucketName)
-            .WithObject(objectKey)
-            .WithExpiry(expiry);
+            .WithObject(key)
+            .WithExpiry(ttlSeconds);
 
         var url = await _minio.PresignedPutObjectAsync(presignArgs);
 
-        _logger.LogDebug("Generated pre-signed PUT URL for {ObjectKey} (TTL={Ttl}s)", objectKey, expiry);
+        _logger.LogDebug("Generated pre-signed PUT URL for {ObjectKey} (TTL={Ttl}s)", key, ttlSeconds);
 
         return url;
     }

@@ -41,7 +41,7 @@ public static class BillingEndpoints
             IMediator mediator,
             CancellationToken ct) =>
         {
-            var query = new GetSocietyBillSummaryQuery(societyId, year, month);
+            var query = new GetSocietyBillSummaryQuery(societyId, $"{year}-{month:D2}");
             var result = await mediator.Send(query, ct);
             return result.IsSuccess
                 ? Results.Ok(result.Value)
@@ -84,7 +84,7 @@ public static class BillingEndpoints
             ICurrentUser currentUser,
             CancellationToken ct) =>
         {
-            var cmd = new InitiatePaymentCommand(billId, currentUser.UserId);
+            var cmd = new InitiatePaymentCommand(billId);
             var result = await mediator.Send(cmd, ct);
             return result.IsSuccess
                 ? Results.Ok(result.Value)
@@ -108,7 +108,20 @@ public static class BillingEndpoints
             var rawBody = await reader.ReadToEndAsync(ct);
 
             var signature = request.Headers["X-Razorpay-Signature"].ToString();
-            var cmd = new VerifyPaymentWebhookCommand(rawBody, signature);
+
+            // Parse payment IDs from Razorpay webhook payload
+            string gatewayPaymentId = "", gatewayOrderId = "";
+            try
+            {
+                using var doc = System.Text.Json.JsonDocument.Parse(rawBody);
+                var entity = doc.RootElement
+                    .GetProperty("payload").GetProperty("payment").GetProperty("entity");
+                gatewayPaymentId = entity.GetProperty("id").GetString() ?? "";
+                gatewayOrderId   = entity.GetProperty("order_id").GetString() ?? "";
+            }
+            catch { /* Malformed payload — handler will fail HMAC and return error */ }
+
+            var cmd = new VerifyPaymentWebhookCommand(rawBody, signature, gatewayPaymentId, gatewayOrderId);
             var result = await mediator.Send(cmd, ct);
 
             // Always return 200 to Razorpay — they retry on non-200 (idempotent handler)

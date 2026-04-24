@@ -3,6 +3,7 @@ using FluentValidation;
 using DigitalSocieties.Shared.Results;
 using DigitalSocieties.Shared.Contracts;
 using DigitalSocieties.Complaint.Domain.Entities;
+using ComplaintEntity = DigitalSocieties.Complaint.Domain.Entities.Complaint;
 using DigitalSocieties.Complaint.Infrastructure.Persistence;
 
 namespace DigitalSocieties.Complaint.Application.Commands;
@@ -62,7 +63,7 @@ public sealed class RaiseComplaintCommandHandler
             return Result<RaiseComplaintResponse>.Fail(Error.Unauthorized());
 
         var priority = Enum.Parse<Priority>(cmd.Priority);
-        var complaint = Complaint.Create(
+        var complaint = ComplaintEntity.Create(
             cmd.SocietyId, cmd.FlatId, _currentUser.UserId.Value,
             cmd.Title, cmd.Description, cmd.Category, priority);
 

@@ -18,8 +18,7 @@ internal sealed class MarkVisitorExitedCommandHandler(VisitorDbContext db)
         if (visitor is null)
             return Result<bool>.Fail(new Error("Visitor.NotFound", "Visitor not found."));
 
-        var result = visitor.MarkExited();
-        if (!result.IsSuccess) return result;
+        visitor.MarkExited();   // void — sets ExitTime + status; no guard throws here
 
         await db.SaveChangesAsync(ct);
         return Result<bool>.Ok(true);

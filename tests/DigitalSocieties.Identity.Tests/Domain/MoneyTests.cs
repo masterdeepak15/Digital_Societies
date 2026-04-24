@@ -1,3 +1,4 @@
+using Xunit;
 using FluentAssertions;
 using DigitalSocieties.Shared.Domain.ValueObjects;
 

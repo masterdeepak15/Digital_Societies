@@ -20,7 +20,6 @@
     <PackageReference Include="MediatR"                                     Version="12.2.0" />
     <PackageReference Include="FluentValidation.AspNetCore"                  Version="11.3.0" />
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="8.0.4" />
-    <PackageReference Include="AspNetCoreRateLimit"                          Version="5.0.0" />
     <PackageReference Include="Serilog.AspNetCore"                           Version="8.0.1" />
     <PackageReference Include="Serilog.Sinks.Console"                        Version="5.0.1" />
     <PackageReference Include="OpenTelemetry.Extensions.Hosting"             Version="1.8.1" />
@@ -31,7 +30,6 @@
     <PackageReference Include="Microsoft.Extensions.Caching.StackExchangeRedis" Version="8.0.4" />
     <!-- MinIO S3-compatible object storage -->
     <PackageReference Include="Minio"                                        Version="6.0.3" />
-    <!-- SignalR for real-time push -->
-    <PackageReference Include="Microsoft.AspNetCore.SignalR"                 Version="8.0.4" />
+    <!-- SignalR is included in Microsoft.NET.Sdk.Web — no separate NuGet package needed for .NET 8 -->
   </ItemGroup>
 </Project>

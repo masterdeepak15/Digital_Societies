@@ -19,9 +19,8 @@ public static class BillingServiceExtensions
             opts.UseNpgsql(config.GetConnectionString("Postgres"),
                 npg => npg.MigrationsHistoryTable("__ef_migrations", "billing")));
 
-        // Razorpay HTTP client with retry policy
-        services.AddHttpClient("razorpay")
-            .AddStandardResilienceHandler();
+        // Razorpay HTTP client (add Microsoft.Extensions.Http.Resilience for retry in prod)
+        services.AddHttpClient("razorpay");
 
         // OCP: Register Razorpay as IPaymentProvider — add Cashfree here too when needed
         services.AddScoped<IPaymentProvider, RazorpayProvider>();

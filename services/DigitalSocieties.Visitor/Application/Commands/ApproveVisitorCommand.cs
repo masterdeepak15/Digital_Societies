@@ -11,8 +11,6 @@ namespace DigitalSocieties.Visitor.Application.Commands;
 public sealed record ApproveVisitorCommand(Guid VisitorId) : IRequest<Result<ApproveVisitorResponse>>;
 public sealed record ApproveVisitorResponse(Guid VisitorId, string QrToken);
 
-public sealed class RejectVisitorCommand(Guid VisitorId, string Reason) : IRequest<Result>;
-
 public sealed class ApproveVisitorCommandHandler
     : IRequestHandler<ApproveVisitorCommand, Result<ApproveVisitorResponse>>
 {
@@ -57,33 +55,3 @@ public sealed class ApproveVisitorCommandHandler
     }
 }
 
-public sealed class RejectVisitorCommandHandler
-    : IRequestHandler<RejectVisitorCommand, Result>
-{
-    private readonly VisitorDbContext    _db;
-    private readonly ICurrentUser        _currentUser;
-    private readonly ISocietyHubNotifier _hub;
-
-    public RejectVisitorCommandHandler(VisitorDbContext db, ICurrentUser cu, ISocietyHubNotifier hub)
-    { _db = db; _currentUser = cu; _hub = hub; }
-
-    public async Task<Result> Handle(RejectVisitorCommand cmd, CancellationToken ct)
-    {
-        var visitor = await _db.Visitors.FindAsync([cmd.VisitorId], ct);
-        if (visitor is null) return Result.Fail(Error.NotFound("Visitor", cmd.VisitorId));
-        if (_currentUser.FlatId != visitor.FlatId)
-            return Result.Fail(Error.Unauthorized());
-
-        visitor.Reject(_currentUser.UserId!.Value, cmd.Reason);
-        await _db.SaveChangesAsync(ct);
-
-        await _hub.NotifySocietyGuardsAsync(visitor.SocietyId, "VisitorRejected", new
-        {
-            visitorId = visitor.Id,
-            name      = visitor.Name,
-            reason    = cmd.Reason,
-        }, ct);
-
-        return Result.Ok();
-    }
-}

@@ -8,9 +8,9 @@ namespace DigitalSocieties.Complaint.Application.Queries;
 public record GetComplaintDetailQuery(Guid ComplaintId) : IRequest<Result<ComplaintDetailDto>>;
 
 public record ComplaintUpdateDto(
-    string Note,
+    string Comment,
     string Status,
-    Guid UpdatedByUserId,
+    Guid UpdatedBy,
     DateTimeOffset UpdatedAt);
 
 public record ComplaintDetailDto(
@@ -23,8 +23,8 @@ public record ComplaintDetailDto(
     string Status,
     Guid SocietyId,
     Guid FlatId,
-    Guid RaisedByUserId,
-    Guid? AssignedToUserId,
+    Guid RaisedBy,
+    Guid? AssignedTo,
     IReadOnlyList<string> ImageUrls,
     IReadOnlyList<ComplaintUpdateDto> Updates,
     DateTimeOffset CreatedAt,
@@ -43,21 +43,27 @@ internal sealed class GetComplaintDetailQueryHandler(ComplaintDbContext db)
             return Result<ComplaintDetailDto>.Fail(
                 new Error("Complaint.NotFound", "Complaint not found."));
 
+        var ticket = $"C-{complaint.CreatedAt.Year}-{complaint.Id.ToString("N")[..4].ToUpper()}";
+
         var dto = new ComplaintDetailDto(
             complaint.Id,
-            complaint.TicketNumber,
+            ticket,
             complaint.Title,
             complaint.Description,
             complaint.Category,
-            complaint.Priority,
-            complaint.Status,
+            complaint.Priority.ToString(),
+            complaint.Status.ToString(),
             complaint.SocietyId,
             complaint.FlatId,
-            complaint.RaisedByUserId,
-            complaint.AssignedToUserId,
+            complaint.RaisedBy,
+            complaint.AssignedTo,
             complaint.ImageUrls,
             complaint.Updates.Select(u =>
-                new ComplaintUpdateDto(u.Note, u.Status, u.UpdatedByUserId, u.UpdatedAt))
+                new ComplaintUpdateDto(
+                    u.Comment,
+                    u.Status.ToString(),
+                    u.UpdatedBy,
+                    u.CreatedAt))
                 .ToList(),
             complaint.CreatedAt,
             complaint.ResolvedAt);

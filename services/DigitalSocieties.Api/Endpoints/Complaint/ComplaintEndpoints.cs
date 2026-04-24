@@ -45,10 +45,10 @@ public static class ComplaintEndpoints
             IMediator mediator,
             CancellationToken ct) =>
         {
-            var cmd = new GetComplaintUploadUrlCommand(complaintId, body.FileName);
+            var cmd = new GetComplaintUploadUrlCommand(body.FileName, "image/jpeg");
             var result = await mediator.Send(cmd, ct);
             return result.IsSuccess
-                ? Results.Ok(new { uploadUrl = result.Value.PresignedUrl, objectKey = result.Value.ObjectKey })
+                ? Results.Ok(new { uploadUrl = result.Value.UploadUrl, objectKey = result.Value.ObjectKey })
                 : Results.BadRequest(result.Error);
         })
         .RequireAuthorization("ResidentOrAdmin")
@@ -66,7 +66,7 @@ public static class ComplaintEndpoints
             ICurrentUser currentUser,
             CancellationToken ct) =>
         {
-            var cmd = new AssignComplaintCommand(complaintId, body.AssigneeId, body.Note, currentUser.UserId);
+            var cmd = new AssignComplaintCommand(complaintId, body.AssigneeId, body.Note, currentUser.UserId!.Value);
             var result = await mediator.Send(cmd, ct);
             return result.IsSuccess ? Results.Ok() : Results.BadRequest(result.Error);
         })
@@ -86,7 +86,7 @@ public static class ComplaintEndpoints
             CancellationToken ct) =>
         {
             var cmd = new UpdateComplaintStatusCommand(
-                complaintId, body.Status, body.Note, currentUser.UserId);
+                complaintId, body.Status, body.Note, currentUser.UserId!.Value);
             var result = await mediator.Send(cmd, ct);
             return result.IsSuccess ? Results.Ok() : Results.BadRequest(result.Error);
         })
@@ -106,7 +106,7 @@ public static class ComplaintEndpoints
             CancellationToken ct) =>
         {
             var query = new GetMyComplaintsQuery(
-                currentUser.UserId,
+                currentUser.UserId!.Value,
                 status,
                 page <= 0 ? 1 : page,
                 pageSize is <= 0 or > 100 ? 20 : pageSize);

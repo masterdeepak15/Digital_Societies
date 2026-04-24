@@ -14,7 +14,7 @@ public record NoticeDetailDto(
     string Type,
     bool IsPinned,
     Guid SocietyId,
-    Guid PostedByUserId,
+    Guid PostedBy,
     DateTimeOffset CreatedAt,
     DateTimeOffset? ExpiresAt);
 
@@ -32,8 +32,8 @@ internal sealed class GetNoticeDetailQueryHandler(CommunicationDbContext db)
                 new Error("Notice.NotFound", "Notice not found."));
 
         return Result<NoticeDetailDto>.Ok(new NoticeDetailDto(
-            notice.Id, notice.Title, notice.Body, notice.Type,
-            notice.IsPinned, notice.SocietyId, notice.PostedByUserId,
+            notice.Id, notice.Title, notice.Body, notice.Type.ToString(),
+            notice.IsPinned, notice.SocietyId, notice.PostedBy,
             notice.CreatedAt, notice.ExpiresAt));
     }
 }

@@ -4,6 +4,7 @@ using DigitalSocieties.Shared.Results;
 using DigitalSocieties.Shared.Contracts;
 using DigitalSocieties.Identity.Infrastructure.Services;
 using DigitalSocieties.Identity.Infrastructure.Security;
+using DigitalSocieties.Identity.Infrastructure.Persistence;
 using DigitalSocieties.Identity.Domain.Entities;
 using DigitalSocieties.Identity.Domain.Events;
 
@@ -85,7 +86,7 @@ public sealed class VerifyOtpCommandHandler : IRequestHandler<VerifyOtpCommand, 
         if (isNew)
         {
             user = User.Create(
-                (await DigitalSocieties.Shared.Domain.ValueObjects.PhoneNumber.Create(request.Phone)).Value!,
+                DigitalSocieties.Shared.Domain.ValueObjects.PhoneNumber.Create(request.Phone).Value!,
                 "New User");
         }
 
@@ -101,7 +102,7 @@ public sealed class VerifyOtpCommandHandler : IRequestHandler<VerifyOtpCommand, 
         else
             _users.Update(user);
 
-        user.Raise(new OtpVerifiedEvent(request.Phone, request.Purpose, request.DeviceId));
+        // OtpVerifiedEvent raised internally by user.MarkVerified() domain method
         await _uow.CommitAsync(ct);
 
         // Issue JWT

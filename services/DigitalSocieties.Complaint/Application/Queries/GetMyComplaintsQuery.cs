@@ -1,5 +1,6 @@
 using MediatR;
 using DigitalSocieties.Shared.Results;
+using DigitalSocieties.Complaint.Domain.Entities;
 using DigitalSocieties.Complaint.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 
@@ -34,21 +35,32 @@ internal sealed class GetMyComplaintsQueryHandler(ComplaintDbContext db)
         GetMyComplaintsQuery request, CancellationToken ct)
     {
         var query = db.Complaints
-            .Where(c => c.RaisedByUserId == request.UserId && !c.IsDeleted);
+            .Where(c => c.RaisedBy == request.UserId && !c.IsDeleted);
 
-        if (!string.IsNullOrWhiteSpace(request.Status))
-            query = query.Where(c => c.Status == request.Status);
+        // Filter by status enum when provided
+        if (!string.IsNullOrWhiteSpace(request.Status) &&
+            Enum.TryParse<ComplaintStatus>(request.Status, ignoreCase: true, out var statusEnum))
+            query = query.Where(c => c.Status == statusEnum);
 
         var total = await query.CountAsync(ct);
 
-        var items = await query
+        // Fetch entities, project ticket number client-side (EF can't translate Id.ToString("N"))
+        var raw = await query
             .OrderByDescending(c => c.CreatedAt)
             .Skip((request.Page - 1) * request.PageSize)
             .Take(request.PageSize)
-            .Select(c => new ComplaintSummaryDto(
-                c.Id, c.TicketNumber, c.Title, c.Category,
-                c.Priority, c.Status, c.CreatedAt, c.ResolvedAt))
             .ToListAsync(ct);
+
+        var items = raw.Select(c => new ComplaintSummaryDto(
+            c.Id,
+            $"C-{c.CreatedAt.Year}-{c.Id.ToString("N")[..4].ToUpper()}",
+            c.Title,
+            c.Category,
+            c.Priority.ToString(),
+            c.Status.ToString(),
+            c.CreatedAt,
+            c.ResolvedAt
+        )).ToList();
 
         return Result<ComplaintPagedResult>.Ok(
             new ComplaintPagedResult(items, total, request.Page, request.PageSize));

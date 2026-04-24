@@ -4,6 +4,7 @@ using DigitalSocieties.Shared.Results;
 using DigitalSocieties.Shared.Domain.ValueObjects;
 using DigitalSocieties.Billing.Domain.Entities;
 using DigitalSocieties.Billing.Infrastructure.Persistence;
+using Microsoft.EntityFrameworkCore;
 
 namespace DigitalSocieties.Billing.Application.Commands;
 

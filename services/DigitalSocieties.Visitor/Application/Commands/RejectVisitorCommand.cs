@@ -19,8 +19,9 @@ internal sealed class RejectVisitorCommandHandler(VisitorDbContext db)
         if (visitor is null)
             return Result<bool>.Fail(new Error("Visitor.NotFound", "Visitor not found."));
 
-        var rejectResult = visitor.Reject(request.RejectedByUserId, request.Reason);
-        if (!rejectResult.IsSuccess) return rejectResult;
+        try { visitor.Reject(request.RejectedByUserId, request.Reason ?? string.Empty); }
+        catch (InvalidOperationException ex)
+            { return Result<bool>.Fail(new Error("Visitor.InvalidState", ex.Message)); }
 
         await db.SaveChangesAsync(ct);
         return Result<bool>.Ok(true);

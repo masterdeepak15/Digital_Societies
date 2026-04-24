@@ -22,7 +22,7 @@ internal sealed class AssignComplaintCommandHandler(ComplaintDbContext db)
         if (complaint is null)
             return Result<bool>.Fail(new Error("Complaint.NotFound", "Complaint not found."));
 
-        complaint.Assign(request.AssigneeId, request.AssignedByUserId, request.Note);
+        complaint.Assign(request.AssigneeId, request.Note);
         await db.SaveChangesAsync(ct);
         return Result<bool>.Ok(true);
     }

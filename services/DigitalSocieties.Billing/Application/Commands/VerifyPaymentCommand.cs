@@ -2,6 +2,7 @@ using MediatR;
 using DigitalSocieties.Shared.Results;
 using DigitalSocieties.Shared.Contracts;
 using DigitalSocieties.Billing.Infrastructure.Persistence;
+using Microsoft.EntityFrameworkCore;
 
 namespace DigitalSocieties.Billing.Application.Commands;
 

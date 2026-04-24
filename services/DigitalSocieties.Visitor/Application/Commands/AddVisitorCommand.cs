@@ -3,6 +3,7 @@ using FluentValidation;
 using DigitalSocieties.Shared.Results;
 using DigitalSocieties.Shared.Contracts;
 using DigitalSocieties.Visitor.Domain.Entities;
+using VisitorEntity = DigitalSocieties.Visitor.Domain.Entities.Visitor;
 using DigitalSocieties.Visitor.Infrastructure.Persistence;
 using DigitalSocieties.Visitor.Infrastructure.Hubs;
 
@@ -63,10 +64,11 @@ public sealed class AddVisitorCommandHandler
     public async Task<Result<AddVisitorResponse>> Handle(
         AddVisitorCommand cmd, CancellationToken ct)
     {
-        var guardId = _currentUser.UserId
-            ?? return Result<AddVisitorResponse>.Fail(Error.Unauthorized());
+        if (_currentUser.UserId is null)
+            return Result<AddVisitorResponse>.Fail(Error.Unauthorized());
+        var guardId = _currentUser.UserId.Value;
 
-        var visitor = Visitor.Create(cmd.SocietyId, cmd.FlatId,
+        var visitor = VisitorEntity.Create(cmd.SocietyId, cmd.FlatId,
                                      cmd.Name, cmd.Phone, cmd.Purpose,
                                      guardId);
 

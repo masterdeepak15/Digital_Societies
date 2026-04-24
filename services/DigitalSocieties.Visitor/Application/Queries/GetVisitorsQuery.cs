@@ -1,5 +1,6 @@
 using MediatR;
 using DigitalSocieties.Shared.Results;
+using DigitalSocieties.Visitor.Domain.Entities;
 using DigitalSocieties.Visitor.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 
@@ -15,14 +16,14 @@ public record GetVisitorsQuery(
 public record VisitorDto(
     Guid Id,
     string VisitorName,
-    string VisitorPhone,
+    string? VisitorPhone,
     string Purpose,
     string Status,
     Guid FlatId,
     string? VehicleNumber,
     string? QrToken,
     DateTimeOffset CreatedAt,
-    DateTimeOffset? EntryTime,
+    DateTimeOffset EntryTime,
     DateTimeOffset? ExitTime);
 
 public record PagedResult<T>(IReadOnlyList<T> Items, int TotalCount, int Page, int PageSize);
@@ -39,28 +40,33 @@ internal sealed class GetVisitorsQueryHandler(VisitorDbContext db)
         if (request.FlatId.HasValue)
             query = query.Where(v => v.FlatId == request.FlatId.Value);
 
-        if (!string.IsNullOrWhiteSpace(request.Status))
-            query = query.Where(v => v.Status == request.Status);
+        // Parse Status string to enum for type-safe EF Core filter
+        if (!string.IsNullOrWhiteSpace(request.Status) &&
+            Enum.TryParse<VisitorStatus>(request.Status, ignoreCase: true, out var statusEnum))
+            query = query.Where(v => v.Status == statusEnum);
 
         var total = await query.CountAsync(ct);
 
-        var items = await query
+        // Fetch then project client-side: enum.ToString() not reliably translated by Npgsql
+        var raw = await query
             .OrderByDescending(v => v.CreatedAt)
             .Skip((request.Page - 1) * request.PageSize)
             .Take(request.PageSize)
-            .Select(v => new VisitorDto(
-                v.Id,
-                v.VisitorName,
-                v.VisitorPhone,
-                v.Purpose,
-                v.Status,
-                v.FlatId,
-                v.VehicleNumber,
-                v.QrToken,
-                v.CreatedAt,
-                v.EntryTime,
-                v.ExitTime))
             .ToListAsync(ct);
+
+        var items = raw.Select(v => new VisitorDto(
+            v.Id,
+            v.Name,          // domain property is Name, not VisitorName
+            v.Phone,         // domain property is Phone, not VisitorPhone
+            v.Purpose,
+            v.Status.ToString(),
+            v.FlatId,
+            v.VehicleNumber,
+            v.QrToken,
+            v.CreatedAt,
+            v.EntryTime,
+            v.ExitTime
+        )).ToList();
 
         return Result<PagedResult<VisitorDto>>.Ok(
             new PagedResult<VisitorDto>(items, total, request.Page, request.PageSize));

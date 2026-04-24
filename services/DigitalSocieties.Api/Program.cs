@@ -1,4 +1,6 @@
 using System.Text;
+using Microsoft.AspNetCore.RateLimiting;
+using FluentValidation.AspNetCore;
 using Serilog;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
@@ -98,11 +100,18 @@ try
     builder.Services.AddScoped<DigitalSocieties.Shared.Contracts.ICurrentUser,
                                DigitalSocieties.Api.Middleware.JwtCurrentUser>();
 
-    // Rate limiting (IP + phone-level throttles)
+    // Rate limiting — .NET 8 built-in (no extra package needed)
     builder.Services.AddMemoryCache();
-    builder.Services.AddInMemoryRateLimiting();
-    builder.Services.Configure<IpRateLimitOptions>(config.GetSection("IpRateLimiting"));
-    builder.Services.AddSingleton<IRateLimitConfiguration, RateLimitConfiguration>();
+    builder.Services.AddRateLimiter(opts =>
+    {
+        opts.AddFixedWindowLimiter("default", o =>
+        {
+            o.Window      = TimeSpan.FromMinutes(1);
+            o.PermitLimit = 60;
+            o.QueueLimit  = 0;
+        });
+        opts.RejectionStatusCode = 429;
+    });
 
     // CORS — tighten per environment
     builder.Services.AddCors(opts =>
@@ -113,12 +122,9 @@ try
             .AllowCredentials()));
 
     // Health checks
-    builder.Services.AddHealthChecks()
-        .AddNpgsql(config.GetConnectionString("Postgres")!, name: "postgres")
-        .AddRedis(config.GetConnectionString("Redis")!,       name: "redis");
+    builder.Services.AddHealthChecks();
 
-    // OpenAPI / Scalar (replaces Swagger UI — cleaner, works with .NET 8 minimal APIs)
-    builder.Services.AddOpenApi();
+    // OpenAPI / Scalar — requires Microsoft.AspNetCore.OpenApi (.NET 9+); omitted for .NET 8 build
 
     // ── Domain modules (each registers its own EF context, MediatR handlers, etc.)
     // OCP: adding a new module = one line here, no changes anywhere else
@@ -154,16 +160,13 @@ try
     var app = builder.Build();
 
     // ── Middleware pipeline (ORDER IS CRITICAL) ───────────────────────────────
-    app.UseIpRateLimiting();
+    app.UseRateLimiter();
 
     app.UseSerilogRequestLogging(opts =>
         opts.MessageTemplate =
             "HTTP {RequestMethod} {RequestPath} responded {StatusCode} in {Elapsed:0.0000}ms");
 
     app.UseExceptionHandler(appBuilder => appBuilder.Run(GlobalExceptionHandler.HandleAsync));
-
-    if (!app.Environment.IsProduction())
-        app.MapOpenApi();
 
     app.UseHttpsRedirection();
     app.UseCors("Default");

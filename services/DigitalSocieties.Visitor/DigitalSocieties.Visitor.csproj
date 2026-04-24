@@ -6,6 +6,9 @@
     <RootNamespace>DigitalSocieties.Visitor</RootNamespace>
   </PropertyGroup>
   <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+  <ItemGroup>
     <ProjectReference Include="..\DigitalSocieties.Shared\DigitalSocieties.Shared.csproj" />
   </ItemGroup>
   <ItemGroup>

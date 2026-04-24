@@ -1,5 +1,6 @@
 using MediatR;
 using DigitalSocieties.Shared.Results;
+using DigitalSocieties.Communication.Domain.Entities;
 using DigitalSocieties.Communication.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 
@@ -39,21 +40,24 @@ internal sealed class GetSocietyNoticesQueryHandler(CommunicationDbContext db)
                      && !n.IsDeleted
                      && (n.ExpiresAt == null || n.ExpiresAt > now));
 
-        if (!string.IsNullOrWhiteSpace(request.Type))
-            query = query.Where(n => n.Type == request.Type);
+        // Parse Type string to enum for type-safe EF Core filter
+        if (!string.IsNullOrWhiteSpace(request.Type) &&
+            Enum.TryParse<NoticeType>(request.Type, ignoreCase: true, out var typeEnum))
+            query = query.Where(n => n.Type == typeEnum);
 
         var total = await query.CountAsync(ct);
 
-        // Pinned notices first, then newest
-        var items = await query
+        // Fetch then project client-side: enum.ToString() not reliably translated by Npgsql
+        var raw = await query
             .OrderByDescending(n => n.IsPinned)
             .ThenByDescending(n => n.CreatedAt)
             .Skip((request.Page - 1) * request.PageSize)
             .Take(request.PageSize)
-            .Select(n => new NoticeSummaryDto(
-                n.Id, n.Title, n.Body, n.Type,
-                n.IsPinned, n.CreatedAt, n.ExpiresAt))
             .ToListAsync(ct);
+
+        var items = raw.Select(n => new NoticeSummaryDto(
+            n.Id, n.Title, n.Body, n.Type.ToString(),
+            n.IsPinned, n.CreatedAt, n.ExpiresAt)).ToList();
 
         return Result<NoticePagedResult>.Ok(
             new NoticePagedResult(items, total, request.Page, request.PageSize));

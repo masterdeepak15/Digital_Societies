@@ -48,7 +48,7 @@ public static class SocialEndpoints
             ICurrentUser currentUser,
             CancellationToken ct) =>
         {
-            var query = new GetPostDetailQuery(postId, currentUser.UserId);
+            var query = new GetPostDetailQuery(postId, currentUser.UserId!.Value);
             var result = await mediator.Send(query, ct);
             return result.IsSuccess ? Results.Ok(result.Value) : Results.NotFound(result.Error);
         })
@@ -87,7 +87,7 @@ public static class SocialEndpoints
                 return Results.BadRequest("Only .jpg, .png, .webp images are allowed.");
 
             var key = $"social/{currentUser.SocietyId}/{currentUser.UserId}/{Guid.NewGuid()}{ext}";
-            var url = await storage.GetPresignedUrlAsync(key, 900, ct);
+            var url = await storage.GetPresignedUrlAsync(key, TimeSpan.FromSeconds(900), ct);
             return Results.Ok(new { uploadUrl = url, objectKey = key });
         })
         .RequireAuthorization()
@@ -103,7 +103,7 @@ public static class SocialEndpoints
             ICurrentUser currentUser,
             CancellationToken ct) =>
         {
-            var cmd = new DeletePostCommand(postId, currentUser.UserId, currentUser.IsInRole("admin"));
+            var cmd = new DeletePostCommand(postId, currentUser.UserId!.Value, currentUser.IsInRole("admin"));
             var result = await mediator.Send(cmd, ct);
             return result.IsSuccess ? Results.NoContent() : Results.BadRequest(result.Error);
         })
@@ -153,7 +153,8 @@ public static class SocialEndpoints
             ICurrentUser currentUser,
             CancellationToken ct) =>
         {
-            var result = await mediator.Send(new ReactToPostCommand(postId, currentUser.UserId, body.Type), ct);
+            var result = await mediator.Send(
+                new ReactToPostCommand(postId, currentUser.UserId!.Value, body.Type), ct);
             return result.IsSuccess ? Results.Ok() : Results.BadRequest(result.Error);
         })
         .RequireAuthorization()
@@ -168,7 +169,8 @@ public static class SocialEndpoints
             ICurrentUser currentUser,
             CancellationToken ct) =>
         {
-            var result = await mediator.Send(new RemoveReactionCommand(postId, currentUser.UserId), ct);
+            var result = await mediator.Send(
+                new RemoveReactionCommand(postId, currentUser.UserId!.Value), ct);
             return result.IsSuccess ? Results.NoContent() : Results.BadRequest(result.Error);
         })
         .RequireAuthorization()
@@ -185,7 +187,7 @@ public static class SocialEndpoints
             CancellationToken ct) =>
         {
             var cmd = new CommentOnPostCommand(
-                postId, currentUser.UserId, currentUser.FlatId!.Value,
+                postId, currentUser.UserId!.Value, currentUser.FlatId!.Value,
                 body.Body, body.ParentCommentId);
             var result = await mediator.Send(cmd, ct);
             return result.IsSuccess
@@ -204,7 +206,8 @@ public static class SocialEndpoints
             ICurrentUser currentUser,
             CancellationToken ct) =>
         {
-            var cmd = new DeleteCommentCommand(commentId, currentUser.UserId, currentUser.IsInRole("admin"));
+            var cmd = new DeleteCommentCommand(
+                commentId, currentUser.UserId!.Value, currentUser.IsInRole("admin"));
             var result = await mediator.Send(cmd, ct);
             return result.IsSuccess ? Results.NoContent() : Results.BadRequest(result.Error);
         })
@@ -222,7 +225,7 @@ public static class SocialEndpoints
             CancellationToken ct) =>
         {
             var result = await mediator.Send(
-                new ReportPostCommand(postId, currentUser.UserId, body.Reason), ct);
+                new ReportPostCommand(postId, currentUser.UserId!.Value, body.Reason), ct);
             return result.IsSuccess ? Results.Ok() : Results.BadRequest(result.Error);
         })
         .RequireAuthorization()
@@ -240,7 +243,7 @@ public static class SocialEndpoints
             CancellationToken ct) =>
         {
             var result = await mediator.Send(
-                new VotePollCommand(pollId, currentUser.UserId, body.OptionIds), ct);
+                new VotePollCommand(pollId, currentUser.UserId!.Value, body.OptionIds), ct);
             return result.IsSuccess ? Results.Ok() : Results.BadRequest(result.Error);
         })
         .RequireAuthorization()
@@ -273,7 +276,7 @@ public static class SocialEndpoints
             CancellationToken ct) =>
         {
             var cmd = new UpsertDirectoryEntryCommand(
-                currentUser.UserId, currentUser.SocietyId!.Value,
+                currentUser.UserId!.Value, currentUser.SocietyId!.Value,
                 body.DisplayName, body.ShowPhone, body.ShowEmail, body.Bio);
             var result = await mediator.Send(cmd, ct);
             return result.IsSuccess ? Results.Ok() : Results.BadRequest(result.Error);

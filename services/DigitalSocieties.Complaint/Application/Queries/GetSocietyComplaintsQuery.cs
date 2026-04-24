@@ -1,5 +1,6 @@
 using MediatR;
 using DigitalSocieties.Shared.Results;
+using DigitalSocieties.Complaint.Domain.Entities;
 using DigitalSocieties.Complaint.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 
@@ -21,22 +22,31 @@ internal sealed class GetSocietyComplaintsQueryHandler(ComplaintDbContext db)
         var query = db.Complaints
             .Where(c => c.SocietyId == request.SocietyId && !c.IsDeleted);
 
-        if (!string.IsNullOrWhiteSpace(request.Status))
-            query = query.Where(c => c.Status == request.Status);
+        if (!string.IsNullOrWhiteSpace(request.Status) &&
+            Enum.TryParse<ComplaintStatus>(request.Status, ignoreCase: true, out var statusEnum))
+            query = query.Where(c => c.Status == statusEnum);
 
         if (!string.IsNullOrWhiteSpace(request.Category))
             query = query.Where(c => c.Category == request.Category);
 
         var total = await query.CountAsync(ct);
 
-        var items = await query
+        var raw = await query
             .OrderByDescending(c => c.CreatedAt)
             .Skip((request.Page - 1) * request.PageSize)
             .Take(request.PageSize)
-            .Select(c => new ComplaintSummaryDto(
-                c.Id, c.TicketNumber, c.Title, c.Category,
-                c.Priority, c.Status, c.CreatedAt, c.ResolvedAt))
             .ToListAsync(ct);
+
+        var items = raw.Select(c => new ComplaintSummaryDto(
+            c.Id,
+            $"C-{c.CreatedAt.Year}-{c.Id.ToString("N")[..4].ToUpper()}",
+            c.Title,
+            c.Category,
+            c.Priority.ToString(),
+            c.Status.ToString(),
+            c.CreatedAt,
+            c.ResolvedAt
+        )).ToList();
 
         return Result<ComplaintPagedResult>.Ok(
             new ComplaintPagedResult(items, total, request.Page, request.PageSize));

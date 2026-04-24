@@ -27,17 +27,25 @@ internal sealed class UpdateComplaintStatusCommandHandler(ComplaintDbContext db)
         if (complaint is null)
             return Result<bool>.Fail(new Error("Complaint.NotFound", "Complaint not found."));
 
-        Result<bool> transitionResult = request.Status.ToLower() switch
+        // Domain methods return void — call then wrap in Result
+        switch (request.Status.ToLower())
         {
-            "inprogress" => complaint.StartWork(request.UpdatedByUserId, request.Note),
-            "resolved"   => complaint.Resolve(request.UpdatedByUserId, request.Note),
-            "closed"     => complaint.Close(request.UpdatedByUserId, request.Note),
-            "reopened"   => complaint.Reopen(request.UpdatedByUserId, request.Note),
-            _ => Result<bool>.Fail(new Error("Complaint.InvalidStatus",
-                    $"Unknown status '{request.Status}'. Valid: InProgress, Resolved, Closed, Reopened."))
-        };
-
-        if (!transitionResult.IsSuccess) return transitionResult;
+            case "inprogress":
+                complaint.StartWork(request.UpdatedByUserId);
+                break;
+            case "resolved":
+                complaint.Resolve(request.UpdatedByUserId, request.Note ?? "Resolved.");
+                break;
+            case "closed":
+                complaint.Close(request.UpdatedByUserId);
+                break;
+            case "reopened":
+                complaint.Reopen(request.UpdatedByUserId, request.Note ?? "Reopened.");
+                break;
+            default:
+                return Result<bool>.Fail(new Error("Complaint.InvalidStatus",
+                    $"Unknown status '{request.Status}'. Valid: InProgress, Resolved, Closed, Reopened."));
+        }
 
         await db.SaveChangesAsync(ct);
         return Result<bool>.Ok(true);
