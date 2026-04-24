@@ -53,21 +53,21 @@ const currentMonth = new Date().getMonth() + 1;
 
 const fetchBillSummary = async (societyId: string): Promise<BillSummary> => {
   const { data } = await apiClient.get<BillSummary>(
-    `/api/v1/billing/summary?societyId=${societyId}&year=${currentYear}&month=${currentMonth}`
+    `/billing/summary?societyId=${societyId}&year=${currentYear}&month=${currentMonth}`
   );
   return data;
 };
 
-const fetchRecentComplaints = async (societyId: string): Promise<RecentComplaint[]> => {
+const fetchRecentComplaints = async (_societyId: string): Promise<RecentComplaint[]> => {
   const { data } = await apiClient.get<{ items: RecentComplaint[] }>(
-    `/api/v1/complaints?page=1&pageSize=5`
+    `/complaints?page=1&pageSize=5`
   );
   return data.items;
 };
 
 const fetchRecentNotices = async (): Promise<RecentNotice[]> => {
   const { data } = await apiClient.get<{ items: RecentNotice[] }>(
-    `/api/v1/notices?page=1&pageSize=3`
+    `/notices?page=1&pageSize=3`
   );
   return data.items;
 };
@@ -78,7 +78,7 @@ const generateBills = async (payload: {
   periodMonth: number;
   amountPaise: number;
 }) => {
-  const { data } = await apiClient.post('/api/v1/billing/generate', payload);
+  const { data } = await apiClient.post('/billing/generate', payload);
   return data;
 };
 
@@ -87,7 +87,6 @@ const generateBills = async (payload: {
 export default function AdminDashboardScreen() {
   const { activeSocietyId, societyName } = useAuthStore();
   const queryClient = useQueryClient();
-  const [isGenerating, setIsGenerating] = useState(false);
 
   const societyId = activeSocietyId ?? '';
 
@@ -140,11 +139,6 @@ export default function AdminDashboardScreen() {
   };
 
   const isLoading = billingLoading || complaintsLoading || noticesLoading;
-
-  const priorityColor: Record<string, string> = {
-    Low: Colors.textSecondary, Medium: Colors.info,
-    High: Colors.warning,      Critical: Colors.error,
-  };
 
   const statusColor: Record<string, string> = {
     Open: Colors.info, InProgress: Colors.warning,
@@ -352,3 +346,4 @@ const styles = StyleSheet.create({
   emptyText:           { fontSize: 14, color: Colors.textSecondary, paddingHorizontal: Spacing.md, paddingBottom: Spacing.sm },
   bottomPad:           { height: 32 },
 });
+       

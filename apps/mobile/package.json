@@ -38,7 +38,7 @@
     "zod":                           "^3.23.8",
     "@microsoft/signalr":            "^8.0.7",
     "expo-image-picker":             "~15.0.7",
-    "@netinfo":                      "^11.3.1"
+    "@react-native-community/netinfo": "^11.3.1"
   },
   "devDependencies": {
     "@babel/core":     "^7.24.0",
@@ -50,4 +50,6 @@
   "jest": {
     "preset": "jest-expo"
   }
+}
+}
 }

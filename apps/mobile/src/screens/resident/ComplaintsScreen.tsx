@@ -40,7 +40,7 @@ const fetchMyComplaints = async (status?: string): Promise<PagedResult<Complaint
   const params = new URLSearchParams({ page: '1', pageSize: '50' });
   if (status) params.set('status', status);
   const { data } = await apiClient.get<PagedResult<ComplaintSummary>>(
-    `/api/v1/complaints/my?${params}`
+    `/complaints/my?${params}`
   );
   return data;
 };
@@ -53,7 +53,7 @@ const raiseComplaint = async (payload: {
   category: string;
   priority: string;
 }): Promise<{ complaintId: string; ticketNumber: string }> => {
-  const { data } = await apiClient.post('/api/v1/complaints', payload);
+  const { data } = await apiClient.post('/complaints', payload);
   return data;
 };
 
@@ -62,7 +62,7 @@ const getUploadUrl = async (
   fileName: string
 ): Promise<{ uploadUrl: string; objectKey: string }> => {
   const { data } = await apiClient.post(
-    `/api/v1/complaints/${complaintId}/upload-url`,
+    `/complaints/${complaintId}/upload-url`,
     { fileName }
   );
   return data;

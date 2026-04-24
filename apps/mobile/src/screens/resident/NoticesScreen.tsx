@@ -35,7 +35,7 @@ const fetchNotices = async (type?: string): Promise<PagedResult<Notice>> => {
   const params = new URLSearchParams({ page: '1', pageSize: '50' });
   if (type) params.set('type', type);
   const { data } = await apiClient.get<PagedResult<Notice>>(
-    `/api/v1/notices?${params}`
+    `/notices?${params}`
   );
   return data;
 };

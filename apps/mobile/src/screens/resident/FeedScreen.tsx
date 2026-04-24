@@ -61,12 +61,12 @@ const formatPaise = (p: number) =>
 const fetchFeed = async (category?: string): Promise<PagedResult<FeedPost>> => {
   const params = new URLSearchParams({ page: '1', pageSize: '30' });
   if (category) params.set('category', category);
-  const { data } = await apiClient.get<PagedResult<FeedPost>>(`/api/v1/social/posts?${params}`);
+  const { data } = await apiClient.get<PagedResult<FeedPost>>(`/social/posts?${params}`);
   return data;
 };
 
 const reactToPost = async ({ postId, type }: { postId: string; type: string }) => {
-  await apiClient.post(`/api/v1/social/posts/${postId}/react`, { type });
+  await apiClient.post(`/social/posts/${postId}/react`, { type });
 };
 
 // ── Component ─────────────────────────────────────────────────────────────────

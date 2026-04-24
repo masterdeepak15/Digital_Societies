@@ -5,11 +5,13 @@ import {
 } from 'react-native';
 import { router } from 'expo-router';
 import { authService } from '../../services/api/authService';
+import { useAuthStore } from '../../store/authStore';
 import { Colors } from '../../theme/colors';
 import { Typography } from '../../theme/typography';
 import { Spacing, Radius } from '../../theme/spacing';
 
 export default function LoginScreen() {
+  const { login } = useAuthStore();
   const [phone,      setPhone]      = useState('');
   const [otp,        setOtp]        = useState('');
   const [otpSent,    setOtpSent]    = useState(false);
@@ -44,6 +46,7 @@ export default function LoginScreen() {
     try {
       const { data } = await authService.verifyOtp({ phone: `+91${phone.replace(/\D/g, '')}`, otp });
       await authService.saveTokens({ accessToken: data.accessToken, refreshToken: data.refreshToken });
+      login(data.profile, data.accessToken);   // populate Zustand store (sets isAuthenticated)
       if (data.profile.memberships.length > 0)
         await authService.setActiveSociety(data.profile.memberships[0].societyId);
       router.replace('/(app)');
@@ -140,7 +143,4 @@ const styles = StyleSheet.create({
   otpInput:   { letterSpacing: 8, fontSize: 24, fontWeight: '700', marginBottom: Spacing.md },
   btn:        { backgroundColor: Colors.primary, borderRadius: Radius.md, padding: Spacing.md,
                 alignItems: 'center', marginTop: Spacing.sm },
-  btnText:    { ...Typography.h4, color: Colors.textOnPrimary },
-  resend:     { textAlign: 'center', marginTop: Spacing.md, color: Colors.primary, ...Typography.body2 },
-  resendDisabled: { color: Colors.textDisabled },
-});
+  btnText:    { ...Typography.h4, color

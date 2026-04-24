@@ -9,9 +9,15 @@ interface AuthState {
   memberships:      MembershipInfo[];
   activeSocietyId:  string | null;
   activeRole:       string | null;
+  societyName:      string | null;   // display name of the active society
+  flatId:           string | null;   // flat tied to the active membership
+  accessToken:      string | null;   // in-memory JWT used by SignalR connections
 
   // Actions
-  login:            (profile: { userId: string; name: string; phone: string; memberships: MembershipInfo[] }) => void;
+  login:            (
+    profile: { userId: string; name: string; phone: string; memberships: MembershipInfo[] },
+    accessToken: string,
+  ) => void;
   setActiveSociety: (societyId: string) => void;
   logout:           () => void;
 }
@@ -24,27 +30,18 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   memberships:     [],
   activeSocietyId: null,
   activeRole:      null,
+  societyName:     null,
+  flatId:          null,
+  accessToken:     null,
 
-  login: (profile) => {
-    const firstMembership = profile.memberships[0];
+  login: (profile, accessToken) => {
+    const first = profile.memberships[0];
     set({
       isAuthenticated: true,
       userId:          profile.userId,
       name:            profile.name,
       phone:           profile.phone,
       memberships:     profile.memberships,
-      activeSocietyId: firstMembership?.societyId ?? null,
-      activeRole:      firstMembership?.role ?? null,
-    });
-  },
-
-  setActiveSociety: (societyId) => {
-    const membership = get().memberships.find(m => m.societyId === societyId);
-    set({ activeSocietyId: societyId, activeRole: membership?.role ?? null });
-  },
-
-  logout: () => set({
-    isAuthenticated: false, userId: null, name: null, phone: null,
-    memberships: [], activeSocietyId: null, activeRole: null,
-  }),
-}));
+      activeSocietyId: first?.societyId    ?? null,
+      activeRole:      first?.role         ?? null,
+      societyName:     first?.societyName 

@@ -1,6 +1,13 @@
-import React from 'react';
+import React, { Suspense } from 'react';
+import { ActivityIndicator, View } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Colors } from '../theme/colors';
+
+const TabFallback = () => (
+  <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+    <ActivityIndicator color={Colors.primary} />
+  </View>
+);
 
 const Tab = createBottomTabNavigator();
 
@@ -14,15 +21,11 @@ const ProfileScreen    = React.lazy(() => import('../screens/resident/ProfileScr
 
 export default function ResidentTabs() {
   return (
-    <Tab.Navigator
-      screenOptions={{ tabBarActiveTintColor: Colors.primary, headerShown: false }}>
-      <Tab.Screen name="Home"       component={HomeScreen}       options={{ title: 'Home' }}        />
-      <Tab.Screen name="Feed"       component={FeedScreen}       options={{ title: 'Community' }}   />
-      <Tab.Screen name="Bills"      component={BillsScreen}      options={{ title: 'My Bills' }}    />
-      <Tab.Screen name="Visitors"   component={VisitorsScreen}   options={{ title: 'Visitors' }}    />
-      <Tab.Screen name="Complaints" component={ComplaintsScreen} options={{ title: 'Complaints' }}  />
-      <Tab.Screen name="Notices"    component={NoticesScreen}    options={{ title: 'Notices' }}     />
-      <Tab.Screen name="Profile"    component={ProfileScreen}    options={{ title: 'Profile' }}     />
-    </Tab.Navigator>
-  );
-}
+    <Suspense fallback={<TabFallback />}>
+      <Tab.Navigator
+        screenOptions={{ tabBarActiveTintColor: Colors.primary, headerShown: false }}>
+        <Tab.Screen name="Home"       component={HomeScreen}       options={{ title: 'Home' }}        />
+        <Tab.Screen name="Feed"       component={FeedScreen}       options={{ title: 'Community' }}   />
+        <Tab.Screen name="Bills"      component={BillsScreen}      options={{ title: 'My Bills' }}    />
+        <Tab.Screen name="Visitors"   component={VisitorsScreen}   options={{ title: 'Visitors' }}    />
+        <Tab.Screen name="Complaints" compone

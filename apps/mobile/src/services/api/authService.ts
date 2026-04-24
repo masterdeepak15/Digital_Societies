@@ -16,7 +16,15 @@ export interface MembershipInfo {
   flatId?: string; flatDisplay?: string;
 }
 
+export interface MeResponse {
+  userId: string; name: string; phone: string; memberships: MembershipInfo[];
+}
+
 export const authService = {
+  /** Called on app restart to re-hydrate the auth store from the stored JWT. */
+  me: () =>
+    apiClient.get<MeResponse>('/auth/me'),
+
   sendOtp: (params: SendOtpParams) =>
     apiClient.post<{ maskedPhone: string; expiresInSeconds: number }>(
       '/auth/otp/send', { ...params, purpose: params.purpose ?? 'login' }),
@@ -40,11 +48,4 @@ export const authService = {
     ]);
   },
 
-  setActiveSociety: (societyId: string) =>
-    SecureStore.setItemAsync(TokenKeys.SOCIETY_ID, societyId),
-
-  logout: async (refreshToken: string) => {
-    await apiClient.post('/auth/logout', { refreshToken });
-    await authService.clearTokens();
-  },
-};
+  setAct

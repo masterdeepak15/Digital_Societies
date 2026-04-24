@@ -39,7 +39,7 @@ const fetchMyVisitors = async (status?: string): Promise<PagedResult<Visitor>> =
   const params = new URLSearchParams({ page: '1', pageSize: '50' });
   if (status) params.set('status', status);
   const { data } = await apiClient.get<PagedResult<Visitor>>(
-    `/api/v1/visitors?${params}`
+    `/visitors?${params}`
   );
   return data;
 };
@@ -61,7 +61,7 @@ export default function VisitorsScreen() {
   // ── Approve mutation ────────────────────────────────────────────────────────
   const approveMutation = useMutation({
     mutationFn: async (visitorId: string) => {
-      const { data } = await apiClient.post(`/api/v1/visitors/${visitorId}/approve`);
+      const { data } = await apiClient.post(`/visitors/${visitorId}/approve`);
       return data as { qrToken: string };
     },
     onSuccess: () => {
@@ -74,7 +74,7 @@ export default function VisitorsScreen() {
   // ── Reject mutation ─────────────────────────────────────────────────────────
   const rejectMutation = useMutation({
     mutationFn: async (visitorId: string) => {
-      await apiClient.post(`/api/v1/visitors/${visitorId}/reject`, { reason: 'Rejected by resident' });
+      await apiClient.post(`/visitors/${visitorId}/reject`, { reason: 'Rejected by resident' });
     },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['visitors'] }),
     onError: () => Alert.alert('Error', 'Could not reject visitor. Please try again.'),
