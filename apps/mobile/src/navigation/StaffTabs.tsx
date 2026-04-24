@@ -16,4 +16,10 @@ const ProfileScreen = React.lazy(() => import('../screens/staff/ProfileScreen'))
 export default function StaffTabs() {
   return (
     <Suspense fallback={<TabFallback />}>
-      <Tab.Navigat
+      <Tab.Navigator screenOptions={{ headerShown: false }}>
+        <Tab.Screen name="Tasks"   component={TasksScreen}   options={{ title: 'My Tasks' }} />
+        <Tab.Screen name="Profile" component={ProfileScreen} options={{ title: 'Profile' }}  />
+      </Tab.Navigator>
+    </Suspense>
+  );
+}

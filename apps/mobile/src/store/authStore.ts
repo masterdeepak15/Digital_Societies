@@ -44,4 +44,33 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       memberships:     profile.memberships,
       activeSocietyId: first?.societyId    ?? null,
       activeRole:      first?.role         ?? null,
-      societyName:     first?.societyName 
+      societyName:     first?.societyName  ?? null,
+      flatId:          first?.flatId       ?? null,
+      accessToken,
+    });
+  },
+
+  setActiveSociety: (societyId) => {
+    const membership = get().memberships.find((m) => m.societyId === societyId);
+    set({
+      activeSocietyId: societyId,
+      activeRole:      membership?.role        ?? null,
+      societyName:     membership?.societyName ?? null,
+      flatId:          membership?.flatId      ?? null,
+    });
+  },
+
+  logout: () =>
+    set({
+      isAuthenticated: false,
+      userId:          null,
+      name:            null,
+      phone:           null,
+      memberships:     [],
+      activeSocietyId: null,
+      activeRole:      null,
+      societyName:     null,
+      flatId:          null,
+      accessToken:     null,
+    }),
+}));

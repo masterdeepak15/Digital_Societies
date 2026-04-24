@@ -28,4 +28,10 @@ export default function ResidentTabs() {
         <Tab.Screen name="Feed"       component={FeedScreen}       options={{ title: 'Community' }}   />
         <Tab.Screen name="Bills"      component={BillsScreen}      options={{ title: 'My Bills' }}    />
         <Tab.Screen name="Visitors"   component={VisitorsScreen}   options={{ title: 'Visitors' }}    />
-        <Tab.Screen name="Complaints" compone
+        <Tab.Screen name="Complaints" component={ComplaintsScreen} options={{ title: 'Complaints' }}  />
+        <Tab.Screen name="Notices"    component={NoticesScreen}    options={{ title: 'Notices' }}     />
+        <Tab.Screen name="Profile"    component={ProfileScreen}    options={{ title: 'Profile' }}     />
+      </Tab.Navigator>
+    </Suspense>
+  );
+}

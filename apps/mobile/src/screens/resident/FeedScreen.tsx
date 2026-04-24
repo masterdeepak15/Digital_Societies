@@ -214,7 +214,7 @@ export default function FeedScreen() {
       ) : (
         <FlatList
           data={data?.items ?? []}
-          keyExtractor={p => p.id}
+          keyExtractor={(p: FeedPost) => p.id}
           renderItem={renderPost}
           refreshControl={<RefreshControl refreshing={false} onRefresh={refetch} />}
           contentContainerStyle={styles.list}

@@ -29,4 +29,10 @@ export default function AdminTabs() {
         }}>
         <Tab.Screen name="Dashboard"  component={DashboardScreen}  options={{ title: 'Dashboard',  tabBarIcon: () => null }} />
         <Tab.Screen name="Billing"    component={BillingScreen}    options={{ title: 'Billing',    tabBarIcon: () => null }} />
-        <Tab.Screen name="Complaints" component={ComplaintsScreen} options={{ title: 'Complaints', tabBarIcon:
+        <Tab.Screen name="Complaints" component={ComplaintsScreen} options={{ title: 'Complaints', tabBarIcon: () => null }} />
+        <Tab.Screen name="Members"    component={MembersScreen}    options={{ title: 'Members',    tabBarIcon: () => null }} />
+        <Tab.Screen name="Settings"   component={SettingsScreen}   options={{ title: 'Settings',   tabBarIcon: () => null }} />
+      </Tab.Navigator>
+    </Suspense>
+  );
+}

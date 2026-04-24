@@ -48,4 +48,11 @@ export const authService = {
     ]);
   },
 
-  setAct
+  setActiveSociety: (societyId: string) =>
+    SecureStore.setItemAsync(TokenKeys.SOCIETY_ID, societyId),
+
+  logout: async (refreshToken: string) => {
+    await apiClient.post('/auth/logout', { refreshToken });
+    await authService.clearTokens();
+  },
+};

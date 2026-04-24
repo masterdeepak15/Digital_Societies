@@ -60,7 +60,7 @@ export default function LoginScreen() {
   const startCountdown = (seconds: number) => {
     setCountdown(seconds);
     const interval = setInterval(() => {
-      setCountdown((prev) => {
+      setCountdown((prev: number) => {
         if (prev <= 1) { clearInterval(interval); return 0; }
         return prev - 1;
       });
@@ -108,7 +108,6 @@ export default function LoginScreen() {
               value={otp}
               onChangeText={setOtp}
               textAlign="center"
-              letterSpacing={8}
               autoFocus
             />
             <TouchableOpacity style={styles.btn} onPress={handleVerify} disabled={loading}>
@@ -143,4 +142,7 @@ const styles = StyleSheet.create({
   otpInput:   { letterSpacing: 8, fontSize: 24, fontWeight: '700', marginBottom: Spacing.md },
   btn:        { backgroundColor: Colors.primary, borderRadius: Radius.md, padding: Spacing.md,
                 alignItems: 'center', marginTop: Spacing.sm },
-  btnText:    { ...Typography.h4, color
+  btnText:    { ...Typography.h4, color: Colors.textOnPrimary },
+  resend:     { textAlign: 'center', marginTop: Spacing.md, color: Colors.primary, ...Typography.body2 },
+  resendDisabled: { color: Colors.textDisabled },
+});

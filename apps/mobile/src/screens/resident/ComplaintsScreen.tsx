@@ -166,7 +166,7 @@ export default function ComplaintsScreen() {
       allowsEditing: true,
     });
     if (!result.canceled && result.assets[0]) {
-      setPickedImages(prev => [...prev, result.assets[0].uri]);
+      setPickedImages((prev: string[]) => [...prev, result.assets[0].uri]);
     }
   }, [pickedImages]);
 
@@ -248,7 +248,7 @@ export default function ComplaintsScreen() {
       ) : (
         <FlatList
           data={data?.items ?? []}
-          keyExtractor={c => c.id}
+          keyExtractor={(c: ComplaintSummary) => c.id}
           renderItem={renderItem}
           refreshControl={<RefreshControl refreshing={false} onRefresh={refetch} />}
           contentContainerStyle={styles.list}
@@ -333,11 +333,11 @@ export default function ComplaintsScreen() {
             {/* Photos */}
             <Text style={styles.label}>Photos (optional, max 3)</Text>
             <View style={styles.photoRow}>
-              {pickedImages.map((uri, idx) => (
+              {pickedImages.map((uri: string, idx: number) => (
                 <TouchableOpacity
                   key={idx}
                   style={styles.photoThumb}
-                  onPress={() => setPickedImages(prev => prev.filter((_, i) => i !== idx))}>
+                  onPress={() => setPickedImages((prev: string[]) => prev.filter((_: string, i: number) => i !== idx))}>
                   <Text style={styles.photoThumbText}>📷 Photo {idx + 1}</Text>
                   <Text style={styles.photoRemove}>✕</Text>
                 </TouchableOpacity>

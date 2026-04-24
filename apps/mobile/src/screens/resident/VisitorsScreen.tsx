@@ -205,7 +205,7 @@ export default function VisitorsScreen() {
       ) : (
         <FlatList
           data={data?.items ?? []}
-          keyExtractor={v => v.id}
+          keyExtractor={(v: Visitor) => v.id}
           renderItem={renderItem}
           refreshControl={<RefreshControl refreshing={false} onRefresh={refetch} />}
           contentContainerStyle={styles.list}

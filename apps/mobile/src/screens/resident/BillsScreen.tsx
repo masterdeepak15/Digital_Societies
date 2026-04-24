@@ -47,7 +47,7 @@ export default function BillsScreen() {
       <FlatList
         data={MOCK_BILLS}
         renderItem={renderBill}
-        keyExtractor={(b) => b.id}
+        keyExtractor={(b: Bill) => b.id}
         contentContainerStyle={styles.list}
       />
     </View>

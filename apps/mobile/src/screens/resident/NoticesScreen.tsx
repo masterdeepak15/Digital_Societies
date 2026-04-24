@@ -173,7 +173,7 @@ export default function NoticesScreen() {
       ) : (
         <FlatList
           data={data?.items ?? []}
-          keyExtractor={n => n.id}
+          keyExtractor={(n: Notice) => n.id}
           renderItem={renderItem}
           refreshControl={<RefreshControl refreshing={false} onRefresh={refetch} />}
           contentContainerStyle={styles.list}

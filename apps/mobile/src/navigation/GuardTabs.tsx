@@ -28,4 +28,10 @@ export default function GuardTabs() {
           tabBarLabelStyle:      { fontSize: 14, fontWeight: '700' },
         }}>
         <Tab.Screen name="Gate"     component={GateScreen}     options={{ title: '🚪 Gate' }}     />
-        <Tab.Screen name
+        <Tab.Screen name="Log"      component={LogScreen}      options={{ title: '📋 Log' }}      />
+        <Tab.Screen name="Delivery" component={DeliveryScreen} options={{ title: '📦 Delivery' }} />
+        <Tab.Screen name="SOS"      component={SOSScreen}      options={{ title: '🚨 SOS' }}      />
+      </Tab.Navigator>
+    </Suspense>
+  );
+}
