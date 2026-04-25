@@ -60,8 +60,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: 'npm'
-          cache-dependency-path: apps/mobile/package-lock.json
 
       - name: Setup Java ${{ env.JAVA_VERSION }}
         uses: actions/setup-java@v4
@@ -69,22 +67,10 @@ jobs:
           distribution: temurin
           java-version: ${{ env.JAVA_VERSION }}
 
-      - name: Install deps
-        run: npm install --legacy-peer-deps
-
-      - name: Hoist metro packages (fix nested hoisting)
+      - name: Install deps (fresh — no lockfile to force correct hoisting)
         run: |
-          cd node_modules
-          NESTED=@react-native/community-cli-plugin/node_modules
-          for pkg_path in "$NESTED"/metro*; do
-            pkg=$(basename "$pkg_path")
-            if [ ! -e "$pkg" ]; then
-              ln -sf "$pkg_path" "$pkg"
-              echo "hoisted: $pkg"
-            else
-              echo "skip (exists): $pkg"
-            fi
-          done
+          rm -f package-lock.json
+          npm install --legacy-peer-deps
 
       - name: Expo Prebuild (Android)
         env:
