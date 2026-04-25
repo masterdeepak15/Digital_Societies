@@ -10,9 +10,7 @@ services:
 
   # ── API (ASP.NET Core 8) ───────────────────────────────────────────────────
   api:
-    build:
-      context: ../../services
-      dockerfile: DigitalSocieties.Api/Dockerfile
+    image: ghcr.io/masterdeepak15/digital-societies-api:latest
     restart: unless-stopped
     environment:
       ASPNETCORE_ENVIRONMENT:       Production
