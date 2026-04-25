@@ -43,3 +43,9 @@ Thumbs.db
 .vscode/settings.json
 .idea/
 *.iml
+
+# ── Scratch / helper scripts (never commit these) ────────────────────────────
+*.bat
+*.cmd
+*_out.txt
+COMMIT_MSG.txt

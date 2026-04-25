@@ -2,12 +2,19 @@
 FROM mcr.microsoft.com/dotnet/sdk:8.0-alpine AS build
 WORKDIR /src
 
-# Copy solution and project files first (layer cache for restore)
-COPY DigitalSocieties.Shared/DigitalSocieties.Shared.csproj    DigitalSocieties.Shared/
-COPY DigitalSocieties.Identity/DigitalSocieties.Identity.csproj DigitalSocieties.Identity/
-COPY DigitalSocieties.Api/DigitalSocieties.Api.csproj           DigitalSocieties.Api/
+# Copy solution + ALL project files first (layer cache for restore)
+COPY DigitalSocieties.sln                                                       .
+COPY DigitalSocieties.Shared/DigitalSocieties.Shared.csproj                    DigitalSocieties.Shared/
+COPY DigitalSocieties.Identity/DigitalSocieties.Identity.csproj                DigitalSocieties.Identity/
+COPY DigitalSocieties.Billing/DigitalSocieties.Billing.csproj                  DigitalSocieties.Billing/
+COPY DigitalSocieties.Visitor/DigitalSocieties.Visitor.csproj                  DigitalSocieties.Visitor/
+COPY DigitalSocieties.Complaint/DigitalSocieties.Complaint.csproj              DigitalSocieties.Complaint/
+COPY DigitalSocieties.Communication/DigitalSocieties.Communication.csproj      DigitalSocieties.Communication/
+COPY DigitalSocieties.Social/DigitalSocieties.Social.csproj                    DigitalSocieties.Social/
+COPY DigitalSocieties.Api/DigitalSocieties.Api.csproj                          DigitalSocieties.Api/
 
-RUN dotnet restore DigitalSocieties.Api/DigitalSocieties.Api.csproj
+# Restore full solution so every NuGet package (including analyzers) is cached
+RUN dotnet restore DigitalSocieties.sln
 
 # Copy source and publish
 COPY . .
