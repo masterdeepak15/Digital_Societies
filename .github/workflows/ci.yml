@@ -76,10 +76,13 @@ jobs:
         run: |
           cd node_modules
           NESTED=@react-native/community-cli-plugin/node_modules
-          for pkg in metro metro-config metro-core metro-cache metro-file-map metro-resolver; do
-            if [ ! -e "$pkg" ] && [ -d "$NESTED/$pkg" ]; then
-              ln -sf "$NESTED/$pkg" "$pkg"
+          for pkg_path in "$NESTED"/metro*; do
+            pkg=$(basename "$pkg_path")
+            if [ ! -e "$pkg" ]; then
+              ln -sf "$pkg_path" "$pkg"
               echo "hoisted: $pkg"
+            else
+              echo "skip (exists): $pkg"
             fi
           done
 
