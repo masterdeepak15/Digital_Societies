@@ -8,6 +8,7 @@ env:
   DOTNET_VERSION: '8.0.x'
   NODE_VERSION:   '20.x'
   JAVA_VERSION:   '17'
+  API_BASE_URL:   'https://societies.athomes.space/api/v1'
 
 jobs:
   # ── 1. Backend Release ──────────────────────────────────────────────────────
@@ -71,7 +72,20 @@ jobs:
       - name: Install deps
         run: npm install --legacy-peer-deps
 
+      - name: Hoist metro packages (fix nested hoisting)
+        run: |
+          cd node_modules
+          NESTED=@react-native/community-cli-plugin/node_modules
+          for pkg in metro metro-config metro-core metro-cache metro-file-map metro-resolver; do
+            if [ ! -e "$pkg" ] && [ -d "$NESTED/$pkg" ]; then
+              ln -sf "$NESTED/$pkg" "$pkg"
+              echo "hoisted: $pkg"
+            fi
+          done
+
       - name: Expo Prebuild (Android)
+        env:
+          EXPO_PUBLIC_API_URL: ${{ env.API_BASE_URL }}
         run: npx expo prebuild --platform android --no-install
 
       - name: Make Gradlew executable
@@ -85,9 +99,10 @@ jobs:
 
       - name: Build Release APK
         env:
-          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-          KEY_ALIAS:         ${{ secrets.ANDROID_KEY_ALIAS }}
-          KEY_PASSWORD:      ${{ secrets.ANDROID_KEY_PASSWORD }}
+          EXPO_PUBLIC_API_URL:  ${{ env.API_BASE_URL }}
+          KEYSTORE_PASSWORD:    ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS:            ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD:         ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
           cd android
           ./gradlew assembleRelease \

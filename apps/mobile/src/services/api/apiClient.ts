@@ -1,7 +1,7 @@
 import axios, { AxiosInstance, InternalAxiosRequestConfig } from 'axios';
 import * as SecureStore from 'expo-secure-store';
 
-const BASE_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:8080/api/v1';
+const BASE_URL = process.env.EXPO_PUBLIC_API_URL ?? 'https://societies.athomes.space/api/v1';
 
 const KEYS = {
   ACCESS_TOKEN:  'ds_access_token',
