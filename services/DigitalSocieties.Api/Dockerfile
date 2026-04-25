@@ -2,8 +2,9 @@
 FROM mcr.microsoft.com/dotnet/sdk:8.0-alpine AS build
 WORKDIR /src
 
-# Copy solution + ALL project files first (layer cache for restore)
-COPY DigitalSocieties.sln                                                       .
+# Copy all service project files first (layer cache for restore)
+# Note: tests/ is outside the build context (context=services/), so we restore
+# only service projects. Publish runs its own restore to catch any remaining gaps.
 COPY DigitalSocieties.Shared/DigitalSocieties.Shared.csproj                    DigitalSocieties.Shared/
 COPY DigitalSocieties.Identity/DigitalSocieties.Identity.csproj                DigitalSocieties.Identity/
 COPY DigitalSocieties.Billing/DigitalSocieties.Billing.csproj                  DigitalSocieties.Billing/
@@ -13,14 +14,13 @@ COPY DigitalSocieties.Communication/DigitalSocieties.Communication.csproj      D
 COPY DigitalSocieties.Social/DigitalSocieties.Social.csproj                    DigitalSocieties.Social/
 COPY DigitalSocieties.Api/DigitalSocieties.Api.csproj                          DigitalSocieties.Api/
 
-# Restore full solution so every NuGet package (including analyzers) is cached
-RUN dotnet restore DigitalSocieties.sln
+# Restore the API project (transitively restores all service-layer packages)
+RUN dotnet restore DigitalSocieties.Api/DigitalSocieties.Api.csproj
 
-# Copy source and publish
+# Copy source and publish (publish re-runs restore to pick up any analyzer packages)
 COPY . .
 RUN dotnet publish DigitalSocieties.Api/DigitalSocieties.Api.csproj \
     -c Release -o /app/publish \
-    --no-restore \
     /p:UseAppHost=false
 
 # ── Runtime stage (minimal, no SDK) ──────────────────────────────────────────
