@@ -12,6 +12,8 @@ COPY DigitalSocieties.Visitor/DigitalSocieties.Visitor.csproj                  D
 COPY DigitalSocieties.Complaint/DigitalSocieties.Complaint.csproj              DigitalSocieties.Complaint/
 COPY DigitalSocieties.Communication/DigitalSocieties.Communication.csproj      DigitalSocieties.Communication/
 COPY DigitalSocieties.Social/DigitalSocieties.Social.csproj                    DigitalSocieties.Social/
+COPY DigitalSocieties.Accounting/DigitalSocieties.Accounting.csproj            DigitalSocieties.Accounting/
+COPY DigitalSocieties.Facility/DigitalSocieties.Facility.csproj                DigitalSocieties.Facility/
 COPY DigitalSocieties.Api/DigitalSocieties.Api.csproj                          DigitalSocieties.Api/
 
 # Restore the API project (transitively restores all service-layer packages)
