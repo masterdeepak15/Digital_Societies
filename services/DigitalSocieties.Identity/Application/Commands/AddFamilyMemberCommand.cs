@@ -3,7 +3,7 @@ using FluentValidation;
 using Microsoft.EntityFrameworkCore;
 using DigitalSocieties.Shared.Contracts;
 using DigitalSocieties.Shared.Results;
-using DigitalSocieties.Shared.Domain.Enums;
+using DigitalSocieties.Shared.Domain.ValueObjects;
 using DigitalSocieties.Identity.Domain.Entities;
 using DigitalSocieties.Identity.Infrastructure.Persistence;
 
@@ -13,18 +13,21 @@ namespace DigitalSocieties.Identity.Application.Commands;
 public sealed record AddFamilyMemberCommand(
     string Phone,
     string Name,
-    string MemberType   // "owner" | "tenant"  (use MemberType constants)
+    string MemberType   // "owner" | "tenant" | "family"
 ) : IRequest<Result<Guid>>;
 
 public sealed class AddFamilyMemberValidator : AbstractValidator<AddFamilyMemberCommand>
 {
+    // Use string constants directly to avoid name collision with the Shared enum type
+    private static readonly HashSet<string> ValidTypes = ["owner", "tenant", "family"];
+
     public AddFamilyMemberValidator()
     {
         RuleFor(x => x.Phone).NotEmpty().MaximumLength(20);
         RuleFor(x => x.Name).NotEmpty().MaximumLength(200);
         RuleFor(x => x.MemberType)
-            .Must(t => t is MemberType.Owner or MemberType.Tenant)
-            .WithMessage("MemberType must be 'owner' or 'tenant'.");
+            .Must(t => ValidTypes.Contains(t))
+            .WithMessage("MemberType must be 'owner', 'tenant', or 'family'.");
     }
 }
 
@@ -39,22 +42,27 @@ public sealed class AddFamilyMemberHandler : IRequestHandler<AddFamilyMemberComm
     public async Task<Result<Guid>> Handle(AddFamilyMemberCommand cmd, CancellationToken ct)
     {
         if (_currentUser.FlatId is null)
-            return Result<Guid>.Fail("You must be a flat resident to add family members.");
+            return Result<Guid>.Fail("FLAT.REQUIRED", "You must be a flat resident to add family members.");
         if (_currentUser.SocietyId is null)
-            return Result<Guid>.Fail("Society context is required.");
+            return Result<Guid>.Fail("SOCIETY.REQUIRED", "Society context is required.");
+
+        // Validate and normalize phone number
+        var phoneResult = PhoneNumber.Create(cmd.Phone);
+        if (phoneResult.IsFailure)
+            return Result<Guid>.Fail(phoneResult.Error!);
 
         // Find or create the user by phone
         var user = await _db.Users
-            .FirstOrDefaultAsync(u => u.Phone == cmd.Phone, ct);
+            .FirstOrDefaultAsync(u => u.Phone == phoneResult.Value!.Value, ct);
 
         if (user is null)
         {
-            user = User.Create(cmd.Phone, cmd.Name);
+            user = User.Create(phoneResult.Value!, cmd.Name);
             _db.Users.Add(user);
             await _db.SaveChangesAsync(ct);
         }
 
-        // Prevent duplicate membership for same flat
+        // Prevent duplicate membership for the same flat
         var exists = await _db.Memberships.AnyAsync(m =>
             m.UserId    == user.Id &&
             m.SocietyId == _currentUser.SocietyId.Value &&
@@ -63,7 +71,7 @@ public sealed class AddFamilyMemberHandler : IRequestHandler<AddFamilyMemberComm
             !m.IsDeleted, ct);
 
         if (exists)
-            return Result<Guid>.Fail("This person is already a member of your flat.");
+            return Result<Guid>.Fail("MEMBER.EXISTS", "This person is already a member of your flat.");
 
         var membership = Membership.Create(
             user.Id,
@@ -93,10 +101,10 @@ public sealed class RemoveFamilyMemberHandler : IRequestHandler<RemoveFamilyMemb
     public async Task<Result> Handle(RemoveFamilyMemberCommand cmd, CancellationToken ct)
     {
         if (_currentUser.FlatId is null || _currentUser.SocietyId is null)
-            return Result.Fail("Society/flat context required.");
+            return Result.Fail("CONTEXT.REQUIRED", "Society and flat context are required.");
 
         if (_currentUser.UserId == cmd.MemberUserId)
-            return Result.Fail("Cannot remove yourself.");
+            return Result.Fail("MEMBER.SELF_REMOVE", "Cannot remove yourself.");
 
         var membership = await _db.Memberships
             .FirstOrDefaultAsync(m =>
@@ -106,7 +114,8 @@ public sealed class RemoveFamilyMemberHandler : IRequestHandler<RemoveFamilyMemb
                 m.IsActive  &&
                 !m.IsDeleted, ct);
 
-        if (membership is null) return Result.Fail("Member not found in your flat.");
+        if (membership is null)
+            return Result.Fail("MEMBER.NOT_FOUND", "Member not found in your flat.");
 
         membership.Revoke();
         await _db.SaveChangesAsync(ct);

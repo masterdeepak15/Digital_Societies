@@ -28,10 +28,12 @@ public sealed class GetFlatMembersHandler
     public async Task<Result<List<FlatMemberDto>>> Handle(
         GetFlatMembersQuery q, CancellationToken ct)
     {
-        if (_currentUser.SocietyId is null) return Result<List<FlatMemberDto>>.Fail("No society context.");
+        if (_currentUser.SocietyId is null)
+            return Result<List<FlatMemberDto>>.Fail("SOCIETY.REQUIRED", "Society context is required.");
 
         var flatId = q.FlatId ?? _currentUser.FlatId;
-        if (flatId is null) return Result<List<FlatMemberDto>>.Fail("No flat context.");
+        if (flatId is null)
+            return Result<List<FlatMemberDto>>.Fail("FLAT.REQUIRED", "Flat context is required.");
 
         var members = await _db.Memberships
             .Include(m => m.User)
@@ -83,7 +85,7 @@ public sealed class GetSocietyMembersHandler
         GetSocietyMembersQuery q, CancellationToken ct)
     {
         if (_currentUser.SocietyId is null)
-            return Result<List<SocietyMemberDto>>.Fail("No society context.");
+            return Result<List<SocietyMemberDto>>.Fail("SOCIETY.REQUIRED", "Society context is required.");
 
         var query = _db.Memberships
             .Include(m => m.User)

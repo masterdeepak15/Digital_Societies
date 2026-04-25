@@ -81,7 +81,7 @@ public sealed class GetAvailableSlotsHandler
         var facility = await _db.Facilities
             .FirstOrDefaultAsync(f => f.Id == q.FacilityId
                                    && f.SocietyId == _currentUser.SocietyId, ct);
-        if (facility is null) return Result<List<SlotDto>>.Fail("Facility not found.");
+        if (facility is null) return Result<List<SlotDto>>.Fail("FACILITY.NOT_FOUND", "Facility not found.");
 
         var booked = await _db.Bookings
             .Where(b => b.FacilityId == q.FacilityId

@@ -38,13 +38,17 @@ public sealed class BookFacilityHandler : IRequestHandler<BookFacilityCommand, R
 
     public async Task<Result<Guid>> Handle(BookFacilityCommand cmd, CancellationToken ct)
     {
+        if (_currentUser.SocietyId is null || _currentUser.FlatId is null || _currentUser.UserId is null)
+            return Result<Guid>.Fail("AUTH.REQUIRED", "Authentication context is required.");
+
         var facility = await _db.Facilities
             .FirstOrDefaultAsync(f => f.Id == cmd.FacilityId
-                                   && f.SocietyId == _currentUser.SocietyId
+                                   && f.SocietyId == _currentUser.SocietyId.Value
                                    && f.IsActive, ct);
-        if (facility is null) return Result<Guid>.Fail("Facility not found or inactive.");
+        if (facility is null)
+            return Result<Guid>.Fail("FACILITY.NOT_FOUND", "Facility not found or inactive.");
 
-        // Conflict check
+        // Conflict check — no overlapping confirmed bookings
         var conflict = await _db.Bookings.AnyAsync(b =>
             b.FacilityId  == cmd.FacilityId &&
             b.BookingDate == cmd.BookingDate &&
@@ -52,21 +56,25 @@ public sealed class BookFacilityHandler : IRequestHandler<BookFacilityCommand, R
             b.StartTime   < cmd.EndTime &&
             b.EndTime     > cmd.StartTime, ct);
 
-        if (conflict) return Result<Guid>.Fail("This time slot is already booked.");
+        if (conflict)
+            return Result<Guid>.Fail("FACILITY.CONFLICT", "This time slot is already booked.");
 
-        // Per-flat limit check (active bookings in future)
+        // Per-flat advance booking limit
         var flatBookings = await _db.Bookings.CountAsync(b =>
-            b.FlatId      == _currentUser.FlatId &&
+            b.FlatId      == _currentUser.FlatId.Value &&
             b.FacilityId  == cmd.FacilityId &&
             b.Status      == BookingStatus.Confirmed &&
             b.BookingDate >= DateOnly.FromDateTime(DateTime.Today), ct);
 
         if (flatBookings >= facility.MaxBookingsPerFlat)
-            return Result<Guid>.Fail($"Maximum {facility.MaxBookingsPerFlat} advance bookings per flat.");
+            return Result<Guid>.Fail("FACILITY.LIMIT",
+                $"Maximum {facility.MaxBookingsPerFlat} advance bookings per flat.");
 
         var booking = FacilityBooking.Create(
-            cmd.FacilityId, _currentUser.SocietyId,
-            _currentUser.FlatId, _currentUser.UserId,
+            cmd.FacilityId,
+            _currentUser.SocietyId.Value,
+            _currentUser.FlatId.Value,
+            _currentUser.UserId.Value,
             cmd.BookingDate, cmd.StartTime, cmd.EndTime);
 
         _db.Bookings.Add(booking);
@@ -88,14 +96,18 @@ public sealed class CancelBookingHandler : IRequestHandler<CancelBookingCommand,
 
     public async Task<Result> Handle(CancelBookingCommand cmd, CancellationToken ct)
     {
+        if (_currentUser.SocietyId is null)
+            return Result.Fail("AUTH.REQUIRED", "Authentication context is required.");
+
         var booking = await _db.Bookings
             .FirstOrDefaultAsync(b => b.Id == cmd.BookingId
-                                   && b.SocietyId == _currentUser.SocietyId, ct);
-        if (booking is null) return Result.Fail("Booking not found.");
+                                   && b.SocietyId == _currentUser.SocietyId.Value, ct);
+        if (booking is null)
+            return Result.Fail("BOOKING.NOT_FOUND", "Booking not found.");
 
         // Admin can cancel any; resident only their own
-        if (booking.BookedBy != _currentUser.UserId && _currentUser.Role != "admin")
-            return Result.Fail("Not authorized to cancel this booking.");
+        if (booking.BookedBy != _currentUser.UserId && !_currentUser.IsInRole("admin"))
+            return Result.Fail("UNAUTHORIZED", "Not authorized to cancel this booking.");
 
         booking.Cancel(cmd.Reason);
         await _db.SaveChangesAsync(ct);

@@ -19,13 +19,16 @@ public sealed class ApproveLedgerEntryHandler : IRequestHandler<ApproveLedgerEnt
 
     public async Task<Result> Handle(ApproveLedgerEntryCommand cmd, CancellationToken ct)
     {
+        if (_currentUser.SocietyId is null || _currentUser.UserId is null)
+            return Result.Fail("AUTH.REQUIRED", "Authentication context is required.");
+
         var entry = await _db.LedgerEntries
-            .Where(e => e.Id == cmd.EntryId && e.SocietyId == _currentUser.SocietyId)
+            .Where(e => e.Id == cmd.EntryId && e.SocietyId == _currentUser.SocietyId.Value)
             .FirstOrDefaultAsync(ct);
 
-        if (entry is null) return Result.Fail("Entry not found.");
+        if (entry is null) return Result.Fail("ENTRY.NOT_FOUND", "Ledger entry not found.");
 
-        entry.Approve(_currentUser.UserId);
+        entry.Approve(_currentUser.UserId.Value);
         await _db.SaveChangesAsync(ct);
         return Result.Ok();
     }
@@ -44,13 +47,16 @@ public sealed class RejectLedgerEntryHandler : IRequestHandler<RejectLedgerEntry
 
     public async Task<Result> Handle(RejectLedgerEntryCommand cmd, CancellationToken ct)
     {
+        if (_currentUser.SocietyId is null || _currentUser.UserId is null)
+            return Result.Fail("AUTH.REQUIRED", "Authentication context is required.");
+
         var entry = await _db.LedgerEntries
-            .Where(e => e.Id == cmd.EntryId && e.SocietyId == _currentUser.SocietyId)
+            .Where(e => e.Id == cmd.EntryId && e.SocietyId == _currentUser.SocietyId.Value)
             .FirstOrDefaultAsync(ct);
 
-        if (entry is null) return Result.Fail("Entry not found.");
+        if (entry is null) return Result.Fail("ENTRY.NOT_FOUND", "Ledger entry not found.");
 
-        entry.Reject(_currentUser.UserId, cmd.Reason);
+        entry.Reject(_currentUser.UserId.Value, cmd.Reason);
         await _db.SaveChangesAsync(ct);
         return Result.Ok();
     }

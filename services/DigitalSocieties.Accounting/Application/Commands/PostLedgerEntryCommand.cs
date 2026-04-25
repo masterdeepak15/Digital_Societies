@@ -13,7 +13,7 @@ public sealed record PostLedgerEntryCommand(
     string   Type,         // "Income" | "Expense"
     string   Category,
     string   Description,
-    long     AmountPaise,
+    long     AmountPaise,  // sent from client in paise; converted to Money internally
     DateOnly EntryDate,
     string?  ReceiptUrl
 ) : IRequest<Result<Guid>>;
@@ -46,12 +46,24 @@ public sealed class PostLedgerEntryHandler : IRequestHandler<PostLedgerEntryComm
 
     public async Task<Result<Guid>> Handle(PostLedgerEntryCommand cmd, CancellationToken ct)
     {
-        var type   = Enum.Parse<EntryType>(cmd.Type);
-        var amount = Money.FromPaise(cmd.AmountPaise);
+        if (_currentUser.SocietyId is null || _currentUser.UserId is null)
+            return Result<Guid>.Fail("AUTH.REQUIRED", "Authentication context is required.");
+
+        var type = Enum.Parse<EntryType>(cmd.Type);
+
+        // Money.CreateInr accepts rupees (decimal); paise → rupees by dividing by 100
+        var moneyResult = Money.CreateInr(cmd.AmountPaise / 100m);
+        if (moneyResult.IsFailure)
+            return Result<Guid>.Fail(moneyResult.Error!);
 
         var entry = LedgerEntry.Create(
-            _currentUser.SocietyId, type, cmd.Category,
-            cmd.Description, amount, cmd.EntryDate, _currentUser.UserId);
+            _currentUser.SocietyId.Value,
+            type,
+            cmd.Category,
+            cmd.Description,
+            moneyResult.Value!,
+            cmd.EntryDate,
+            _currentUser.UserId.Value);
 
         if (cmd.ReceiptUrl is not null)
             entry.AttachReceipt(cmd.ReceiptUrl);
