@@ -26,6 +26,7 @@
     <ProjectReference Include="..\DigitalSocieties.Wallet\DigitalSocieties.Wallet.csproj" />
   </ItemGroup>
   <ItemGroup>
+    <PackageReference Include="ModelContextProtocol"                        Version="0.1.0-preview.9" />
     <PackageReference Include="MediatR"                                     Version="12.2.0" />
     <PackageReference Include="FluentValidation.AspNetCore"                  Version="11.3.0" />
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="8.0.4" />
