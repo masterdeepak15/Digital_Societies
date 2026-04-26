@@ -26,6 +26,15 @@ using DigitalSocieties.Facility.Infrastructure;
 using DigitalSocieties.Api.Endpoints.Accounting;
 using DigitalSocieties.Api.Endpoints.Facility;
 using DigitalSocieties.Api.Endpoints.Member;
+using DigitalSocieties.Parking.Infrastructure;
+using DigitalSocieties.Api.Endpoints.Parking;
+using DigitalSocieties.Mcp;
+using DigitalSocieties.Calling.Infrastructure;
+using DigitalSocieties.Api.Endpoints.Calling;
+using DigitalSocieties.Marketplace.Infrastructure;
+using DigitalSocieties.Api.Endpoints.Marketplace;
+using DigitalSocieties.Wallet.Infrastructure;
+using DigitalSocieties.Api.Endpoints.Wallet;
 
 // ── Bootstrap logger (captures startup errors before Serilog is fully configured)
 Log.Logger = new LoggerConfiguration()
@@ -141,6 +150,11 @@ try
     builder.Services.AddSocialModule(config);          // ← Society Feed, Groups, Marketplace, Polls, Directory
     builder.Services.AddAccountingModule(config);     // ← Ledger, expense approval, monthly P&L
     builder.Services.AddFacilityModule(config);       // ← Facility booking, slot availability
+    builder.Services.AddParkingModule(config);        // ← Parking levels, slots, vehicles
+    builder.Services.AddMcpModule(config);            // ← MCP server: AI tools exposed to Claude
+    builder.Services.AddCallingModule(config);        // ← LiveKit / Jitsi A/V calling
+    builder.Services.AddMarketplaceModule(config);   // ← Local service provider marketplace
+    builder.Services.AddWalletModule(config);         // ← Pre-paid wallet + Razorpay top-up
 
     // ── IStorageProvider — MinIO S3-compatible (OCP: swap to AWS S3 by changing this line)
     builder.Services.Configure<MinioSettings>(config.GetSection(MinioSettings.SectionName));
@@ -191,6 +205,13 @@ try
     app.MapGroup("/api/v1/accounting").MapAccountingEndpoints();
     app.MapGroup("/api/v1/facilities").MapFacilityEndpoints();
     app.MapGroup("/api/v1/members").MapMemberEndpoints();
+    app.MapGroup("/api/v1/parking").MapParkingEndpoints();
+    app.MapGroup("/api/v1/calling").MapCallingEndpoints();
+    app.MapGroup("/api/v1/marketplace").MapMarketplaceEndpoints();
+    app.MapGroup("/api/v1/wallet").MapWalletEndpoints();
+
+    // MCP server — AI assistants (Claude, etc.) connect here via SSE transport
+    app.MapMcp("/mcp");
 
     // SignalR Hub — clients connect at wss://{host}/hubs/society?access_token={jwt}
     app.MapHub<SocietyHub>("/hubs/society");

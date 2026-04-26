@@ -17,6 +17,11 @@
     <ProjectReference Include="..\DigitalSocieties.Social\DigitalSocieties.Social.csproj" />
     <ProjectReference Include="..\DigitalSocieties.Accounting\DigitalSocieties.Accounting.csproj" />
     <ProjectReference Include="..\DigitalSocieties.Facility\DigitalSocieties.Facility.csproj" />
+    <ProjectReference Include="..\DigitalSocieties.Parking\DigitalSocieties.Parking.csproj" />
+    <ProjectReference Include="..\DigitalSocieties.Mcp\DigitalSocieties.Mcp.csproj" />
+    <ProjectReference Include="..\DigitalSocieties.Calling\DigitalSocieties.Calling.csproj" />
+    <ProjectReference Include="..\DigitalSocieties.Marketplace\DigitalSocieties.Marketplace.csproj" />
+    <ProjectReference Include="..\DigitalSocieties.Wallet\DigitalSocieties.Wallet.csproj" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="MediatR"                                     Version="12.2.0" />

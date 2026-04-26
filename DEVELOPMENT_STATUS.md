@@ -1,7 +1,7 @@
 # 📊 Digital Societies — Development Status
 
 > Living document. Updated as phases complete.
-> Last updated: 2026-04-25
+> Last updated: 2026-04-26 (P5 complete)
 
 ---
 
@@ -12,9 +12,9 @@
 | P0 | Foundation | ✅ **Complete** | Mono-repo, Identity, Docker, mobile scaffold |
 | P1 | MVP | ✅ **Complete** | Billing, Visitor, Complaints, Notices, API wiring, mobile screens |
 | P2 | Accounting + Social + Facility | ✅ **Complete** | Social, Accounting, Facility, Push notifications, Family management |
-| P3 | Parking + Geomap | 📋 Planned | — |
-| P4 | AI / MCP + A/V | 📋 Planned | — |
-| P5 | Marketplace + Wallet | 📋 Planned | — |
+| P3 | Parking + Geomap | ✅ **Complete** | Parking module complete; Geomap deferred to P6 |
+| P4 | AI / MCP + A/V | ✅ **Complete** | MCP server (6 tools), LiveKit+Jitsi calling, SOS broadcast, video callback |
+| P5 | Marketplace + Wallet | ✅ **Complete** | Service marketplace, commission engine, pre-paid wallet, Razorpay top-up |
 | P6 | Enterprise | 📋 Planned | — |
 
 ---
@@ -253,51 +253,135 @@
 
 ---
 
-## P3 — Parking + Geomap 📋 Planned
+## P3 — Parking + Geomap 🔄 In Progress
+
+### Parking Module (`DigitalSocieties.Parking/`) ✅
 
 | Item | Status |
 |------|--------|
-| DigitalSocieties.Parking project | 📋 |
-| Parking level + slot data model | 📋 |
+| Domain entity — ParkingLevel (name, level number, floor plan URL) | ✅ |
+| Domain entity — ParkingSlot (SlotType: Car/Bike/Heavy, SlotStatus, EV charger flag) | ✅ |
+| Domain entity — Vehicle (registration number, make/model, color, RC doc URL) | ✅ |
+| Domain events — SlotAssignedEvent, SlotUnassignedEvent, VehicleRegisteredEvent | ✅ |
+| Command — CreateParkingLevelCommand (admin creates a level/zone) | ✅ |
+| Command — AddParkingSlotCommand (admin adds slot to a level) | ✅ |
+| Command — AssignSlotCommand (assign slot to flat + vehicle) | ✅ |
+| Command — UnassignSlotCommand (clear slot → Available) | ✅ |
+| Command — RegisterVehicleCommand (resident registers own vehicle) | ✅ |
+| Command — IssueVisitorPassCommand (guard issues temp visitor parking) | ✅ |
+| Query — GetParkingLevelsQuery (admin — all levels with slot counts) | ✅ |
+| Query — GetLevelSlotsQuery (admin — slot grid for a level) | ✅ |
+| Query — GetMyParkingQuery (resident — assigned slot + vehicle info) | ✅ |
+| Query — GetMyVehiclesQuery (resident — registered vehicles list) | ✅ |
+| Infrastructure — ParkingDbContext (schema: `parking`, 3 tables) | ✅ |
+| Infrastructure — ParkingServiceExtensions (`AddParkingModule`) | ✅ |
+| EF Core migration — InitialCreate (all tables + RLS policies + unique indexes) | ✅ |
+| API endpoints — `/api/v1/parking/*` (admin + resident routes) | ✅ |
+| Wired into Program.cs, Api.csproj, Dockerfile, solution | ✅ |
+| Mobile screen — ParkingScreen (resident): slot card, EV badge, vehicle list, add vehicle modal | ✅ |
+| Mobile screen — ParkingManagementScreen (admin): level tabs, slot grid, assign/unassign actions | ✅ |
+| Nav — Parking tab added to ResidentTabs + AdminTabs | ✅ |
+
+### Geomap Features — 📋 Deferred to P4
+
+| Item | Status |
+|------|--------|
 | Floor plan image upload + GeoJSON polygon editor | 📋 |
-| Resident slot assignment | 📋 |
-| Visitor parking pass (linked to visitor approval) | 📋 |
 | Visitor parking nav URL (no app needed for visitor) | 📋 |
 | MapLibre outdoor gate map | 📋 |
 | Indoor floor plan breadcrumb nav | 📋 |
-| EV charger slot booking | 📋 |
-| Vehicle records + ANPR API hook | 📋 |
+| ANPR API hook | 📋 |
 | Guard offline-first hardening (deferred from P2) | 📋 |
 
 ---
 
-## P4 — AI / MCP + A/V Calling 📋 Planned
+## P4 — AI / MCP + A/V Calling ✅ Complete
+
+### MCP Server (`DigitalSocieties.Mcp/`) ✅
 
 | Item | Status |
 |------|--------|
-| DigitalSocieties.Mcp project | 📋 |
-| MCP tool: `society.get_bills` | 📋 |
-| MCP tool: `society.file_complaint` | 📋 |
-| MCP tool: `society.route_complaint` | 📋 |
-| MCP tool: `society.summarize_notices` | 📋 |
-| MCP tool: `society.expense_anomaly` | 📋 |
-| MCP tool: `society.draft_notice` | 📋 |
-| Admin toggle: enable/disable AI tools + model selection | 📋 |
-| LiveKit integration (SaaS A/V) | 📋 |
-| Jitsi Meet integration (self-host A/V) | 📋 |
-| Resident ↔ Guard video callback on visitor approval | 📋 |
-| SOS video (one-way to guards + neighbors) | 📋 |
+| `DigitalSocieties.Mcp.csproj` — references Billing, Complaint, Communication, Accounting | ✅ |
+| `McpSettings` — master enable/disable + per-tool toggles + model selection | ✅ |
+| `McpServiceExtensions.AddMcpModule()` — registers all tools via MCP HTTP transport | ✅ |
+| MCP endpoint — `GET /mcp` (SSE transport for Claude + other AI clients) | ✅ |
+| Tool: `society.get_bills` — resident's bills with outstanding total | ✅ |
+| Tool: `society.file_complaint` — files complaint via MediatR, returns ref number | ✅ |
+| Tool: `society.route_complaint` — keyword-based dept/priority routing (z-score ready) | ✅ |
+| Tool: `society.summarize_notices` — fetches + summarizes recent notices (pinned first) | ✅ |
+| Tool: `society.draft_notice` — template-driven notice draft (admin only) | ✅ |
+| Tool: `society.expense_anomaly` — z-score anomaly detection across ledger categories | ✅ |
+
+### A/V Calling Module (`DigitalSocieties.Calling/`) ✅
+
+| Item | Status |
+|------|--------|
+| `IVideoCallProvider` abstraction — OCP: swap providers via config, zero code change | ✅ |
+| `LiveKitProvider` — JWT token generation + REST room management (HMAC-SHA256) | ✅ |
+| `JitsiProvider` — Jitsi Meet JWT (self-hosted fallback, rooms auto-close when empty) | ✅ |
+| `CallingSettings` — `Provider` key selects LiveKit vs JitsiMeet at startup | ✅ |
+| Domain entity — `CallRoom` (VisitorCallback / SOS / AdHoc, state machine) | ✅ |
+| Domain entity — `CallParticipant` (role: Host / Participant / Observer) | ✅ |
+| Command — `CreateVisitorCallCommand` (resident initiates callback to guard) | ✅ |
+| Command — `CreateSosCallCommand` (one-way broadcast; resident publishes, guards observe) | ✅ |
+| Command — `JoinCallCommand` (guard / neighbor gets observer token) | ✅ |
+| Command — `EndCallCommand` (host terminates room on provider + marks DB ended) | ✅ |
+| `CallingDbContext` — `call_rooms` + `call_participants` tables in `calling` schema | ✅ |
+| EF Core migration — InitialCreate + RLS on `call_rooms` | ✅ |
+| API endpoints — `POST /calling/visitor/:id`, `/calling/sos`, `/:id/join`, `/:id/end` | ✅ |
+| Mobile screen — `VideoCallScreen.tsx` (resident↔guard, mute/camera controls, PiP) | ✅ |
+| Mobile screen — `SosScreen.tsx` (3s countdown, one-way broadcast, observer count) | ✅ |
+| Nav — VideoCall + SOS screens registered in ResidentTabs (hidden from tab bar) | ✅ |
 
 ---
 
-## P5 — Marketplace + Wallet 📋 Planned
+## P5 — Marketplace + Wallet ✅ Complete
+
+### Marketplace Module (`DigitalSocieties.Marketplace/`) ✅
 
 | Item | Status |
 |------|--------|
-| DigitalSocieties.Marketplace project (local services) | 📋 |
-| Service provider listings + 8–12% commission | 📋 |
-| DigitalSocieties.Wallet project (pre-paid ledger) | 📋 |
-| Razorpay wallet load + UPI float | 📋 |
+| Domain entity — `ServiceListing` (10 categories: Plumber/Electrician/Carpenter/Painter/Cleaner/Pest/Security/Mover/IT/Other) | ✅ |
+| Domain entity — `ServiceBooking` state machine (Requested → Confirmed → Completed / Cancelled) | ✅ |
+| Domain entity — `ServiceReview` (rating 1-5, comment ≤1000 chars, one per completed booking) | ✅ |
+| Commission engine — `ServiceListing.CommissionPct` (8–12%); `ProviderPayout()` computes net | ✅ |
+| Command — `CreateListingCommand` (provider registers with category + base rate) | ✅ |
+| Command — `BookServiceCommand` (resident books with date/time/notes + quoted amount snapshot) | ✅ |
+| Command — `ConfirmBookingCommand` (provider confirms own bookings; admin can confirm any) | ✅ |
+| Command — `CompleteBookingCommand` (final amount captured; money locked from quote) | ✅ |
+| Command — `CancelBookingCommand` (cancellation reason recorded) | ✅ |
+| Command — `ReviewServiceCommand` (one review per completed booking; live average recalculated) | ✅ |
+| Query — `GetListingsQuery` (paginated, filterable by category + society) | ✅ |
+| Query — `GetMyBookingsQuery` (N+1-safe via pre-fetched reviewed IDs HashSet; `CanReview` flag) | ✅ |
+| Query — `GetProviderBookingsQuery` (provider sees own incoming bookings) | ✅ |
+| `MarketplaceDbContext` — 3 tables in `marketplace` schema; Money as owned entity | ✅ |
+| EF Core migration — unique index on `service_reviews.booking_id`; RLS on all 3 tables | ✅ |
+| `MarketplaceServiceExtensions.AddMarketplaceModule()` | ✅ |
+| API endpoints — full CRUD at `/api/v1/marketplace/*` (9 routes) | ✅ |
+| Wired into Program.cs, Api.csproj, Dockerfile, solution | ✅ |
+| Mobile screen — `MarketplaceScreen.tsx` (Browse tab: category filter, listing cards, BookModal; My Bookings tab: status badges, cancel, ReviewModal with star picker) | ✅ |
+| Nav — Marketplace tab added to ResidentTabs | ✅ |
+
+### Wallet Module (`DigitalSocieties.Wallet/`) ✅
+
+| Item | Status |
+|------|--------|
+| Domain entity — `WalletAccount` (balance as `long BalancePaise` to avoid decimal rounding) | ✅ |
+| Domain entity — `WalletTransaction` (Credit / Debit, ReferenceId for idempotency) | ✅ |
+| Balance projection — `Money Balance => Money.CreateInr(BalancePaise / 100m).Value!` | ✅ |
+| Guard — `Debit()` rejects if balance would go negative | ✅ |
+| Command — `EnsureWalletCommand` (idempotent; creates wallet if not exists, returns id) | ✅ |
+| Command — `InitiateTopUpCommand` (₹10–₹50,000 range; creates Razorpay order) | ✅ |
+| Command — `VerifyTopUpCommand` (HMAC-SHA256 signature check; idempotency via `ReferenceId`) | ✅ |
+| Command — `SpendFromWalletCommand` (calls `Debit()`; used by Billing, Facility, Marketplace) | ✅ |
+| Command — `RefundToWalletCommand` (admin can refund to any flatId) | ✅ |
+| `WalletDbContext` — unique index on `(society_id, flat_id)` enforces one wallet per flat | ✅ |
+| EF Core migration — RLS on both tables | ✅ |
+| `WalletServiceExtensions.AddWalletModule()` | ✅ |
+| API endpoints — `/api/v1/wallet/*` (ensure, balance, transactions, topup/initiate, topup/verify) | ✅ |
+| Wired into Program.cs, Api.csproj, Dockerfile, solution | ✅ |
+| Mobile screen — `WalletScreen.tsx` (balance card with dark blue gradient, quick-amount chips, custom amount input, paginated transaction history with Credit/Debit color coding, TopUp modal with Razorpay order flow) | ✅ |
+| Nav — Wallet tab added to ResidentTabs | ✅ |
 
 ---
 

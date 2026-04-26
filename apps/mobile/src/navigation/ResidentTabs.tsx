@@ -17,7 +17,12 @@ const VisitorsScreen   = React.lazy(() => import('../screens/resident/VisitorsSc
 const ComplaintsScreen = React.lazy(() => import('../screens/resident/ComplaintsScreen'));
 const NoticesScreen    = React.lazy(() => import('../screens/resident/NoticesScreen'));
 const FeedScreen       = React.lazy(() => import('../screens/resident/FeedScreen'));
-const ProfileScreen    = React.lazy(() => import('../screens/resident/ProfileScreen'));
+const ParkingScreen    = React.lazy(() => import('../screens/resident/ParkingScreen'));
+const VideoCallScreen    = React.lazy(() => import('../screens/resident/VideoCallScreen'));
+const SosScreen          = React.lazy(() => import('../screens/resident/SosScreen'));
+const MarketplaceScreen  = React.lazy(() => import('../screens/resident/MarketplaceScreen'));
+const WalletScreen       = React.lazy(() => import('../screens/resident/WalletScreen'));
+const ProfileScreen      = React.lazy(() => import('../screens/resident/ProfileScreen'));
 
 export default function ResidentTabs() {
   return (
@@ -29,8 +34,13 @@ export default function ResidentTabs() {
         <Tab.Screen name="Bills"      component={BillsScreen}      options={{ title: 'My Bills' }}    />
         <Tab.Screen name="Visitors"   component={VisitorsScreen}   options={{ title: 'Visitors' }}    />
         <Tab.Screen name="Complaints" component={ComplaintsScreen} options={{ title: 'Complaints' }}  />
+        <Tab.Screen name="Parking"    component={ParkingScreen}    options={{ title: 'Parking' }}     />
         <Tab.Screen name="Notices"    component={NoticesScreen}    options={{ title: 'Notices' }}     />
-        <Tab.Screen name="Profile"    component={ProfileScreen}    options={{ title: 'Profile' }}     />
+        <Tab.Screen name="Marketplace" component={MarketplaceScreen} options={{ title: 'Services' }}  />
+        <Tab.Screen name="Wallet"      component={WalletScreen}      options={{ title: 'Wallet' }}    />
+        <Tab.Screen name="VideoCall"   component={VideoCallScreen}   options={{ title: 'Call', tabBarButton: () => null }} />
+        <Tab.Screen name="Sos"         component={SosScreen}         options={{ title: 'SOS',  tabBarButton: () => null }} />
+        <Tab.Screen name="Profile"     component={ProfileScreen}     options={{ title: 'Profile' }}   />
       </Tab.Navigator>
     </Suspense>
   );

@@ -22,6 +22,16 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DigitalSocieties.Accounting
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DigitalSocieties.Facility", "DigitalSocieties.Facility\DigitalSocieties.Facility.csproj", "{A1B2C3D4-000B-0000-0000-000000000011}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DigitalSocieties.Parking", "DigitalSocieties.Parking\DigitalSocieties.Parking.csproj", "{A1B2C3D4-000C-0000-0000-000000000012}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DigitalSocieties.Mcp", "DigitalSocieties.Mcp\DigitalSocieties.Mcp.csproj", "{A1B2C3D4-000D-0000-0000-000000000013}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DigitalSocieties.Calling", "DigitalSocieties.Calling\DigitalSocieties.Calling.csproj", "{A1B2C3D4-000E-0000-0000-000000000014}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DigitalSocieties.Marketplace", "DigitalSocieties.Marketplace\DigitalSocieties.Marketplace.csproj", "{A1B2C3D4-000F-0000-0000-000000000015}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DigitalSocieties.Wallet", "DigitalSocieties.Wallet\DigitalSocieties.Wallet.csproj", "{A1B2C3D4-0010-0000-0000-000000000016}"
+EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DigitalSocieties.Api", "DigitalSocieties.Api\DigitalSocieties.Api.csproj", "{A1B2C3D4-0003-0000-0000-000000000003}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{A1B2C3D4-AAAA-0000-0000-000000000000}"
@@ -53,6 +63,26 @@ Global
     {A1B2C3D4-0009-0000-0000-000000000009}.Debug|Any CPU.Build.0 = Debug|Any CPU
     {A1B2C3D4-000B-0000-0000-000000000011}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
     {A1B2C3D4-000B-0000-0000-000000000011}.Debug|Any CPU.Build.0 = Debug|Any CPU
+    {A1B2C3D4-000C-0000-0000-000000000012}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+    {A1B2C3D4-000C-0000-0000-000000000012}.Debug|Any CPU.Build.0 = Debug|Any CPU
+    {A1B2C3D4-000C-0000-0000-000000000012}.Release|Any CPU.ActiveCfg = Release|Any CPU
+    {A1B2C3D4-000C-0000-0000-000000000012}.Release|Any CPU.Build.0 = Release|Any CPU
+    {A1B2C3D4-000D-0000-0000-000000000013}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+    {A1B2C3D4-000D-0000-0000-000000000013}.Debug|Any CPU.Build.0 = Debug|Any CPU
+    {A1B2C3D4-000D-0000-0000-000000000013}.Release|Any CPU.ActiveCfg = Release|Any CPU
+    {A1B2C3D4-000D-0000-0000-000000000013}.Release|Any CPU.Build.0 = Release|Any CPU
+    {A1B2C3D4-000E-0000-0000-000000000014}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+    {A1B2C3D4-000E-0000-0000-000000000014}.Debug|Any CPU.Build.0 = Debug|Any CPU
+    {A1B2C3D4-000E-0000-0000-000000000014}.Release|Any CPU.ActiveCfg = Release|Any CPU
+    {A1B2C3D4-000E-0000-0000-000000000014}.Release|Any CPU.Build.0 = Release|Any CPU
+    {A1B2C3D4-000F-0000-0000-000000000015}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+    {A1B2C3D4-000F-0000-0000-000000000015}.Debug|Any CPU.Build.0 = Debug|Any CPU
+    {A1B2C3D4-000F-0000-0000-000000000015}.Release|Any CPU.ActiveCfg = Release|Any CPU
+    {A1B2C3D4-000F-0000-0000-000000000015}.Release|Any CPU.Build.0 = Release|Any CPU
+    {A1B2C3D4-0010-0000-0000-000000000016}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+    {A1B2C3D4-0010-0000-0000-000000000016}.Debug|Any CPU.Build.0 = Debug|Any CPU
+    {A1B2C3D4-0010-0000-0000-000000000016}.Release|Any CPU.ActiveCfg = Release|Any CPU
+    {A1B2C3D4-0010-0000-0000-000000000016}.Release|Any CPU.Build.0 = Release|Any CPU
     {A1B2C3D4-0003-0000-0000-000000000003}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
     {A1B2C3D4-0003-0000-0000-000000000003}.Debug|Any CPU.Build.0 = Debug|Any CPU
     {A1B2C3D4-0010-0000-0000-000000000010}.Debug|Any CPU.ActiveCfg = Debug|Any CPU

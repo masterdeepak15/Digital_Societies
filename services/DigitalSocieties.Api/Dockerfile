@@ -14,6 +14,11 @@ COPY DigitalSocieties.Communication/DigitalSocieties.Communication.csproj      D
 COPY DigitalSocieties.Social/DigitalSocieties.Social.csproj                    DigitalSocieties.Social/
 COPY DigitalSocieties.Accounting/DigitalSocieties.Accounting.csproj            DigitalSocieties.Accounting/
 COPY DigitalSocieties.Facility/DigitalSocieties.Facility.csproj                DigitalSocieties.Facility/
+COPY DigitalSocieties.Parking/DigitalSocieties.Parking.csproj                  DigitalSocieties.Parking/
+COPY DigitalSocieties.Mcp/DigitalSocieties.Mcp.csproj                          DigitalSocieties.Mcp/
+COPY DigitalSocieties.Calling/DigitalSocieties.Calling.csproj                  DigitalSocieties.Calling/
+COPY DigitalSocieties.Marketplace/DigitalSocieties.Marketplace.csproj          DigitalSocieties.Marketplace/
+COPY DigitalSocieties.Wallet/DigitalSocieties.Wallet.csproj                    DigitalSocieties.Wallet/
 COPY DigitalSocieties.Api/DigitalSocieties.Api.csproj                          DigitalSocieties.Api/
 
 # Restore the API project (transitively restores all service-layer packages)
