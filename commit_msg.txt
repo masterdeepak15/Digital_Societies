@@ -1,13 +1,10 @@
-fix: resolve all dotnet build errors (P5 complete, 0 errors)
+fix(mobile): add theme barrel index + fix OTP input visibility on Android
 
-- Fix CS1739: ParkingSlot levelId -> LevelId (case-sensitive named param)
-- Fix CS1503: Add Options.ConfigurationExtensions to Wallet.csproj
-- Fix CS1061: Replace ToHashSetAsync with ToListAsync().ToHashSet()
-- Fix CS1061: Remove WithHttpTransport() from McpServiceExtensions
-- Fix CS0246: Correct namespace for DomainEvent in ParkingEvents.cs
-- Fix CS0246: Add using Shared.Results to WalletAccount, ServiceBooking, ServiceReview
-- Fix NU1101: Replace phantom LiveKit.Io.ServerSdk with System.IdentityModel.Tokens.Jwt
-- Fix NU1701: Suppress Razorpay .NET Framework warning in affected csproj files
-- Rewrite MCP tools to match exact MediatR query/command signatures
-- Add WalletScreen.tsx, MarketplaceScreen.tsx, wire into ResidentTabs
-- Update DEVELOPMENT_STATUS.md: P3 and P5 marked complete
+- Add apps/mobile/src/theme/index.ts barrel re-export
+  WalletScreen.tsx imported from '../../theme' (index) but only individual
+  theme files (colors/typography/spacing) existed — Metro bundler failed with
+  "Unable to resolve module ../../theme"
+- Fix LoginScreen OTP TextInput: add explicit color + backgroundColor tokens
+  Android can render text as transparent without an explicit color; input now
+  sets color: Colors.textPrimary and backgroundColor: Colors.surface so both
+  the phone field and OTP field are clearly legible on all Android devices
