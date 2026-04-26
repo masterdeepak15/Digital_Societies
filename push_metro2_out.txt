@@ -1,0 +1,8 @@
+[main 3c83cc7] fix(ci): hoist ALL metro-* packages (transform-plugins, transform-worker, symbolicate)
+ 1 file changed, 6 insertions(+), 3 deletions(-)
+To https://github.com/masterdeepak15/Digital_Societies.git
+   b04c781..3c83cc7  main -> main
+Exit=0 
+3c83cc7 fix(ci): hoist ALL metro-* packages (transform-plugins, transform-worker, symbolicate)
+b04c781 fix(ci): hoist metro packages + set API URL to societies.athomes.space
+23cd24c fix(ci): add placeholder assets (icon, splash, adaptive-icon, alert.wav) for expo prebuild

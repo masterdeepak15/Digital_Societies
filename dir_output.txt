@@ -1,0 +1,14 @@
+ Volume in drive D is Data
+ Volume Serial Number is 524D-BAB8
+
+ Directory of D:\Claude\Society-App\society-app-spec\Digital_Societies\apps\mobile
+
+24-04-2026  08:11    <DIR>          .
+24-04-2026  08:11    <DIR>          ..
+20-04-2026  08:43    <DIR>          app
+20-04-2026  08:40             1,281 app.json
+24-04-2026  08:11             1,953 package.json
+20-04-2026  08:41    <DIR>          src
+20-04-2026  08:40               150 tsconfig.json
+               3 File(s)          3,384 bytes
+               4 Dir(s)  78,394,306,560 bytes free

@@ -1,0 +1,2 @@
+npm error Invalid Version: 
+npm error A complete log of this run can be found in: C:\Users\Deepak\AppData\Local\npm-cache\_logs\2026-04-24T15_03_28_480Z-debug-0.log

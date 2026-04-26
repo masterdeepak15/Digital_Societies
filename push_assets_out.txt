@@ -1,0 +1,12 @@
+[main 23cd24c] fix(ci): add placeholder assets (icon, splash, adaptive-icon, alert.wav) for expo prebuild
+ 4 files changed, 0 insertions(+), 0 deletions(-)
+ create mode 100644 apps/mobile/assets/adaptive-icon.png
+ create mode 100644 apps/mobile/assets/alert.wav
+ create mode 100644 apps/mobile/assets/icon.png
+ create mode 100644 apps/mobile/assets/splash.png
+To https://github.com/masterdeepak15/Digital_Societies.git
+   65321ec..23cd24c  main -> main
+Exit=0 
+23cd24c fix(ci): add placeholder assets (icon, splash, adaptive-icon, alert.wav) for expo prebuild
+65321ec fix(ci): fix npm Invalid Version ΓÇö strip 80 empty lockfile stubs, use npm install --legacy-peer-deps
+127ab10 ci: replace CI with backend-release + apk-release jobs only

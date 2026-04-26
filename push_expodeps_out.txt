@@ -1,0 +1,8 @@
+[main c72cbea] fix(mobile): add missing expo peer deps ΓÇö expo-linking, expo-constants, expo-splash-screen
+ 1 file changed, 5 insertions(+), 2 deletions(-)
+To https://github.com/masterdeepak15/Digital_Societies.git
+   385d3cf..c72cbea  main -> main
+Exit=0 
+c72cbea fix(mobile): add missing expo peer deps ΓÇö expo-linking, expo-constants, expo-splash-screen
+385d3cf fix(ci): delete lockfile before npm install so npm hoists all packages correctly
+3c83cc7 fix(ci): hoist ALL metro-* packages (transform-plugins, transform-worker, symbolicate)
