@@ -1,0 +1,42 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>DigitalSocieties.Api</RootNamespace>
+    <UserSecretsId>digital-societies-api</UserSecretsId>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- Domain modules — DIP: Api depends on abstractions, not concrete DBs -->
+    <ProjectReference Include="..\DigitalSocieties.Shared\DigitalSocieties.Shared.csproj" />
+    <ProjectReference Include="..\DigitalSocieties.Identity\DigitalSocieties.Identity.csproj" />
+    <ProjectReference Include="..\DigitalSocieties.Billing\DigitalSocieties.Billing.csproj" />
+    <ProjectReference Include="..\DigitalSocieties.Visitor\DigitalSocieties.Visitor.csproj" />
+    <ProjectReference Include="..\DigitalSocieties.Complaint\DigitalSocieties.Complaint.csproj" />
+    <ProjectReference Include="..\DigitalSocieties.Communication\DigitalSocieties.Communication.csproj" />
+    <ProjectReference Include="..\DigitalSocieties.Social\DigitalSocieties.Social.csproj" />
+    <ProjectReference Include="..\DigitalSocieties.Accounting\DigitalSocieties.Accounting.csproj" />
+    <ProjectReference Include="..\DigitalSocieties.Facility\DigitalSocieties.Facility.csproj" />
+    <ProjectReference Include="..\DigitalSocieties.Parking\DigitalSocieties.Parking.csproj" />
+    <ProjectReference Include="..\DigitalSocieties.Mcp\DigitalSocieties.Mcp.csproj" />
+    <ProjectReference Include="..\DigitalSocieties.Calling\DigitalSocieties.Calling.csproj" />
+    <ProjectReference Include="..\DigitalSocieties.Marketplace\DigitalSocieties.Marketplace.csproj" />
+    <ProjectReference Include="..\DigitalSocieties.Wallet\DigitalSocieties.Wallet.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="MediatR"                                     Version="12.2.0" />
+    <PackageReference Include="FluentValidation.AspNetCore"                  Version="11.3.0" />
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="8.0.4" />
+    <PackageReference Include="Serilog.AspNetCore"                           Version="8.0.1" />
+    <PackageReference Include="Serilog.Sinks.Console"                        Version="5.0.1" />
+    <PackageReference Include="OpenTelemetry.Extensions.Hosting"             Version="1.8.1" />
+    <PackageReference Include="OpenTelemetry.Instrumentation.AspNetCore"     Version="1.8.1" />
+    <PackageReference Include="Scalar.AspNetCore"                            Version="1.2.24" />
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL"        Version="8.0.4" />
+    <PackageReference Include="StackExchange.Redis"                          Version="2.7.33" />
+    <PackageReference Include="Microsoft.Extensions.Caching.StackExchangeRedis" Version="8.0.4" />
+    <!-- MinIO S3-compatible object storage -->
+    <PackageReference Include="Minio"                                        Version="6.0.3" />
+    <!-- SignalR is included in Microsoft.NET.Sdk.Web — no separate NuGet package needed for .NET 8 -->
+  </ItemGroup>
+</Project>

@@ -1,0 +1,94 @@
+
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.9.0
+MinimumVisualStudioVersion = 10.0.40219.1
+
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DigitalSocieties.Shared", "DigitalSocieties.Shared\DigitalSocieties.Shared.csproj", "{A1B2C3D4-0001-0000-0000-000000000001}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DigitalSocieties.Identity", "DigitalSocieties.Identity\DigitalSocieties.Identity.csproj", "{A1B2C3D4-0002-0000-0000-000000000002}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DigitalSocieties.Billing", "DigitalSocieties.Billing\DigitalSocieties.Billing.csproj", "{A1B2C3D4-0004-0000-0000-000000000004}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DigitalSocieties.Visitor", "DigitalSocieties.Visitor\DigitalSocieties.Visitor.csproj", "{A1B2C3D4-0005-0000-0000-000000000005}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DigitalSocieties.Complaint", "DigitalSocieties.Complaint\DigitalSocieties.Complaint.csproj", "{A1B2C3D4-0006-0000-0000-000000000006}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DigitalSocieties.Communication", "DigitalSocieties.Communication\DigitalSocieties.Communication.csproj", "{A1B2C3D4-0007-0000-0000-000000000007}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DigitalSocieties.Social", "DigitalSocieties.Social\DigitalSocieties.Social.csproj", "{A1B2C3D4-0008-0000-0000-000000000008}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DigitalSocieties.Accounting", "DigitalSocieties.Accounting\DigitalSocieties.Accounting.csproj", "{A1B2C3D4-0009-0000-0000-000000000009}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DigitalSocieties.Facility", "DigitalSocieties.Facility\DigitalSocieties.Facility.csproj", "{A1B2C3D4-000B-0000-0000-000000000011}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DigitalSocieties.Parking", "DigitalSocieties.Parking\DigitalSocieties.Parking.csproj", "{A1B2C3D4-000C-0000-0000-000000000012}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DigitalSocieties.Mcp", "DigitalSocieties.Mcp\DigitalSocieties.Mcp.csproj", "{A1B2C3D4-000D-0000-0000-000000000013}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DigitalSocieties.Calling", "DigitalSocieties.Calling\DigitalSocieties.Calling.csproj", "{A1B2C3D4-000E-0000-0000-000000000014}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DigitalSocieties.Marketplace", "DigitalSocieties.Marketplace\DigitalSocieties.Marketplace.csproj", "{A1B2C3D4-000F-0000-0000-000000000015}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DigitalSocieties.Wallet", "DigitalSocieties.Wallet\DigitalSocieties.Wallet.csproj", "{A1B2C3D4-0010-0000-0000-000000000016}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DigitalSocieties.Api", "DigitalSocieties.Api\DigitalSocieties.Api.csproj", "{A1B2C3D4-0003-0000-0000-000000000003}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{A1B2C3D4-AAAA-0000-0000-000000000000}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DigitalSocieties.Identity.Tests", "..\tests\DigitalSocieties.Identity.Tests\DigitalSocieties.Identity.Tests.csproj", "{A1B2C3D4-0010-0000-0000-000000000010}"
+EndProject
+
+Global
+  GlobalSection(SolutionConfigurationPlatforms) = preSolution
+    Debug|Any CPU = Debug|Any CPU
+    Release|Any CPU = Release|Any CPU
+  EndGlobalSection
+  GlobalSection(ProjectConfigurationPlatforms) = postSolution
+    {A1B2C3D4-0001-0000-0000-000000000001}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+    {A1B2C3D4-0001-0000-0000-000000000001}.Debug|Any CPU.Build.0 = Debug|Any CPU
+    {A1B2C3D4-0002-0000-0000-000000000002}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+    {A1B2C3D4-0002-0000-0000-000000000002}.Debug|Any CPU.Build.0 = Debug|Any CPU
+    {A1B2C3D4-0004-0000-0000-000000000004}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+    {A1B2C3D4-0004-0000-0000-000000000004}.Debug|Any CPU.Build.0 = Debug|Any CPU
+    {A1B2C3D4-0005-0000-0000-000000000005}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+    {A1B2C3D4-0005-0000-0000-000000000005}.Debug|Any CPU.Build.0 = Debug|Any CPU
+    {A1B2C3D4-0006-0000-0000-000000000006}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+    {A1B2C3D4-0006-0000-0000-000000000006}.Debug|Any CPU.Build.0 = Debug|Any CPU
+    {A1B2C3D4-0007-0000-0000-000000000007}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+    {A1B2C3D4-0007-0000-0000-000000000007}.Debug|Any CPU.Build.0 = Debug|Any CPU
+    {A1B2C3D4-0008-0000-0000-000000000008}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+    {A1B2C3D4-0008-0000-0000-000000000008}.Debug|Any CPU.Build.0 = Debug|Any CPU
+    {A1B2C3D4-0009-0000-0000-000000000009}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+    {A1B2C3D4-0009-0000-0000-000000000009}.Debug|Any CPU.Build.0 = Debug|Any CPU
+    {A1B2C3D4-000B-0000-0000-000000000011}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+    {A1B2C3D4-000B-0000-0000-000000000011}.Debug|Any CPU.Build.0 = Debug|Any CPU
+    {A1B2C3D4-000C-0000-0000-000000000012}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+    {A1B2C3D4-000C-0000-0000-000000000012}.Debug|Any CPU.Build.0 = Debug|Any CPU
+    {A1B2C3D4-000C-0000-0000-000000000012}.Release|Any CPU.ActiveCfg = Release|Any CPU
+    {A1B2C3D4-000C-0000-0000-000000000012}.Release|Any CPU.Build.0 = Release|Any CPU
+    {A1B2C3D4-000D-0000-0000-000000000013}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+    {A1B2C3D4-000D-0000-0000-000000000013}.Debug|Any CPU.Build.0 = Debug|Any CPU
+    {A1B2C3D4-000D-0000-0000-000000000013}.Release|Any CPU.ActiveCfg = Release|Any CPU
+    {A1B2C3D4-000D-0000-0000-000000000013}.Release|Any CPU.Build.0 = Release|Any CPU
+    {A1B2C3D4-000E-0000-0000-000000000014}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+    {A1B2C3D4-000E-0000-0000-000000000014}.Debug|Any CPU.Build.0 = Debug|Any CPU
+    {A1B2C3D4-000E-0000-0000-000000000014}.Release|Any CPU.ActiveCfg = Release|Any CPU
+    {A1B2C3D4-000E-0000-0000-000000000014}.Release|Any CPU.Build.0 = Release|Any CPU
+    {A1B2C3D4-000F-0000-0000-000000000015}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+    {A1B2C3D4-000F-0000-0000-000000000015}.Debug|Any CPU.Build.0 = Debug|Any CPU
+    {A1B2C3D4-000F-0000-0000-000000000015}.Release|Any CPU.ActiveCfg = Release|Any CPU
+    {A1B2C3D4-000F-0000-0000-000000000015}.Release|Any CPU.Build.0 = Release|Any CPU
+    {A1B2C3D4-0010-0000-0000-000000000016}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+    {A1B2C3D4-0010-0000-0000-000000000016}.Debug|Any CPU.Build.0 = Debug|Any CPU
+    {A1B2C3D4-0010-0000-0000-000000000016}.Release|Any CPU.ActiveCfg = Release|Any CPU
+    {A1B2C3D4-0010-0000-0000-000000000016}.Release|Any CPU.Build.0 = Release|Any CPU
+    {A1B2C3D4-0003-0000-0000-000000000003}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+    {A1B2C3D4-0003-0000-0000-000000000003}.Debug|Any CPU.Build.0 = Debug|Any CPU
+    {A1B2C3D4-0010-0000-0000-000000000010}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+    {A1B2C3D4-0010-0000-0000-000000000010}.Debug|Any CPU.Build.0 = Debug|Any CPU
+  EndGlobalSection
+  GlobalSection(NestedProjects) = preSolution
+    {A1B2C3D4-0010-0000-0000-000000000010} = {A1B2C3D4-AAAA-0000-0000-000000000000}
+  EndGlobalSection
+EndGlobal

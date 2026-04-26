@@ -1,0 +1,114 @@
+# ──────────────────────────────────────────────────────────────────────────────
+# Digital Societies — Production Backend Stack (API-only, no web-admin)
+# Usage:
+#   1. Copy .env.example to .env and fill values
+#   2. docker compose -f docker-compose.prod.yml up -d --build
+# ──────────────────────────────────────────────────────────────────────────────
+name: digital-societies-prod
+
+services:
+
+  # ── API (ASP.NET Core 8) ───────────────────────────────────────────────────
+  api:
+    image: ghcr.io/masterdeepak15/digital-societies-api:latest
+    restart: unless-stopped
+    environment:
+      ASPNETCORE_ENVIRONMENT:       Production
+      ASPNETCORE_URLS:              http://+:8080
+      ConnectionStrings__Postgres:  "Host=postgres;Port=5432;Database=digital_societies;Username=ds_app;Password=${POSTGRES_PASSWORD}"
+      ConnectionStrings__Redis:     "redis:6379,password=${REDIS_PASSWORD}"
+      Jwt__Issuer:                  ${JWT_ISSUER}
+      Jwt__Audience:                ${JWT_AUDIENCE}
+      Jwt__SecretKey:               ${JWT_SECRET_KEY}
+      Notification__Sms__ApiKey:    ${MSG91_API_KEY}
+      Storage__Endpoint:            http://minio:9000
+      Storage__AccessKey:           ${MINIO_ACCESS_KEY}
+      Storage__SecretKey:           ${MINIO_SECRET_KEY}
+      Storage__BucketName:          ds-files
+      AllowedOrigins__0:            https://${DOMAIN}
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis:    { condition: service_healthy }
+      minio:    { condition: service_started }
+    networks: [ds-net]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  # ── PostgreSQL 16 ──────────────────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB:       digital_societies
+      POSTGRES_USER:     ds_app
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./postgres-init:/docker-entrypoint-initdb.d:ro
+    networks: [ds-net]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ds_app -d digital_societies"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── Redis 7 ────────────────────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: redis-server --requirepass ${REDIS_PASSWORD} --save 60 1 --loglevel warning
+    volumes:
+      - redis_data:/data
+    networks: [ds-net]
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── MinIO (file storage) ───────────────────────────────────────────────────
+  minio:
+    image: minio/minio:latest
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER:     ${MINIO_ACCESS_KEY}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY}
+    volumes:
+      - minio_data:/data
+    ports:
+      - "9001:9001"   # MinIO console (access at http://localhost:9001)
+    networks: [ds-net]
+
+  # ── Caddy (reverse proxy + automatic HTTPS via Let's Encrypt) ─────────────
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile.prod:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    environment:
+      DOMAIN:   ${DOMAIN}
+      API_URL:  http://api:8080
+    depends_on:
+      api: { condition: service_healthy }
+    networks: [ds-net]
+
+volumes:
+  postgres_data:
+  redis_data:
+  minio_data:
+  caddy_data:
+  caddy_config:
+
+networks:
+  ds-net:
+    driver: bridge

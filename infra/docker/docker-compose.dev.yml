@@ -1,0 +1,33 @@
+# Override for local development — hot reload, verbose logging, ports exposed
+# Usage: docker compose -f docker-compose.yml -f docker-compose.dev.yml up
+name: digital-societies-dev
+
+services:
+  api:
+    build:
+      context: ../../services
+      dockerfile: DigitalSocieties.Api/Dockerfile
+      target: build   # stop at build stage for faster iteration
+    volumes:
+      - ../../services:/src    # mount source for hot-reload
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      DOTNET_WATCH_SUPPRESS_EMOJIS: 1
+    command: dotnet watch run --project DigitalSocieties.Api/DigitalSocieties.Api.csproj
+
+  postgres:
+    ports: ["5432:5432"]
+    environment:
+      POSTGRES_PASSWORD: devpassword
+
+  redis:
+    ports: ["6379:6379"]
+    command: redis-server --requirepass devpassword
+
+  minio:
+    ports:
+      - "9000:9000"
+      - "9001:9001"   # MinIO console at localhost:9001
+    environment:
+      MINIO_ROOT_USER:     devaccess
+      MINIO_ROOT_PASSWORD: devsecretkey

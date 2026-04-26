@@ -1,0 +1,42 @@
+{
+  "expo": {
+    "name": "Digital Societies",
+    "slug": "digital-societies",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "scheme": "ds",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#1B4F72"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      ["expo-notifications", { "sounds": ["./assets/alert.wav"] }],
+      "expo-local-authentication"
+    ],
+    "android": {
+      "package": "app.digitalsocieties.mobile",
+      "adaptiveIcon": { "foregroundImage": "./assets/adaptive-icon.png", "backgroundColor": "#1B4F72" },
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.RECEIVE_BOOT_COMPLETED"
+      ]
+    },
+    "ios": {
+      "bundleIdentifier": "app.digitalsocieties.mobile",
+      "supportsTablet": false,
+      "infoPlist": {
+        "NSCameraUsageDescription": "Used for visitor photo and complaint images.",
+        "NSLocationWhenInUseUsageDescription": "Used for geofenced gate alerts.",
+        "NSFaceIDUsageDescription": "Used for secure app unlock."
+      }
+    },
+    "eas": {
+      "projectId": "replace-with-expo-project-id"
+    }
+  }
+}

@@ -1,0 +1,131 @@
+name: Release
+
+on:
+  push:
+    branches: [main]
+
+env:
+  DOTNET_VERSION: '8.0.x'
+  NODE_VERSION:   '20.x'
+  JAVA_VERSION:   '17'
+  API_BASE_URL:   'https://societies.athomes.space/api/v1'
+  IMAGE_NAME:     ghcr.io/${{ github.repository_owner }}/digital-societies-api
+
+jobs:
+  # ── 1. Backend — Build, Publish & Push Docker image to GHCR ────────────────
+  backend-release:
+    name: Backend Release + Docker Push
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      packages: write   # needed to push to GHCR
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET ${{ env.DOTNET_VERSION }}
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Restore & Build
+        working-directory: services
+        run: |
+          dotnet restore DigitalSocieties.sln
+          dotnet publish DigitalSocieties.Api/DigitalSocieties.Api.csproj \
+            -c Release \
+            -r linux-x64 \
+            --self-contained false \
+            -o ../publish/api
+
+      - name: Upload Backend Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-release
+          path: publish/api/
+          retention-days: 30
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build & Push API image
+        uses: docker/build-push-action@v5
+        with:
+          context:    services
+          file:       services/DigitalSocieties.Api/Dockerfile
+          push:       true
+          tags: |
+            ${{ env.IMAGE_NAME }}:latest
+            ${{ env.IMAGE_NAME }}:${{ github.sha }}
+          cache-from: type=gha
+          cache-to:   type=gha,mode=max
+
+  # ── 2. Android APK Release ──────────────────────────────────────────────────
+  apk-release:
+    name: Android APK Release
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/mobile
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Setup Java ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: ${{ env.JAVA_VERSION }}
+
+      - name: Install deps (fresh — no lockfile to force correct hoisting)
+        run: |
+          rm -f package-lock.json
+          npm install --legacy-peer-deps
+
+      - name: Expo Prebuild (Android)
+        env:
+          EXPO_PUBLIC_API_URL: ${{ env.API_BASE_URL }}
+        run: npx expo prebuild --platform android --no-install
+
+      - name: Make Gradlew executable
+        run: chmod +x android/gradlew
+
+      - name: Decode Keystore
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          echo "$KEYSTORE_BASE64" | base64 --decode > android/app/release.keystore
+
+      - name: Build Release APK
+        env:
+          EXPO_PUBLIC_API_URL:  ${{ env.API_BASE_URL }}
+          KEYSTORE_PASSWORD:    ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS:            ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD:         ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          cd android
+          ./gradlew assembleRelease \
+            -PANDROID_KEYSTORE_FILE=release.keystore \
+            -PANDROID_KEYSTORE_PASSWORD=$KEYSTORE_PASSWORD \
+            -PANDROID_KEY_ALIAS=$KEY_ALIAS \
+            -PANDROID_KEY_PASSWORD=$KEY_PASSWORD
+
+      - name: Upload APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: digital-societies-release
+          path: apps/mobile/android/app/build/outputs/apk/release/app-release.apk
+          retention-days: 30

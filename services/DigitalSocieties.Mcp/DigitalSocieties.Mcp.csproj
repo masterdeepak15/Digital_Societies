@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>DigitalSocieties.Mcp</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- Shared kernel + domain modules queried by tools -->
+    <ProjectReference Include="..\DigitalSocieties.Shared\DigitalSocieties.Shared.csproj" />
+    <ProjectReference Include="..\DigitalSocieties.Billing\DigitalSocieties.Billing.csproj" />
+    <ProjectReference Include="..\DigitalSocieties.Complaint\DigitalSocieties.Complaint.csproj" />
+    <ProjectReference Include="..\DigitalSocieties.Communication\DigitalSocieties.Communication.csproj" />
+    <ProjectReference Include="..\DigitalSocieties.Accounting\DigitalSocieties.Accounting.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- Official C# MCP SDK (server-side) -->
+    <PackageReference Include="ModelContextProtocol"        Version="0.1.0-preview.9" />
+    <PackageReference Include="MediatR"                     Version="12.2.0" />
+    <PackageReference Include="Microsoft.Extensions.Options" Version="8.0.2" />
+  </ItemGroup>
+</Project>
