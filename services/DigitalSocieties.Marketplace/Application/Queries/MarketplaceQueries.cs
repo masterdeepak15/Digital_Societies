@@ -103,10 +103,10 @@ public sealed class GetMyBookingsHandler
 
         // Pre-fetch reviewed booking IDs to avoid N+1
         var myBookingIds    = await query.Select(b => b.Id).ToListAsync(ct);
-        var reviewedBookings = await _db.ServiceReviews
+        var reviewedBookings = (await _db.ServiceReviews
             .Where(r => myBookingIds.Contains(r.BookingId))
             .Select(r => r.BookingId)
-            .ToHashSetAsync(ct);
+            .ToListAsync(ct)).ToHashSet();
 
         var bookings = await query
             .OrderByDescending(b => b.ScheduledAt)

@@ -57,7 +57,7 @@ public sealed class ParkingSlot : AuditableEntity
         VehicleType     = vehicleType;
         VisitorPassId   = null;
         PassExpiresAt   = null;
-        Raise(new SlotAssignedEvent(Id, SocietyId, levelId: LevelId, flatId, vehicleNumber));
+        Raise(new SlotAssignedEvent(Id, SocietyId, LevelId: LevelId, flatId, vehicleNumber));
     }
 
     public void Unassign()

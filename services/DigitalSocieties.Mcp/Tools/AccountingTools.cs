@@ -45,21 +45,30 @@ public sealed class AccountingTools
         months    = Math.Clamp(months <= 0 ? 3 : months, 1, 12);
         minAmount = minAmount <= 0 ? 1000m : minAmount;
 
-        var since  = DateTimeOffset.UtcNow.AddMonths(-months);
+        // GetLedgerEntriesQuery has no "Status" parameter — use PendingOnly for pending filter
         var result = await _mediator.Send(
             new GetLedgerEntriesQuery(
-                Type:      "Expense",
-                Status:    null,
-                Category:  null,
-                Page:      1,
-                PageSize:  200),
+                Type:     "Expense",
+                Category: null,
+                Month:    0,         // 0 = current month (handler default)
+                Year:     0,
+                Page:     1,
+                PageSize: 200,
+                PendingOnly: false),
             ct);
 
         if (result.IsFailure)
             return $"Could not retrieve ledger data: {result.Error}";
 
-        var entries = (result.Value ?? [])
-            .Where(e => e.EntryDate >= since && e.Amount >= minAmount)
+        // Result<PagedResult<LedgerEntryDto>> — extract items
+        var allEntries = result.Value?.Items ?? [];
+
+        // LedgerEntryDto.EntryDate is DateOnly; convert DateTimeOffset cutoff to DateOnly
+        var sinceDate = DateOnly.FromDateTime(DateTimeOffset.UtcNow.AddMonths(-months).DateTime);
+
+        // AmountPaise is stored in paise — convert to rupees for comparison
+        var entries = allEntries
+            .Where(e => e.EntryDate >= sinceDate && e.AmountPaise / 100m >= minAmount)
             .ToList();
 
         if (entries.Count == 0)
@@ -68,12 +77,17 @@ public sealed class AccountingTools
         // ── Statistical anomaly detection (z-score per category) ───────────
         var byCategory = entries
             .GroupBy(e => e.Category)
-            .ToDictionary(g => g.Key, g => g.Select(e => e.Amount).ToList());
+            .ToDictionary(
+                g => g.Key,
+                g => g.Select(e => e.AmountPaise / 100m).ToList());  // amounts in rupees
 
         var anomalies = new List<string>();
 
-        foreach (var (category, amounts) in byCategory)
+        foreach (var pair in byCategory)
         {
+            var category = pair.Key;
+            var amounts  = pair.Value;
+
             if (amounts.Count < 2) continue; // need at least 2 data points
 
             var mean   = amounts.Average();
@@ -83,12 +97,13 @@ public sealed class AccountingTools
 
             foreach (var entry in entries.Where(e => e.Category == category))
             {
-                var z = Math.Abs((double)(entry.Amount - mean) / stdDev);
+                var amountRupees = entry.AmountPaise / 100m;
+                var z = Math.Abs((double)(amountRupees - mean) / stdDev);
                 if (z > 2.0) // flag if > 2 standard deviations
                 {
                     anomalies.Add(
                         $"  ⚠️  {entry.EntryDate:dd MMM yyyy}  [{category}]  " +
-                        $"₹{entry.Amount:N0}  (avg ₹{mean:N0}, z={z:F1})  — {entry.Description}");
+                        $"₹{amountRupees:N0}  (avg ₹{mean:N0}, z={z:F1})  — {entry.Description}");
                 }
             }
         }
@@ -107,16 +122,19 @@ public sealed class AccountingTools
             anomalies.ForEach(a => sb.AppendLine(a));
         }
 
-        if (pending.Any())
+        if (pending.Count > 0)
         {
             sb.AppendLine($"\n⏳ {pending.Count} expense(s) awaiting approval:");
             foreach (var p in pending.Take(5))
-                sb.AppendLine($"  • ₹{p.Amount:N0}  [{p.Category}]  {p.Description}");
+            {
+                var amtRupees = p.AmountPaise / 100m;
+                sb.AppendLine($"  • ₹{amtRupees:N0}  [{p.Category}]  {p.Description}");
+            }
             if (pending.Count > 5)
                 sb.AppendLine($"  … and {pending.Count - 5} more.");
         }
 
-        var totalExpense = entries.Sum(e => e.Amount);
+        var totalExpense = entries.Sum(e => e.AmountPaise / 100m);
         sb.AppendLine($"\nTotal expenses analysed: ₹{totalExpense:N0} across {entries.Count} entries.");
 
         return sb.ToString();

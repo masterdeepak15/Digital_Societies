@@ -4,6 +4,8 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <RootNamespace>DigitalSocieties.Billing</RootNamespace>
+    <!-- Razorpay 2.0.0 targets .NET Framework but is fully compatible at runtime -->
+    <NoWarn>$(NoWarn);NU1701</NoWarn>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\DigitalSocieties.Shared\DigitalSocieties.Shared.csproj" />

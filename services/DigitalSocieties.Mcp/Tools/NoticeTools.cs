@@ -40,12 +40,16 @@ public sealed class NoticeTools
 
         count = Math.Clamp(count <= 0 ? 10 : count, 1, 20);
 
-        var result = await _mediator.Send(new GetSocietyNoticesQuery(Page: 1, PageSize: count), ct);
+        // GetSocietyNoticesQuery requires SocietyId as first parameter
+        var result = await _mediator.Send(
+            new GetSocietyNoticesQuery(_currentUser.SocietyId.Value, null, Page: 1, PageSize: count),
+            ct);
 
         if (result.IsFailure)
             return $"Could not retrieve notices: {result.Error}";
 
-        var notices = result.Value ?? [];
+        // Result<NoticePagedResult> — extract the items list
+        var notices = result.Value?.Items ?? [];
 
         if (notices.Count == 0)
             return "No notices have been posted recently.";
@@ -55,18 +59,19 @@ public sealed class NoticeTools
 
         var parts = new List<string>();
 
-        if (pinned.Any())
+        if (pinned.Count > 0)
         {
             parts.Add("📌 Pinned notices:");
             parts.AddRange(pinned.Select(n =>
-                $"  • [{n.PostedAt:dd MMM}] {n.Title} — {TruncateBody(n.Body)}"));
+                // DTO has CreatedAt (not PostedAt)
+                $"  • [{n.CreatedAt:dd MMM}] {n.Title} — {TruncateBody(n.Body)}"));
         }
 
-        if (recent.Any())
+        if (recent.Count > 0)
         {
             parts.Add("📋 Recent notices:");
             parts.AddRange(recent.Select(n =>
-                $"  • [{n.PostedAt:dd MMM}] {n.Title} — {TruncateBody(n.Body)}"));
+                $"  • [{n.CreatedAt:dd MMM}] {n.Title} — {TruncateBody(n.Body)}"));
         }
 
         parts.Add($"\n{notices.Count} notice(s) retrieved. Open the Notices tab to read in full.");
@@ -93,7 +98,7 @@ public sealed class NoticeTools
         if (!_currentUser.IsInRole("admin"))
             return Task.FromResult("Only society admins can draft notices.");
 
-        // Template-driven draft — no external LLM call (P5 will add Claude API call here).
+        // Template-driven draft — no external LLM call (P6 will add Claude API call here).
         var date = DateTimeOffset.UtcNow.ToString("dd MMM yyyy");
         var tonePrefix = tone.ToLowerInvariant() switch
         {

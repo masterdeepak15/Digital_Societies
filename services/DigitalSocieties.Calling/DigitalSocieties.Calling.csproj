@@ -14,7 +14,7 @@
     <PackageReference Include="Microsoft.EntityFrameworkCore"        Version="8.0.4" />
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="8.0.4" />
     <PackageReference Include="Microsoft.Extensions.Http"            Version="8.0.0" />
-    <!-- LiveKit server SDK for .NET — JWT room token generation -->
-    <PackageReference Include="LiveKit.Io.ServerSdk"                 Version="0.4.0" />
+    <!-- JWT for LiveKit token generation (HMAC-SHA256 via standard library — no proprietary SDK needed) -->
+    <PackageReference Include="System.IdentityModel.Tokens.Jwt"      Version="7.5.2" />
   </ItemGroup>
 </Project>

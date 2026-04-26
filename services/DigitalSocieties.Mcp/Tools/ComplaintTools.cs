@@ -39,14 +39,17 @@ public sealed class ComplaintTools
         if (!_settings.Enabled || !_settings.EnableFileComplaint)
             return "Filing complaints via AI is currently disabled.";
 
-        if (_currentUser.FlatId is null || _currentUser.UserId is null)
+        if (_currentUser.SocietyId is null || _currentUser.FlatId is null || _currentUser.UserId is null)
             return "Please log in as a resident before filing a complaint.";
 
         var cmd = new RaiseComplaintCommand(
+            SocietyId:   _currentUser.SocietyId.Value,
+            FlatId:      _currentUser.FlatId.Value,
             Title:       title.Trim()[..Math.Min(title.Length, 120)],
             Description: description.Trim(),
             Category:    category.Trim(),
-            FlatId:      _currentUser.FlatId.Value);
+            Priority:    "Normal",
+            ImageUrls:   null);
 
         var result = await _mediator.Send(cmd, ct);
 

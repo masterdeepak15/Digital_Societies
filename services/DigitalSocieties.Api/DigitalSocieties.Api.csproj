@@ -5,6 +5,8 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <RootNamespace>DigitalSocieties.Api</RootNamespace>
     <UserSecretsId>digital-societies-api</UserSecretsId>
+    <!-- Razorpay 2.0.0 targets .NET Framework but is fully compatible at runtime -->
+    <NoWarn>$(NoWarn);NU1701</NoWarn>
   </PropertyGroup>
   <ItemGroup>
     <!-- Domain modules — DIP: Api depends on abstractions, not concrete DBs -->

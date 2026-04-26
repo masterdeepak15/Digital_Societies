@@ -1,5 +1,4 @@
 using System.ComponentModel;
-using System.Text.Json;
 using MediatR;
 using ModelContextProtocol.Server;
 using DigitalSocieties.Shared.Contracts;
@@ -44,11 +43,12 @@ public sealed class BillingTools
         if (result.IsFailure)
             return $"Error retrieving bills: {result.Error}";
 
-        var bills = result.Value ?? [];
+        // GetFlatBillsQuery returns Result<PagedResult<BillDto>> — extract the items list
+        var bills = (result.Value?.Items ?? []).ToList();
 
-        if (!string.IsNullOrWhiteSpace(month) && DateTime.TryParse($"{month}-01", out var filterMonth))
-            bills = bills.Where(b => b.BillingMonth.Year == filterMonth.Year
-                                  && b.BillingMonth.Month == filterMonth.Month).ToList();
+        // Optional month filter: Period is "YYYY-MM" format
+        if (!string.IsNullOrWhiteSpace(month))
+            bills = bills.Where(b => b.Period == month).ToList();
 
         if (bills.Count == 0)
             return month is null
@@ -56,11 +56,20 @@ public sealed class BillingTools
                 : $"No bills found for {month}.";
 
         var lines = bills.Select(b =>
-            $"- {b.BillingMonth:MMM yyyy}: ₹{b.TotalAmount} | " +
-            $"Status: {b.Status} | Due: {b.DueDate:dd MMM yyyy}" +
-            (b.PaidAt.HasValue ? $" | Paid: {b.PaidAt:dd MMM yyyy}" : ""));
+        {
+            // Format "2026-04" → "Apr 2026" for display
+            var periodDisplay = DateOnly.TryParseExact(b.Period + "-01", "yyyy-MM-dd",
+                System.Globalization.CultureInfo.InvariantCulture,
+                System.Globalization.DateTimeStyles.None, out var d)
+                ? d.ToString("MMM yyyy")
+                : b.Period;
 
-        var total   = bills.Where(b => b.Status != "Paid").Sum(b => b.TotalAmount);
+            return $"- {periodDisplay}: ₹{b.TotalDue} | " +
+                   $"Status: {b.Status} | Due: {b.DueDate:dd MMM yyyy}" +
+                   (b.PaidAt.HasValue ? $" | Paid: {b.PaidAt:dd MMM yyyy}" : "");
+        });
+
+        var total   = bills.Where(b => b.Status != "Paid").Sum(b => b.TotalDue);
         var summary = total > 0
             ? $"\nTotal outstanding: ₹{total}"
             : "\nAll bills are paid. ✓";

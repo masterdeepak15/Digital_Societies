@@ -4,16 +4,19 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <RootNamespace>DigitalSocieties.Wallet</RootNamespace>
+    <!-- Razorpay 2.0.0 targets .NET Framework but is fully compatible at runtime -->
+    <NoWarn>$(NoWarn);NU1701</NoWarn>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\DigitalSocieties.Shared\DigitalSocieties.Shared.csproj" />
   </ItemGroup>
   <ItemGroup>
-    <PackageReference Include="MediatR"                               Version="12.2.0" />
-    <PackageReference Include="FluentValidation"                      Version="11.9.0" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore"         Version="8.0.4" />
-    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="8.0.4" />
+    <PackageReference Include="MediatR"                                         Version="12.2.0" />
+    <PackageReference Include="FluentValidation"                                Version="11.9.0" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore"                   Version="8.0.4" />
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL"           Version="8.0.4" />
+    <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="8.0.0" />
     <!-- Razorpay SDK for wallet top-up order creation -->
-    <PackageReference Include="Razorpay"                              Version="2.0.0" />
+    <PackageReference Include="Razorpay"                                        Version="2.0.0" />
   </ItemGroup>
 </Project>

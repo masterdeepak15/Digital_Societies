@@ -1,4 +1,4 @@
-using DigitalSocieties.Shared.Domain.Entities;
+using DigitalSocieties.Shared.Domain.Events;
 
 namespace DigitalSocieties.Parking.Domain.Events;
 

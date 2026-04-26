@@ -17,10 +17,9 @@ public static class McpServiceExtensions
         // Bind settings (supports per-society runtime overrides via env vars)
         services.Configure<McpSettings>(config.GetSection(McpSettings.SectionName));
 
-        // Register all tool types — the MCP runtime discovers them via [McpServerToolType]
+        // Transport (HTTP SSE) is registered via app.MapMcp() in Program.cs
         services
             .AddMcpServer()
-            .WithHttpTransport()
             .WithTools<BillingTools>()
             .WithTools<ComplaintTools>()
             .WithTools<NoticeTools>()

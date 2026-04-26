@@ -1,5 +1,6 @@
 using DigitalSocieties.Shared.Domain.Entities;
 using DigitalSocieties.Shared.Domain.ValueObjects;
+using DigitalSocieties.Shared.Results;
 
 namespace DigitalSocieties.Marketplace.Domain.Entities;
 
