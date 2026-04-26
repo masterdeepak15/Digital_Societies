@@ -1,6 +1,5 @@
 using System.Text;
 using Microsoft.AspNetCore.RateLimiting;
-using ModelContextProtocol.Server;
 using FluentValidation.AspNetCore;
 using Serilog;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -211,8 +210,8 @@ try
     app.MapGroup("/api/v1/marketplace").MapMarketplaceEndpoints();
     app.MapGroup("/api/v1/wallet").MapWalletEndpoints();
 
-    // MCP server — AI assistants (Claude, etc.) connect here via SSE transport
-    app.MapMcp("/mcp");
+    // MCP server tools registered via AddMcpModule() in services above.
+    // HTTP SSE transport (MapMcp) requires ModelContextProtocol >= 0.2.0 — upgrade in P6.
 
     // SignalR Hub — clients connect at wss://{host}/hubs/society?access_token={jwt}
     app.MapHub<SocietyHub>("/hubs/society");
