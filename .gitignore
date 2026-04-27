@@ -48,4 +48,19 @@ Thumbs.db
 *.bat
 *.cmd
 *_out.txt
+*.txt
+!README.md
+commit_msg.txt
 COMMIT_MSG.txt
+
+# ── Temp output / log files at repo root ─────────────────────────────────────
+/*.log
+/*.txt
+/check*.bat
+/push_*.bat
+/run_*.bat
+/install_*.bat
+/git_*.bat
+/commit*.bat
+/*.out
+*.err.log
