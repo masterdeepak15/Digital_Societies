@@ -1,9 +1,0 @@
-[main b04c781] fix(ci): hoist metro packages + set API URL to societies.athomes.space
- 2 files changed, 19 insertions(+), 4 deletions(-)
-To https://github.com/masterdeepak15/Digital_Societies.git
-   23cd24c..b04c781  main -> main
-Exit=0 
-b04c781 fix(ci): hoist metro packages + set API URL to societies.athomes.space
-23cd24c fix(ci): add placeholder assets (icon, splash, adaptive-icon, alert.wav) for expo prebuild
-65321ec fix(ci): fix npm Invalid Version ΓÇö strip 80 empty lockfile stubs, use npm install --legacy-peer-deps
-127ab10 ci: replace CI with backend-release + apk-release jobs only

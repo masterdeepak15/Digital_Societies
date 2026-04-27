@@ -1,8 +1,0 @@
-[main 385d3cf] fix(ci): delete lockfile before npm install so npm hoists all packages correctly
- 1 file changed, 3 insertions(+), 17 deletions(-)
-To https://github.com/masterdeepak15/Digital_Societies.git
-   3c83cc7..385d3cf  main -> main
-Exit=0 
-385d3cf fix(ci): delete lockfile before npm install so npm hoists all packages correctly
-3c83cc7 fix(ci): hoist ALL metro-* packages (transform-plugins, transform-worker, symbolicate)
-b04c781 fix(ci): hoist metro packages + set API URL to societies.athomes.space

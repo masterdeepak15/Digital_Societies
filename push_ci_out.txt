@@ -1,8 +1,0 @@
-[main 127ab10] ci: replace CI with backend-release + apk-release jobs only
- 1 file changed, 53 insertions(+), 79 deletions(-)
-To https://github.com/masterdeepak15/Digital_Societies.git
-   c4b0068..127ab10  main -> main
-Exit=0 
-127ab10 ci: replace CI with backend-release + apk-release jobs only
-c4b0068 fix(mobile): TypeScript build passes clean (TscExit=0)
-a5fc628 fix(mobile): resolve all TypeScript errors and runtime boot bugs

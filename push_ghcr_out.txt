@@ -1,7 +1,0 @@
-To https://github.com/masterdeepak15/Digital_Societies.git
-   9634ce5..a1060cc  main -> main
-Exit=0 
-a1060cc feat(ci): build & push Docker image to GHCR on every main push
-9634ce5 feat(deploy): add production docker-compose for API-only backend deployment
-c72cbea fix(mobile): add missing expo peer deps ΓÇö expo-linking, expo-constants, expo-splash-screen
-385d3cf fix(ci): delete lockfile before npm install so npm hoists all packages correctly

@@ -1,6 +1,0 @@
-tsc not global 
-npm error code ETARGET
-npm error notarget No matching version found for tsc@5.3.
-npm error notarget In most cases you or one of your dependencies are requesting
-npm error notarget a package version that doesn't exist.
-npm error A complete log of this run can be found in: C:\Users\Deepak\AppData\Local\npm-cache\_logs\2026-04-24T15_04_02_675Z-debug-0.log
