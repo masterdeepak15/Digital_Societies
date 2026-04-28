@@ -253,9 +253,8 @@ try
     app.MapHealthChecks("/health");
     app.MapPrometheusScrapingEndpoint("/metrics");   // Prometheus pull target
 
-    // ── Auto-migrate on startup (dev only — use Flyway / Liquibase in prod) ───
-    if (app.Environment.IsDevelopment())
-        await app.Services.MigrateAsync();
+    // ── Auto-migrate on startup (always — safe for self-hosted single-tenant deploy) ───
+    await app.Services.MigrateAsync();
 
     app.Run();
 }
