@@ -46,6 +46,7 @@ Thumbs.db
 
 # ── Scratch / helper scripts (never commit these) ────────────────────────────
 *.bat
+!rebuild-stack.bat
 *.cmd
 *_out.txt
 *.txt
