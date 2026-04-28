@@ -59,14 +59,28 @@ public static class MigrationExtensions
     private static async Task MigrateDbAsync<TContext>(IServiceProvider sp, ILogger logger)
         where TContext : DbContext
     {
-        var db = sp.GetRequiredService<TContext>();
-        var pending = (await db.Database.GetPendingMigrationsAsync()).ToList();
+        var ctx  = typeof(TContext).Name;
+        var db   = sp.GetRequiredService<TContext>();
+
+        // Log all migrations EF knows about in this context (helps diagnose empty-assembly issues)
+        var all     = db.Database.GetMigrations().ToList();
+        var applied = (await db.Database.GetAppliedMigrationsAsync()).ToList();
+        var pending = all.Except(applied).ToList();
+
+        logger.LogInformation("[Migration] {Context}: {All} total, {Applied} applied, {Pending} pending.",
+            ctx, all.Count, applied.Count, pending.Count);
+
         if (pending.Count > 0)
         {
-            logger.LogInformation("[Migration] Applying {Count} pending migration(s) for {Context}…",
-                pending.Count, typeof(TContext).Name);
-            await db.Database.MigrateAsync();
+            logger.LogInformation("[Migration] {Context}: applying {Pending} migration(s): {Names}",
+                ctx, pending.Count, string.Join(", ", pending));
         }
+
+        // MigrateAsync is idempotent — always call it so it can create the history table
+        // and apply any pending migrations, even if our count above returns an unexpected 0.
+        await db.Database.MigrateAsync();
+
+        logger.LogInformation("[Migration] {Context}: done.", ctx);
     }
 
     private static async Task EnsureCreatedAsync<TContext>(IServiceProvider sp, ILogger logger)
