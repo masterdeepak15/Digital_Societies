@@ -5,11 +5,15 @@ on:
     branches: [main]
 
 env:
-  DOTNET_VERSION: '8.0.x'
-  NODE_VERSION:   '20.x'
-  JAVA_VERSION:   '17'
-  API_BASE_URL:   'https://societies.athomes.space/api/v1'
-  IMAGE_NAME:     ghcr.io/${{ github.repository_owner }}/digital-societies-api
+  DOTNET_VERSION:    '8.0.x'
+  NODE_VERSION:      '20.x'
+  JAVA_VERSION:      '17'
+  API_BASE_URL:      'https://societies.athomes.space/api/v1'
+  IMAGE_NAME:        ghcr.io/${{ github.repository_owner }}/digital-societies-api
+  WEB_IMAGE_NAME:    ghcr.io/${{ github.repository_owner }}/digital-societies-web-admin
+  NEXT_PUBLIC_API_URL:      'https://societies.athomes.space/api/v1'
+  NEXT_PUBLIC_HUB_URL:      'https://societies.athomes.space/hubs'
+  NEXT_PUBLIC_MAP_TILE_URL: 'https://demotiles.maplibre.org/style.json'
 
 jobs:
   # ── 1. Backend — Build, Publish & Push Docker image to GHCR ────────────────
@@ -68,7 +72,45 @@ jobs:
           cache-from: type=gha
           cache-to:   type=gha,mode=max
 
-  # ── 2. Android APK Release ──────────────────────────────────────────────────
+  # ── 2. Web Admin — Build & Push Docker image to GHCR ───────────────────────
+  web-admin-release:
+    name: Web Admin Docker Push
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build & Push Web Admin image
+        uses: docker/build-push-action@v5
+        with:
+          context: apps/web-admin
+          file:    apps/web-admin/Dockerfile
+          push:    true
+          tags: |
+            ${{ env.WEB_IMAGE_NAME }}:latest
+            ${{ env.WEB_IMAGE_NAME }}:${{ github.sha }}
+          build-args: |
+            NEXT_PUBLIC_API_URL=${{ env.NEXT_PUBLIC_API_URL }}
+            NEXT_PUBLIC_HUB_URL=${{ env.NEXT_PUBLIC_HUB_URL }}
+            NEXT_PUBLIC_MAP_TILE_URL=${{ env.NEXT_PUBLIC_MAP_TILE_URL }}
+          cache-from: type=gha
+          cache-to:   type=gha,mode=max
+
+  # ── 3. Android APK Release ──────────────────────────────────────────────────
   apk-release:
     name: Android APK Release
     runs-on: ubuntu-latest
