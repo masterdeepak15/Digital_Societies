@@ -41,15 +41,12 @@ public static class MigrationExtensions
         await MigrateDbAsync<MarketplaceDbContext>(sp,  logger);
         await MigrateDbAsync<WalletDbContext>(sp,       logger);
 
-        // ── Modules pending migration scaffolding — EnsureCreated for dev ─────
-        // TODO: for each of these, run:
-        //   dotnet ef migrations add InitialCreate -p services/<Module> -s services/DigitalSocieties.Api
-        // then switch the call below to MigrateDbAsync.
-        await EnsureCreatedAsync<BillingDbContext>(sp,       logger);
-        await EnsureCreatedAsync<VisitorDbContext>(sp,       logger);
-        await EnsureCreatedAsync<ComplaintDbContext>(sp,     logger);
-        await EnsureCreatedAsync<CommunicationDbContext>(sp, logger);
-        await EnsureCreatedAsync<SocialDbContext>(sp,        logger);
+        // ── All remaining modules now have formal EF migrations ───────────────
+        await MigrateDbAsync<BillingDbContext>(sp,       logger);
+        await MigrateDbAsync<VisitorDbContext>(sp,       logger);
+        await MigrateDbAsync<ComplaintDbContext>(sp,     logger);
+        await MigrateDbAsync<CommunicationDbContext>(sp, logger);
+        await MigrateDbAsync<SocialDbContext>(sp,        logger);
 
         // ── Seed demo data in Development ────────────────────────────────────
         if (env.IsDevelopment())

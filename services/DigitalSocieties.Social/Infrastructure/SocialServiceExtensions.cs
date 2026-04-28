@@ -22,7 +22,12 @@ public static class SocialServiceExtensions
         services.AddDbContext<SocialDbContext>(opts =>
             opts.UseNpgsql(
                 config.GetConnectionString("Postgres"),
-                pg => pg.EnableRetryOnFailure(3)));
+                pg =>
+                {
+                    pg.MigrationsAssembly(typeof(SocialDbContext).Assembly.GetName().Name);
+                    pg.MigrationsHistoryTable("__ef_migrations", "social");
+                    pg.EnableRetryOnFailure(3);
+                }));
 
         // Null-object default — overridden by Communication module's SignalRSocialHubNotifier
         services.AddScoped<ISocialHubNotifier, NullSocialHubNotifier>();

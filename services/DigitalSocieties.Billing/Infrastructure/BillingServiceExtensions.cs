@@ -17,7 +17,11 @@ public static class BillingServiceExtensions
 
         services.AddDbContext<BillingDbContext>(opts =>
             opts.UseNpgsql(config.GetConnectionString("Postgres"),
-                npg => npg.MigrationsHistoryTable("__ef_migrations", "billing")));
+                npg =>
+                {
+                    npg.MigrationsAssembly(typeof(BillingDbContext).Assembly.GetName().Name);
+                    npg.MigrationsHistoryTable("__ef_migrations", "billing");
+                }));
 
         // Razorpay HTTP client (add Microsoft.Extensions.Http.Resilience for retry in prod)
         services.AddHttpClient("razorpay");

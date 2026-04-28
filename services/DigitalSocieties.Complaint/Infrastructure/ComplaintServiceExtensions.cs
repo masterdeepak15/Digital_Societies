@@ -12,7 +12,11 @@ public static class ComplaintServiceExtensions
     {
         services.AddDbContext<ComplaintDbContext>(opts =>
             opts.UseNpgsql(config.GetConnectionString("Postgres"),
-                npg => npg.MigrationsHistoryTable("__ef_migrations", "complaint")));
+                npg =>
+                {
+                    npg.MigrationsAssembly(typeof(ComplaintDbContext).Assembly.GetName().Name);
+                    npg.MigrationsHistoryTable("__ef_migrations", "complaint");
+                }));
 
         services.AddMediatR(cfg =>
             cfg.RegisterServicesFromAssembly(typeof(ComplaintServiceExtensions).Assembly));

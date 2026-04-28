@@ -17,7 +17,11 @@ public static class VisitorServiceExtensions
 
         services.AddDbContext<VisitorDbContext>(opts =>
             opts.UseNpgsql(config.GetConnectionString("Postgres"),
-                npg => npg.MigrationsHistoryTable("__ef_migrations", "visitor")));
+                npg =>
+                {
+                    npg.MigrationsAssembly(typeof(VisitorDbContext).Assembly.GetName().Name);
+                    npg.MigrationsHistoryTable("__ef_migrations", "visitor");
+                }));
 
         services.AddScoped<IQrTokenService, QrTokenService>();
 

@@ -19,7 +19,11 @@ public static class CommunicationServiceExtensions
 
         services.AddDbContext<CommunicationDbContext>(opts =>
             opts.UseNpgsql(config.GetConnectionString("Postgres"),
-                npg => npg.MigrationsHistoryTable("__ef_migrations", "communication")));
+                npg =>
+                {
+                    npg.MigrationsAssembly(typeof(CommunicationDbContext).Assembly.GetName().Name);
+                    npg.MigrationsHistoryTable("__ef_migrations", "communication");
+                }));
 
         // HTTP clients
         services.AddHttpClient("msg91");
