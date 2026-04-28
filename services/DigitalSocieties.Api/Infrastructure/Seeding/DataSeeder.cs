@@ -157,8 +157,7 @@ public sealed class DataSeeder
 
         if (realSocietyExists)
             return Result<DemoSeedResult>.Fail(
-                Error.Conflict("DemoBlocked",
-                    "A real society is already configured. Demo mode is only available on a fresh install."));
+                Error.Conflict("A real society is already configured. Demo mode is only available on a fresh install."));
 
         bool alreadySeeded = await identityDb.Societies
             .IgnoreQueryFilters()
