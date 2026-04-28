@@ -30,6 +30,13 @@ public sealed class User : AuditableEntity
     public bool    IsActive    { get; private set; }
     public DateTimeOffset? LastLoginAt { get; private set; }
 
+    // ── Two-Factor Authentication (TOTP / RFC 6238) ───────────────────────────
+    // Pending2FaSecret holds the un-confirmed secret until Confirm2Fa succeeds.
+    // TwoFactorSecret holds the active secret once 2FA is enabled.
+    public bool    TwoFactorEnabled    { get; private set; }
+    public string? TwoFactorSecret     { get; private set; }  // Base32, active
+    public string? Pending2FaSecret    { get; private set; }  // Base32, awaiting confirmation
+
     // Device binding for security: new device = step-up verification required
     private readonly List<UserDevice> _devices = [];
     public IReadOnlyList<UserDevice>  Devices  => _devices.AsReadOnly();
@@ -62,5 +69,22 @@ public sealed class User : AuditableEntity
     {
         IsActive = false;
         Raise(new UserDeactivatedEvent(Id));
+    }
+
+    // ── 2FA domain methods ────────────────────────────────────────────────────
+    public void SetPending2FaSecret(string secretBase32) => Pending2FaSecret = secretBase32;
+
+    public void Activate2Fa()
+    {
+        TwoFactorSecret  = Pending2FaSecret;
+        Pending2FaSecret = null;
+        TwoFactorEnabled = true;
+    }
+
+    public void Disable2Fa()
+    {
+        TwoFactorEnabled = false;
+        TwoFactorSecret  = null;
+        Pending2FaSecret = null;
     }
 }

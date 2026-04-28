@@ -4,22 +4,68 @@ description: Current build phase and what was completed in each session
 type: project
 ---
 
-**Phase 0 (Foundation) — COMPLETE as of 2026-04-20**
+**Phases 0–4 COMPLETE. Phase 5 (2FA + Demo Mode) IN PROGRESS.**
 
 Repo: https://github.com/masterdeepak15/Digital_Societies.git
-Local path: D:\Claude\Society-App\society-app-spec\Digital_Societies\
-
-Completed in this session (119 files):
-- Mono-repo structure: services/, apps/mobile, infra/docker, tests/
-- DigitalSocieties.Shared: Result<T>, Entity/AggregateRoot, SOLID contracts (IPaymentProvider, INotificationChannel, ICurrentUser, ICommandRepository, IQueryRepository, IStorageProvider, IUnitOfWork), PhoneNumber + Money value objects, UserRole enums
-- DigitalSocieties.Identity: OTP service (BCrypt, 6-digit, rate-limited), JWT (10min access + 30d refresh allow-list), User/Society/Flat/Membership/UserDevice domain entities, EF Core DbContext + configurations + initial migration, MediatR pipeline (validation + logging behaviors), IdentityServiceExtensions (DI registration)
-- DigitalSocieties.Api: Program.cs (minimal APIs, JWT auth, SignalR, rate limiting, OpenTelemetry), JwtCurrentUser middleware, TenantResolutionMiddleware (Postgres RLS session var), GlobalExceptionHandler, IdentityEndpoints (/otp/send, /otp/verify, /refresh, /logout, /me)
-- Docker Compose: docker-compose.yml (api, postgres, redis, minio, caddy, otel-collector), docker-compose.dev.yml, .env.example, Caddyfile, Dockerfile (multi-stage .NET 8 Alpine)
-- React Native: Expo app with WatermelonDB + SQLCipher, role-based navigation (Admin/Resident/Guard/Staff tabs), LoginScreen (OTP flow), HomeScreen + BillsScreen, GateScreen (offline-first guard UI), authStore (Zustand), apiClient (Axios + JWT refresh interceptor), SyncService (WatermelonDB pull/push sync)
-- PostgreSQL: Full schema.sql with RLS policies on 7 tables, partitioned audit log, EF Core migration
-- Tests: OtpRequestTests, MoneyTests, PhoneNumberTests (xUnit + FluentAssertions)
-- CI: GitHub Actions (build + test + docker push to GHCR)
+Local path: D:\Claude\Society-App\society-app-spec
 
 **Why:** Build "Digital Operating System for Housing Societies" — self-hostable + SaaS
 
-**Next Phase (P1):** Maintenance billing (Razorpay), Visitor management (approval flow + SignalR push), Complaints with images (MinIO), Notices. Start with Billing module: DigitalSocieties.Billing project.
+---
+
+## Phase 0 — Foundation ✅ COMPLETE (2026-04-20)
+
+- Mono-repo: services/, apps/mobile, apps/web-admin, infra/docker, tests/
+- DigitalSocieties.Shared: Result<T>, Entity/AggregateRoot, SOLID contracts
+- DigitalSocieties.Identity: OTP (BCrypt), JWT (10min + 30d refresh), RBAC, multi-tenant RLS
+- DigitalSocieties.Api: Program.cs, middleware (JWT, tenant, exception), OTel
+- Docker Compose: full stack with postgres, redis, minio, caddy, otel-collector
+- React Native: WatermelonDB, role-based nav, LoginScreen, GateScreen, SyncService
+- PostgreSQL RLS on all society-scoped tables
+- CI: GitHub Actions → GHCR + Android APK
+
+## Phase 1 — MVP ✅ COMPLETE
+
+- DigitalSocieties.Billing: bill generation, Razorpay initiation + webhook verify, late-fee
+- DigitalSocieties.Visitor: pre-approval, guard QR (signed JWT 2-min TTL), entry/exit log
+- DigitalSocieties.Complaint: raise complaint, MinIO pre-signed URL, status transitions
+- DigitalSocieties.Communication: notices, SignalR SocietyHub, MSG91 SMS channel
+- All endpoints wired in API; mobile screens complete for all roles
+
+## Phase 2 — Accounting + Social ✅ COMPLETE
+
+- DigitalSocieties.Accounting: double-entry ledger, expenses, P&L
+- DigitalSocieties.Social: Feed, reactions, comments, Marketplace, Polls, Directory
+- INotificationDispatcher in Shared (push-first → SMS fallback, avoids circular dep)
+- Guard offline hardening: WatermelonDB 7-day PII wipe (only synced records), NetInfo retry
+- OfflineQueueService.ts: start/stop, pendingCount, flushNow, _wipeOldVisitors
+- GateScreen: connectivity status bar, offline message, flushNow on save
+
+## Phase 3 — Parking + Geomap ✅ COMPLETE
+
+- DigitalSocieties.Parking: slot allocation (car/bike/EV), visitor parking nav QR
+- GET /parking/nav/{token}: returns gate coords, floor plan URL, slot number, Google Maps URL
+- apps/web-admin/src/app/park/v/[token]/page.tsx: MapLibre GL JS map, gate pin, floor plan overlay
+
+## Phase 4 — Observability + Web Admin ✅ COMPLETE
+
+- OpenTelemetry: ASP.NET Core + HTTP + EF Core tracing, runtime metrics, Prometheus scraping
+- OTLP → Grafana Tempo (traces) + Prometheus (metrics) → Grafana dashboards (8 panels)
+- infra/docker: tempo-config.yml, otel-config.yml, prometheus.yml, grafana provisioning
+- Next.js 14 web-admin with 13 dashboard pages (dashboard, billing, members, complaints,
+  visitors, notices, accounting, social, facilities, parking, marketplace, wallet, settings)
+- apps/web-admin/Dockerfile (multi-stage Node 20 Alpine, standalone output)
+- apps/web-admin/.env.local.example
+- infra/docker/.env.example
+- POST /api/v1/setup/initialize: first-run society setup
+
+## Phase 5 — 2FA + Demo Mode 🔄 IN PROGRESS
+
+- [ ] TOTP-based 2FA: backend + mobile OTP screen + web-admin OTP modal
+- [ ] Setup wizard: demo mode (seeds data) vs new setup choice
+- [ ] Docker: web-admin service in docker-compose.yml, next.config.js standalone
+- [ ] Build verification + git commit
+
+## Phase 6 — Enterprise 📋 PLANNED
+
+- White-label, SSO (SAML/OIDC), AI/MCP server, LiveKit calling, indoor beacons

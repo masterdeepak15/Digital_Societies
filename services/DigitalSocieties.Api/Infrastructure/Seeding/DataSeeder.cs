@@ -10,10 +10,14 @@ using DigitalSocieties.Parking.Domain.Entities;
 using DigitalSocieties.Parking.Infrastructure.Persistence;
 using DigitalSocieties.Shared.Domain.Enums;
 using DigitalSocieties.Shared.Domain.ValueObjects;
+using DigitalSocieties.Shared.Results;
 using DigitalSocieties.Visitor.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 
 namespace DigitalSocieties.Api.Infrastructure.Seeding;
+
+/// <summary>Result returned from instance-based SeedAsync (used by /setup/demo endpoint).</summary>
+public sealed record DemoSeedResult(Guid AdminUserId, Guid SocietyId);
 
 /// <summary>
 /// Inserts demo data on first startup in Development mode.
@@ -125,6 +129,52 @@ public sealed class DataSeeder
         await SeedParkingAsync(parkingDb, logger);
 
         logger.LogInformation("[Seeder] ✅ Demo data seeded successfully.");
+    }
+
+    // ── Instance-based entry point (used by /setup/demo endpoint) ─────────────
+    // Injected as a scoped service; resolves its own DbContexts from the DI scope.
+    private readonly IServiceProvider _sp;
+    private readonly ILogger<DataSeeder> _logger;
+
+    public DataSeeder(IServiceProvider sp, ILogger<DataSeeder> logger)
+    {
+        _sp     = sp;
+        _logger = logger;
+    }
+
+    /// <summary>
+    /// Seeds demo data (idempotent) and returns the demo admin and society IDs.
+    /// Returns Fail if a real (non-demo) society already exists.
+    /// </summary>
+    public async Task<Result<DemoSeedResult>> SeedAsync(CancellationToken ct)
+    {
+        var identityDb = _sp.GetRequiredService<IdentityDbContext>();
+
+        // Guard: reject if a real society exists (registration number != DEMO-001)
+        bool realSocietyExists = await identityDb.Societies
+            .IgnoreQueryFilters()
+            .AnyAsync(s => s.RegistrationNumber != "DEMO-001", ct);
+
+        if (realSocietyExists)
+            return Result<DemoSeedResult>.Fail(
+                Error.Conflict("DemoBlocked",
+                    "A real society is already configured. Demo mode is only available on a fresh install."));
+
+        bool alreadySeeded = await identityDb.Societies
+            .IgnoreQueryFilters()
+            .AnyAsync(s => s.RegistrationNumber == "DEMO-001", ct);
+
+        if (!alreadySeeded)
+        {
+            _logger.LogInformation("[Seeder] Seeding demo data for Greenview Heights…");
+            await SeedAsync(_sp, _logger);
+        }
+        else
+        {
+            _logger.LogInformation("[Seeder] Demo data already present — reusing.");
+        }
+
+        return Result<DemoSeedResult>.Ok(new DemoSeedResult(AdminUserId, SocietyId));
     }
 
     // ── Identity ──────────────────────────────────────────────────────────────

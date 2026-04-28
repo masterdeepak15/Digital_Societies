@@ -25,7 +25,11 @@ public sealed record AuthTokenResponse(
     string  RefreshToken,
     int     ExpiresIn,       // seconds
     bool    IsNewUser,
-    UserProfile Profile);
+    UserProfile Profile,
+    // 2FA: when true, AccessToken + RefreshToken are empty.
+    // Client must call POST /auth/2fa/verify with the TOTP code + PendingUserId.
+    bool    RequiresTwoFactor = false,
+    Guid?   PendingUserId     = null);
 
 public sealed record UserProfile(
     Guid   UserId,
@@ -105,7 +109,6 @@ public sealed class VerifyOtpCommandHandler : IRequestHandler<VerifyOtpCommand, 
         // OtpVerifiedEvent raised internally by user.MarkVerified() domain method
         await _uow.CommitAsync(ct);
 
-        // Issue JWT
         var memberships = user.Memberships
             .Where(m => m.IsActive)
             .Select(m => new MembershipInfo(
@@ -116,6 +119,22 @@ public sealed class VerifyOtpCommandHandler : IRequestHandler<VerifyOtpCommand, 
                 m.Flat?.DisplayName))
             .ToList();
 
+        // ── 2FA gate: if enabled, don't issue tokens yet ──────────────────────
+        // Return a RequiresTwoFactor response — client must follow up with
+        // POST /auth/2fa/verify using the PendingUserId and their TOTP code.
+        if (user.TwoFactorEnabled)
+        {
+            return Result<AuthTokenResponse>.Ok(new AuthTokenResponse(
+                AccessToken: string.Empty,
+                RefreshToken: string.Empty,
+                ExpiresIn: 0,
+                IsNewUser: isNew,
+                Profile: new UserProfile(user.Id, user.Name, user.Phone, memberships),
+                RequiresTwoFactor: true,
+                PendingUserId: user.Id));
+        }
+
+        // Issue JWT (no 2FA)
         var (accessToken, refreshToken, expiresIn) =
             await _jwt.IssueTokensAsync(user, memberships, ct);
 

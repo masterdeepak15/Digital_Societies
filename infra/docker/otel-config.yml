@@ -1,0 +1,73 @@
+# ──────────────────────────────────────────────────────────────────────────────
+# OpenTelemetry Collector configuration
+# Receives traces + metrics from the .NET API via OTLP,
+# exports to Grafana Tempo (traces) and Prometheus (metrics).
+# ──────────────────────────────────────────────────────────────────────────────
+
+extensions:
+  health_check:
+    endpoint: "0.0.0.0:13133"
+
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: "0.0.0.0:4317"
+      http:
+        endpoint: "0.0.0.0:4318"
+
+processors:
+  # Batch to reduce network overhead
+  batch:
+    timeout: 5s
+    send_batch_size: 512
+
+  # Filter out noisy health-check spans
+  filter/health:
+    error_mode: ignore
+    traces:
+      span:
+        - 'attributes["http.target"] == "/health"'
+        - 'attributes["http.target"] == "/metrics"'
+
+  # Add resource attributes
+  resource:
+    attributes:
+      - action: insert
+        key: deployment.environment
+        value: production
+
+  memory_limiter:
+    check_interval: 1s
+    limit_percentage: 75
+    spike_limit_percentage: 15
+
+exporters:
+  # Traces → Grafana Tempo
+  otlp/tempo:
+    endpoint: "tempo:4317"
+    tls:
+      insecure: true
+
+  # Metrics → Prometheus (pull model via /metrics on collector)
+  prometheus:
+    endpoint: "0.0.0.0:8889"
+    namespace: "digital_societies"
+    const_labels:
+      app: api
+
+  # Debug logging (disable in prod — set verbosity: basic)
+  debug:
+    verbosity: detailed
+
+service:
+  extensions: [health_check]
+  pipelines:
+    traces:
+      receivers:  [otlp]
+      processors: [memory_limiter, filter/health, batch, resource]
+      exporters:  [otlp/tempo, debug]
+    metrics:
+      receivers:  [otlp]
+      processors: [memory_limiter, batch, resource]
+      exporters:  [prometheus, debug]

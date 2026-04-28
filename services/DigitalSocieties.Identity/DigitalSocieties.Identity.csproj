@@ -16,5 +16,7 @@
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="8.0.4" />
     <PackageReference Include="System.IdentityModel.Tokens.Jwt"   Version="7.5.1" />
     <PackageReference Include="BCrypt.Net-Next"                    Version="4.0.3" />
+    <!-- TOTP (RFC 6238) for 2FA -->
+    <PackageReference Include="Otp.NET"                            Version="1.3.0" />
   </ItemGroup>
 </Project>

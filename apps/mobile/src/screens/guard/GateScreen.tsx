@@ -1,11 +1,13 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity,
-  StyleSheet, Alert, Vibration, ScrollView, Platform,
+  StyleSheet, Alert, Vibration, ScrollView, AppState,
 } from 'react-native';
-import { database } from '../../database/database';
-import VisitorModel from '../../database/models/VisitorModel';
-import { Colors }   from '../../theme/colors';
+import NetInfo from '@react-native-community/netinfo';
+import { database }             from '../../database/database';
+import VisitorModel             from '../../database/models/VisitorModel';
+import { OfflineQueueService }  from '../../services/offline/OfflineQueueService';
+import { Colors }     from '../../theme/colors';
 import { Typography } from '../../theme/typography';
 import { Spacing, Radius } from '../../theme/spacing';
 
@@ -19,11 +21,31 @@ import { Spacing, Radius } from '../../theme/spacing';
  * Design: large touch targets (min 56px), high contrast, single-handed use.
  */
 export default function GateScreen() {
-  const [name,    setName]    = useState('');
-  const [phone,   setPhone]   = useState('');
-  const [flat,    setFlat]    = useState('');
-  const [purpose, setPurpose] = useState('');
-  const [saving,  setSaving]  = useState(false);
+  const [name,         setName]         = useState('');
+  const [phone,        setPhone]        = useState('');
+  const [flat,         setFlat]         = useState('');
+  const [purpose,      setPurpose]      = useState('');
+  const [saving,       setSaving]       = useState(false);
+  const [isOnline,     setIsOnline]     = useState(true);
+  const [pendingCount, setPendingCount] = useState(0);
+
+  // Track connectivity + pending-sync count
+  const refreshStatus = useCallback(async () => {
+    const net   = await NetInfo.fetch();
+    setIsOnline(!!net.isConnected && net.isInternetReachable !== false);
+    const count = await OfflineQueueService.pendingCount();
+    setPendingCount(count);
+  }, []);
+
+  useEffect(() => {
+    refreshStatus();
+    const unsub = NetInfo.addEventListener(() => refreshStatus());
+    // Also refresh when app comes to foreground
+    const appSub = AppState.addEventListener('change', state => {
+      if (state === 'active') refreshStatus();
+    });
+    return () => { unsub(); appSub.remove(); };
+  }, [refreshStatus]);
 
   const PURPOSES = ['Guest', 'Delivery', 'Service', 'Cab', 'Other'];
 
@@ -50,8 +72,14 @@ export default function GateScreen() {
       });
 
       Vibration.vibrate([0, 100, 50, 100]);
-      Alert.alert('✅ Visitor Added', `Notifying resident in flat ${flat.toUpperCase()}…`);
+      const msg = isOnline
+        ? `Notifying resident in flat ${flat.toUpperCase()}…`
+        : `Saved locally. Will notify when internet is restored.`;
+      Alert.alert('✅ Visitor Added', msg);
       setName(''); setPhone(''); setFlat(''); setPurpose('');
+      // If online, try to flush the queue immediately
+      if (isOnline) OfflineQueueService.flushNow().catch(console.warn);
+      await refreshStatus();
     } catch (e) {
       Alert.alert('Error', 'Could not save. Check storage.');
     } finally {
@@ -61,6 +89,17 @@ export default function GateScreen() {
 
   return (
     <ScrollView style={styles.container} keyboardShouldPersistTaps="handled">
+      {/* Connectivity status bar */}
+      <View style={[styles.statusBar, isOnline ? styles.statusOnline : styles.statusOffline]}>
+        <Text style={styles.statusText}>
+          {isOnline ? '● Online' : '⚠ Offline — entries save locally'}
+          {pendingCount > 0 ? `  ·  ${pendingCount} pending sync` : ''}
+        </Text>
+        {!isOnline && pendingCount === 0 && (
+          <Text style={styles.statusSubtext}>Connect to sync {pendingCount} entries</Text>
+        )}
+      </View>
+
       <Text style={styles.header}>🚪 Gate Entry</Text>
 
       <Text style={styles.label}>Visitor Name *</Text>
@@ -109,7 +148,10 @@ export default function GateScreen() {
 
       <View style={styles.offlineBanner}>
         <Text style={styles.offlineText}>
-          📶 Works offline — entries sync when internet is available
+          📶 Works offline — entries sync automatically when internet is available
+        </Text>
+        <Text style={styles.offlineText}>
+          🔒 Visitor data auto-deleted after 7 days
         </Text>
       </View>
     </ScrollView>
@@ -142,5 +184,10 @@ const styles = StyleSheet.create({
   addBtnDisabled: { opacity: 0.6 },
   addBtnText:     { ...Typography.guardAction, color: Colors.textOnPrimary, letterSpacing: 1 },
   offlineBanner:  { backgroundColor: Colors.info + '22', borderRadius: Radius.md, padding: Spacing.sm, marginTop: Spacing.lg },
-  offlineText:    { ...Typography.caption, color: Colors.info, textAlign: 'center' },
+  offlineText:    { ...Typography.caption, color: Colors.info, textAlign: 'center', marginBottom: 2 },
+  statusBar:      { borderRadius: Radius.sm, paddingHorizontal: Spacing.md, paddingVertical: Spacing.xs, marginBottom: Spacing.sm },
+  statusOnline:   { backgroundColor: '#d1fae5' },
+  statusOffline:  { backgroundColor: '#fef3c7' },
+  statusText:     { ...Typography.caption, color: Colors.textPrimary, fontWeight: '600' },
+  statusSubtext:  { ...Typography.caption, color: Colors.textSecondary },
 });

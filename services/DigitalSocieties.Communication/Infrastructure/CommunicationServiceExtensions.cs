@@ -25,9 +25,15 @@ public static class CommunicationServiceExtensions
         services.AddHttpClient("msg91");
         services.AddHttpClient("expo");  // Expo push notifications
 
-        // OCP: Register all notification channels
-        services.AddScoped<INotificationChannel, Msg91SmsChannel>();
-        services.AddScoped<INotificationChannel, ExpoPushChannel>();  // push notifications
+        // OCP: Register all notification channels (injected as IEnumerable<INotificationChannel>)
+        services.AddScoped<Msg91SmsChannel>();
+        services.AddScoped<ExpoPushChannel>();
+        services.AddScoped<INotificationChannel>(sp => sp.GetRequiredService<Msg91SmsChannel>());
+        services.AddScoped<INotificationChannel>(sp => sp.GetRequiredService<ExpoPushChannel>());
+
+        // Fallback dispatcher: push → SMS (guard offline hardening).
+        // Registered against the Shared interface so Visitor/Billing modules can inject it.
+        services.AddScoped<INotificationDispatcher, FallbackNotificationDispatcher>();
 
         // Push token store
         services.AddScoped<IPushTokenStore, PostgresPushTokenStore>();

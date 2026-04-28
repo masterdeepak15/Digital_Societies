@@ -151,6 +151,54 @@ public sealed class GetMyParkingHandler
     }
 }
 
+// ── Visitor parking nav (anonymous, token-gated) ──────────────────────────
+/// <summary>
+/// Returns gate coordinates, parking level floor plan, and assigned slot
+/// so a visitor app / web page can render a MapLibre navigation view.
+/// Token is the visitor's OTP or a dedicated nav token stored on the Visitor entity.
+/// </summary>
+public sealed record GetParkingNavQuery(string Token) : IRequest<Result<ParkingNavDto>>;
+
+public sealed record ParkingNavDto(
+    string  SocietyName,
+    string  GateAddress,
+    double  GateLat,
+    double  GateLng,
+    string? ParkingLevelName,
+    string? SlotNumber,
+    string? FloorPlanUrl,          // overlay image URL for indoor map
+    string? NavigationUrl,         // deep-link to Google/Apple Maps
+    string? Instructions);
+
+public sealed class GetParkingNavHandler
+    : IRequestHandler<GetParkingNavQuery, Result<ParkingNavDto>>
+{
+    // In a full implementation this would look up the Visitor by OTP/token,
+    // find the issued visitor pass slot, and return real coordinates.
+    // For now return a well-structured demo/stub response that the frontend
+    // can consume directly — coordinates should be configured per society.
+    public Task<Result<ParkingNavDto>> Handle(GetParkingNavQuery q, CancellationToken ct)
+    {
+        // Token validation (simplified — in production verify against Visitor OTP store)
+        if (string.IsNullOrWhiteSpace(q.Token))
+            return Task.FromResult(Result<ParkingNavDto>.Fail("TOKEN.INVALID", "Invalid navigation token."));
+
+        var dto = new ParkingNavDto(
+            SocietyName:      "Sunrise Heights",
+            GateAddress:      "Plot 42, Baner Road, Pune 411045",
+            GateLat:          18.5592,
+            GateLng:          73.7852,
+            ParkingLevelName: "B1 — Basement",
+            SlotNumber:       "B1-05",
+            FloorPlanUrl:     null,  // set via admin when floor plan is uploaded
+            NavigationUrl:    $"https://www.google.com/maps/dir/?api=1&destination=18.5592,73.7852",
+            Instructions:     "Enter through Gate 1 (main entrance). Take the ramp down to B1 basement. Your visitor slot is B1-05 on the left."
+        );
+
+        return Task.FromResult(Result<ParkingNavDto>.Ok(dto));
+    }
+}
+
 // ── My vehicles (resident) ─────────────────────────────────────────────────
 public sealed record GetMyVehiclesQuery : IRequest<Result<List<VehicleDto>>>;
 

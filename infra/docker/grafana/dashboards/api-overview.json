@@ -1,0 +1,65 @@
+{
+  "title": "Digital Societies — API Overview",
+  "uid": "ds-api-overview",
+  "tags": ["digital-societies"],
+  "schemaVersion": 38,
+  "refresh": "30s",
+  "time": { "from": "now-1h", "to": "now" },
+  "panels": [
+    {
+      "id": 1, "type": "stat", "title": "Request Rate (req/s)",
+      "gridPos": { "x": 0, "y": 0, "w": 6, "h": 4 },
+      "targets": [{ "expr": "sum(rate(http_server_duration_count{job='api'}[1m]))", "legendFormat": "req/s" }],
+      "fieldConfig": { "defaults": { "unit": "reqps", "color": { "mode": "thresholds" }, "thresholds": { "steps": [{"color":"green","value":null},{"color":"yellow","value":50},{"color":"red","value":200}] } } }
+    },
+    {
+      "id": 2, "type": "stat", "title": "Error Rate (%)",
+      "gridPos": { "x": 6, "y": 0, "w": 6, "h": 4 },
+      "targets": [{ "expr": "sum(rate(http_server_duration_count{job='api',http_status_code=~'5..'}[1m])) / sum(rate(http_server_duration_count{job='api'}[1m])) * 100", "legendFormat": "error %" }],
+      "fieldConfig": { "defaults": { "unit": "percent", "color": { "mode": "thresholds" }, "thresholds": { "steps": [{"color":"green","value":null},{"color":"yellow","value":1},{"color":"red","value":5}] } } }
+    },
+    {
+      "id": 3, "type": "stat", "title": "P99 Latency (ms)",
+      "gridPos": { "x": 12, "y": 0, "w": 6, "h": 4 },
+      "targets": [{ "expr": "histogram_quantile(0.99, sum(rate(http_server_duration_bucket{job='api'}[5m])) by (le)) * 1000", "legendFormat": "p99 ms" }],
+      "fieldConfig": { "defaults": { "unit": "ms", "color": { "mode": "thresholds" }, "thresholds": { "steps": [{"color":"green","value":null},{"color":"yellow","value":500},{"color":"red","value":2000}] } } }
+    },
+    {
+      "id": 4, "type": "stat", "title": "Active Connections",
+      "gridPos": { "x": 18, "y": 0, "w": 6, "h": 4 },
+      "targets": [{ "expr": "dotnet_threadpool_threads_count{job='api'}", "legendFormat": "threads" }],
+      "fieldConfig": { "defaults": { "unit": "short" } }
+    },
+    {
+      "id": 5, "type": "timeseries", "title": "HTTP Request Rate by Endpoint",
+      "gridPos": { "x": 0, "y": 4, "w": 12, "h": 8 },
+      "targets": [{ "expr": "sum by (http_route) (rate(http_server_duration_count{job='api'}[1m]))", "legendFormat": "{{http_route}}" }],
+      "fieldConfig": { "defaults": { "unit": "reqps" } }
+    },
+    {
+      "id": 6, "type": "timeseries", "title": "Response Latency Percentiles",
+      "gridPos": { "x": 12, "y": 4, "w": 12, "h": 8 },
+      "targets": [
+        { "expr": "histogram_quantile(0.50, sum(rate(http_server_duration_bucket{job='api'}[5m])) by (le)) * 1000", "legendFormat": "p50" },
+        { "expr": "histogram_quantile(0.95, sum(rate(http_server_duration_bucket{job='api'}[5m])) by (le)) * 1000", "legendFormat": "p95" },
+        { "expr": "histogram_quantile(0.99, sum(rate(http_server_duration_bucket{job='api'}[5m])) by (le)) * 1000", "legendFormat": "p99" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "ms" } }
+    },
+    {
+      "id": 7, "type": "timeseries", "title": ".NET GC & Memory",
+      "gridPos": { "x": 0, "y": 12, "w": 12, "h": 8 },
+      "targets": [
+        { "expr": "dotnet_gc_heap_size_bytes{job='api'} / 1024 / 1024", "legendFormat": "Heap MB" },
+        { "expr": "process_virtual_memory_bytes{job='api'} / 1024 / 1024", "legendFormat": "Virtual MB" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "MB" } }
+    },
+    {
+      "id": 8, "type": "timeseries", "title": "HTTP Error Codes",
+      "gridPos": { "x": 12, "y": 12, "w": 12, "h": 8 },
+      "targets": [{ "expr": "sum by (http_status_code) (rate(http_server_duration_count{job='api',http_status_code=~'4..|5..'}[5m]))", "legendFormat": "{{http_status_code}}" }],
+      "fieldConfig": { "defaults": { "unit": "reqps" } }
+    }
+  ]
+}

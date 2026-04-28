@@ -15,6 +15,8 @@ Digital Societies is a role-based mobile + web platform that runs the day-to-day
 - **SaaS (Digital Societies Cloud)** — managed multi-tenant, per-flat monthly subscription
 - **Self-Hosted (Digital Societies Server)** — one-command Docker install for societies that want data sovereignty
 
+**Current status: Phases 0–5 complete. P6 (Enterprise) is next.**
+
 ---
 
 ## Quick Start — Production Self-Host
@@ -52,25 +54,33 @@ docker compose -f docker-compose.prod.yml up -d
 ## Local Development
 
 ```bash
-# 1. Start infrastructure (Postgres + Redis + MinIO)
+# 1. Start full local stack (API + web-admin + Grafana + Tempo + Prometheus)
 cd infra/docker
-docker compose -f docker-compose.dev.yml up -d postgres redis minio
+cp .env.example .env          # fill in secrets
+docker compose up -d
 
-# 2. Run the API
+# API:       http://localhost:5000   (Swagger: /swagger)
+# Web Admin: http://localhost:3000
+# Grafana:   http://localhost/grafana  (admin / value from .env GRAFANA_PASSWORD)
+# Prometheus metrics: http://localhost:5000/metrics
+
+# 2. Run the API in watch mode (faster iteration)
 cd services
-dotnet restore DigitalSocieties.sln
-dotnet run --project DigitalSocieties.Api
+dotnet watch --project DigitalSocieties.Api
 
-# API is live at http://localhost:8080
-# Swagger UI at http://localhost:8080/swagger
+# 3. Run the web-admin in dev mode
+cd apps/web-admin
+cp .env.local.example .env.local
+npm install
+npm run dev                    # http://localhost:3000
 
-# 3. Run the mobile app
+# 4. Run the mobile app
 cd apps/mobile
 npm install --legacy-peer-deps
 npx expo start
 # Scan QR with Expo Go, or press 'a' for Android emulator
 
-# 4. Run tests
+# 5. Run backend tests
 cd services
 dotnet test DigitalSocieties.sln
 ```
@@ -82,32 +92,54 @@ dotnet test DigitalSocieties.sln
 ```
 Digital_Societies/
 ├── apps/
-│   └── mobile/                          # React Native + Expo (iOS + Android)
-│       ├── src/screens/                 # admin / resident / guard / staff screens
-│       ├── src/database/                # WatermelonDB models + offline sync
-│       ├── src/services/api/            # REST client (production URL baked in)
-│       └── src/navigation/             # role-based tab navigation
-├── services/                            # .NET 8 backend (mono-repo)
-│   ├── DigitalSocieties.Shared/         # SOLID contracts, domain primitives, Result<T>
-│   ├── DigitalSocieties.Identity/       # OTP auth, JWT, RBAC, multi-tenant
-│   ├── DigitalSocieties.Billing/        # Maintenance bills + Razorpay payments
-│   ├── DigitalSocieties.Visitor/        # Visitor approval + QR + guard gate
-│   ├── DigitalSocieties.Complaint/      # Complaints + MinIO image upload
-│   ├── DigitalSocieties.Communication/  # Notices + SignalR real-time hub
-│   ├── DigitalSocieties.Social/         # Society Feed, Marketplace, Polls, Directory
-│   └── DigitalSocieties.Api/            # Minimal API host, middleware, Dockerfile
+│   ├── mobile/                           # React Native + Expo (iOS + Android)
+│   │   ├── src/screens/                  # admin / resident / guard / staff screens
+│   │   ├── src/database/                 # WatermelonDB models + offline sync
+│   │   ├── src/services/                 # REST client + OfflineQueueService
+│   │   └── src/navigation/              # role-based tab navigation
+│   └── web-admin/                        # Next.js 14 App Router (admin dashboard)
+│       ├── src/app/(dashboard)/          # all protected admin pages
+│       │   ├── dashboard/                # KPI cards + recharts analytics
+│       │   ├── billing/                  # maintenance bills + GenerateBills modal
+│       │   ├── members/                  # residents table + role filter
+│       │   ├── complaints/               # status board + side-drawer transitions
+│       │   ├── visitors/                 # live gate log (30s auto-refresh)
+│       │   ├── notices/                  # pinnable notices + create modal
+│       │   ├── accounting/               # ledger + expenses + P&L (3-tab)
+│       │   ├── social/                   # post moderation + report queue
+│       │   ├── facilities/               # amenity bookings + facility toggles
+│       │   ├── parking/                  # slot grid + level selector + unassign
+│       │   ├── marketplace/              # listing approvals + report moderation
+│       │   ├── wallet/                   # corpus balance + transaction history
+│       │   └── settings/                 # society profile / billing / notif / security
+│       └── src/app/park/v/[token]/       # public visitor parking nav (MapLibre)
+├── services/                             # .NET 8 backend (vertical slice mono-repo)
+│   ├── DigitalSocieties.Shared/          # SOLID contracts, Result<T>, domain primitives
+│   ├── DigitalSocieties.Identity/        # OTP + 2FA auth, JWT, RBAC, multi-tenant
+│   ├── DigitalSocieties.Billing/         # Maintenance bills + Razorpay payments
+│   ├── DigitalSocieties.Visitor/         # Visitor approval + QR (2-min JWT) + entry/exit
+│   ├── DigitalSocieties.Complaint/       # Complaints + MinIO image upload
+│   ├── DigitalSocieties.Communication/   # Notices + SignalR hub + push/SMS dispatch
+│   ├── DigitalSocieties.Social/          # Feed, Marketplace, Polls, Resident Directory
+│   ├── DigitalSocieties.Accounting/      # Ledger, expenses, P&L reports
+│   ├── DigitalSocieties.Facility/        # Amenity inventory + slot booking
+│   ├── DigitalSocieties.Parking/         # Slot allocation + visitor nav QR + EV
+│   └── DigitalSocieties.Api/             # Minimal API host, OTel, Swagger, Dockerfile
 ├── infra/
 │   ├── docker/
-│   │   ├── docker-compose.prod.yml      # production stack (pulls from GHCR)
-│   │   ├── docker-compose.dev.yml       # local infra only (no API)
-│   │   ├── docker-compose.yml           # full local stack
-│   │   ├── Caddyfile.prod               # API-only reverse proxy + auto-HTTPS
-│   │   ├── .env.prod.example            # secret template
-│   │   └── postgres-init/01-rls.sql     # Row-Level Security bootstrap
-│   └── postgres/schema.sql              # full schema reference
+│   │   ├── docker-compose.yml            # full local stack (API + web-admin + observability)
+│   │   ├── docker-compose.prod.yml       # production stack (pulls from GHCR)
+│   │   ├── Caddyfile                     # reverse proxy: API + web-admin + Grafana
+│   │   ├── otel-config.yml               # OpenTelemetry Collector pipeline
+│   │   ├── tempo-config.yml              # Grafana Tempo distributed tracing
+│   │   ├── prometheus/prometheus.yml     # Prometheus scrape config
+│   │   ├── grafana/provisioning/         # auto-provision datasources + dashboards
+│   │   ├── .env.example                  # all secrets documented
+│   │   └── postgres-init/01-rls.sql      # Row-Level Security bootstrap
+│   └── postgres/schema.sql               # full schema reference
 ├── tests/
-│   └── DigitalSocieties.Identity.Tests/ # xUnit domain tests
-└── .github/workflows/ci.yml             # CI: Docker push to GHCR + Android APK
+│   └── DigitalSocieties.Identity.Tests/  # xUnit domain tests
+└── .github/workflows/ci.yml              # CI: API → GHCR + web-admin → GHCR + Android APK
 ```
 
 ---
@@ -118,13 +150,16 @@ Each module is its own .NET project — no cross-module dependencies except thro
 
 | Module | Responsibility | Status |
 |--------|---------------|--------|
-| **Shared** | Result<T>, domain primitives, SOLID contracts (IPaymentProvider, INotificationChannel, IStorageProvider) | ✅ Done |
-| **Identity** | OTP (BCrypt-hashed), JWT (10-min TTL), refresh tokens, RBAC, multi-tenant RLS, device binding, Redis rate limiting | ✅ Done |
+| **Shared** | Result<T>, Money, PhoneNumber, ICurrentUser, IPaymentProvider, INotificationChannel, INotificationDispatcher, IStorageProvider | ✅ Done |
+| **Identity** | OTP login + 2FA (TOTP), JWT (10-min TTL), refresh tokens, RBAC, multi-tenant RLS, device binding, Redis rate limiting | ✅ Done |
 | **Billing** | Monthly bill generation, Razorpay payment initiation + webhook verify, late-fee rules | ✅ Done |
-| **Visitor** | Visitor pre-approval, guard QR scan (signed JWT, 2-min TTL), entry/exit log, SOS | ✅ Done |
-| **Complaint** | Raise complaint, MinIO pre-signed URL for images, assign to staff, status updates | ✅ Done |
-| **Communication** | Post/pin/expire notices, SignalR hub `SocietyHub`, MSG91 SMS channel | ✅ Done |
+| **Visitor** | Visitor pre-approval, guard QR scan (signed JWT, 2-min TTL), entry/exit log, SOS, offline sync | ✅ Done |
+| **Complaint** | Raise complaint, MinIO pre-signed URL for images, assign to staff, status transitions | ✅ Done |
+| **Communication** | Post/pin/expire notices, SignalR `SocietyHub`, Expo push + MSG91 SMS, fallback dispatcher | ✅ Done |
 | **Social** | Society Feed, reactions, comments, groups, marketplace listings, polls, resident directory, moderation | ✅ Done |
+| **Accounting** | Double-entry ledger, expense management, P&L reports, society wallet corpus fund | ✅ Done |
+| **Facility** | Amenity inventory, slot booking with conflict detection, capacity management | ✅ Done |
+| **Parking** | Slot allocation (car/bike/EV), visitor parking nav QR, floor plan overlay, ANPR hook | ✅ Done |
 
 ---
 
@@ -166,10 +201,10 @@ The production server only needs `docker compose pull && docker compose up -d` t
 | Principle | How |
 |-----------|-----|
 | **S**ingle Responsibility | Each vertical (Billing, Visitor, Complaint…) is its own .NET project/assembly. Nothing crosses module boundaries except domain events. |
-| **O**pen/Closed | `IPaymentProvider` → add Cashfree without touching billing domain. `INotificationChannel` → add WhatsApp without touching Identity. |
+| **O**pen/Closed | `IPaymentProvider` → add Cashfree without touching billing domain. `INotificationChannel` → add WhatsApp without touching any consumer. |
 | **L**iskov Substitution | All `I*` contracts have test fakes in xUnit tests; production providers are drop-in. |
-| **I**nterface Segregation | `ICommandRepository<T>` and `IQueryRepository<T>` are separate. No fat interfaces. |
-| **D**ependency Inversion | API host depends on abstractions; concrete Razorpay/MinIO/MSG91 registered by config via .NET DI. |
+| **I**nterface Segregation | `ICommandRepository<T>` and `IQueryRepository<T>` are separate. No fat interfaces. `INotificationDispatcher` in Shared avoids circular dep between Visitor and Communication modules. |
+| **D**ependency Inversion | API host depends on abstractions; concrete Razorpay/MinIO/MSG91/Expo registered by config via .NET DI. Visitor module depends on `INotificationDispatcher` (Shared), not on Communication module. |
 
 ---
 
@@ -195,6 +230,7 @@ The production server only needs `docker compose pull && docker compose up -d` t
 | Layer | Technology |
 |-------|-----------|
 | Mobile | React Native 0.74 + Expo SDK 51 + TypeScript 5.3 |
+| Web Admin | Next.js 14 App Router + @tanstack/react-query v5 + Tailwind CSS + recharts |
 | Local DB | WatermelonDB + SQLCipher (offline-first SQLite) |
 | Backend | ASP.NET Core 8 Minimal APIs + MediatR + FluentValidation |
 | Server DB | PostgreSQL 16 with Row-Level Security |
@@ -202,7 +238,10 @@ The production server only needs `docker compose pull && docker compose up -d` t
 | File Storage | MinIO (self-host) / S3-compatible (SaaS) |
 | Real-time | SignalR (`SocietyHub`) |
 | Payments | Razorpay (primary) + Cashfree (failover) |
+| Push Notifications | Expo Push (mobile) with SMS fallback via MSG91 |
 | SMS / OTP | MSG91 |
+| Maps | MapLibre GL JS (visitor parking nav, floor plan overlay) |
+| Observability | OpenTelemetry → OTLP Collector → Grafana Tempo (traces) + Prometheus (metrics) + Grafana dashboards |
 | Reverse Proxy | Caddy 2 (automatic HTTPS via Let's Encrypt) |
 | Container Registry | GitHub Container Registry (GHCR) |
 | CI/CD | GitHub Actions |
@@ -215,11 +254,11 @@ The production server only needs `docker compose pull && docker compose up -d` t
 |-------|-------|--------|
 | **P0 — Foundation** | Mono-repo, .NET 8 skeleton, Identity (OTP + JWT + RBAC), multi-tenant Postgres + RLS, React Native scaffold, Docker Compose | ✅ Complete |
 | **P1 — MVP** | Billing + Razorpay, Visitor management + QR, Complaints + image upload, Notices + SignalR, all wired into API + mobile screens | ✅ Complete |
-| **P2 — Accounting + Social** | Accounting module, Member/family management, push notifications, guard offline-first, **Private Social Network** (Feed, Marketplace, Polls, Directory) | 🔄 Social module built; Accounting + Push = next |
-| **P3 — Parking + Geomap** | Parking slot management, visitor parking nav URL, EV charger booking, ANPR hook, MapLibre outdoor + indoor floor plan | 📋 Planned |
-| **P4 — AI / MCP + A/V** | MCP server (query_bills, route_complaint, summarize_notices, anomaly_detect), LiveKit/Jitsi integration | 📋 Planned |
-| **P5 — Marketplace + Wallet** | Local services marketplace with commissions, Society Wallet (pre-paid ledger) | 📋 Planned |
-| **P6 — Enterprise** | White-label, SSO (SAML/OIDC), indoor Bluetooth beacons, builder portfolio dashboard | 📋 Planned |
+| **P2 — Accounting + Social** | Accounting module, Member/family management, Expo push + SMS fallback (INotificationDispatcher), guard offline-first (WatermelonDB + 7-day PII wipe), **Private Social Network** (Feed, Marketplace, Polls, Directory) | ✅ Complete |
+| **P3 — Parking + Geomap** | Parking slot management (car/bike/EV), visitor parking nav URL, EV charger badge, ANPR hook, MapLibre outdoor map + indoor floor plan raster overlay | ✅ Complete |
+| **P4 — Observability + Web Admin** | OpenTelemetry → Grafana Tempo + Prometheus + custom dashboards; Next.js 14 web-admin (13 pages: billing, members, complaints, visitors, notices, accounting, social, facilities, parking, marketplace, wallet, settings, setup); CI Dockerfile for web-admin | ✅ Complete |
+| **P5 — 2FA + Demo Mode** | TOTP-based 2FA for admin/resident login (mobile + web), demo-mode seeding on first-run setup wizard | 🔄 In Progress |
+| **P6 — Enterprise** | White-label, SSO (SAML/OIDC), AI/MCP server (query_bills, route_complaint, anomaly_detect), LiveKit/Jitsi calling, indoor Bluetooth beacons, builder portfolio dashboard | 📋 Planned |
 
 ---
 

@@ -56,6 +56,13 @@ public static class ParkingEndpoints
             return r.IsSuccess ? Results.Ok() : Results.BadRequest(r.Error);
         }).RequireAuthorization("GuardOrAdmin");
 
+        // ── Visitor: parking nav link (anonymous, token-gated) ────────────
+        g.MapGet("/nav/{token}", async (string token, IMediator mediator) =>
+        {
+            var r = await mediator.Send(new GetParkingNavQuery(token));
+            return r.IsSuccess ? Results.Ok(r.Value) : Results.NotFound(r.Error);
+        }).AllowAnonymous();
+
         // ── Resident: my parking + vehicles ───────────────────────────────
         g.MapGet("/my", async (IMediator mediator) =>
         {

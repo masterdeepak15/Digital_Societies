@@ -26,6 +26,7 @@ services:
       Storage__AccessKey:        ${MINIO_ACCESS_KEY}
       Storage__SecretKey:        ${MINIO_SECRET_KEY}
       AllowedOrigins__0:         ${WEB_ADMIN_URL}
+      OpenTelemetry__Endpoint:   http://otel-collector:4317
     ports:
       - "8080:8080"
     depends_on:
@@ -40,20 +41,35 @@ services:
       retries: 3
       start_period: 40s
 
-  # ── Web Admin (Next.js) ────────────────────────────────────────────────────
+  # ── Web Admin (Next.js 14 — standalone output) ────────────────────────────
   web-admin:
     image: ghcr.io/masterdeepak15/digital-societies-web:latest
     build:
       context: ../../apps/web-admin
       dockerfile: Dockerfile
+      # NEXT_PUBLIC_* vars are baked in at build time; pass as build args.
+      # The running container only needs PORT (Next.js runtime) — no NEXT_PUBLIC_
+      # env vars are read at runtime in standalone mode.
+      args:
+        NEXT_PUBLIC_API_URL:      ${NEXT_PUBLIC_API_URL:-/api/v1}
+        NEXT_PUBLIC_HUB_URL:      ${NEXT_PUBLIC_HUB_URL:-/hubs}
+        NEXT_PUBLIC_MAP_TILE_URL: ${NEXT_PUBLIC_MAP_TILE_URL:-https://demotiles.maplibre.org/style.json}
+        NEXT_PUBLIC_APP_NAME:     ${NEXT_PUBLIC_APP_NAME:-Society Admin}
     restart: unless-stopped
     environment:
-      NEXT_PUBLIC_API_URL: ${API_URL:-http://api:8080}
+      PORT:     3000
+      HOSTNAME: 0.0.0.0
     ports:
       - "3000:3000"
     depends_on:
       api: { condition: service_healthy }
     networks: [ds-net]
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
 
   # ── PostgreSQL 16 ──────────────────────────────────────────────────────────
   postgres:
@@ -133,16 +149,73 @@ services:
       - web-admin
     networks: [ds-net]
 
-  # ── OpenTelemetry Collector (observability) ───────────────────────────────
+  # ── OpenTelemetry Collector ───────────────────────────────────────────────
   otel-collector:
-    image: otel/opentelemetry-collector-contrib:latest
+    image: otel/opentelemetry-collector-contrib:0.101.0
     restart: unless-stopped
     command: ["--config=/etc/otelcol/config.yml"]
     volumes:
       - ./otel-config.yml:/etc/otelcol/config.yml:ro
     ports:
-      - "4317:4317"   # gRPC
-      - "4318:4318"   # HTTP
+      - "4317:4317"   # gRPC OTLP
+      - "4318:4318"   # HTTP OTLP
+      - "8889:8889"   # Prometheus metrics (collector self-metrics)
+    depends_on: [tempo]
+    networks: [ds-net]
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:13133"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # ── Grafana Tempo (distributed tracing backend) ────────────────────────────
+  tempo:
+    image: grafana/tempo:2.5.0
+    restart: unless-stopped
+    command: ["-config.file=/etc/tempo.yml"]
+    volumes:
+      - ./tempo-config.yml:/etc/tempo.yml:ro
+      - tempo_data:/var/tempo
+    ports:
+      - "3200:3200"   # Tempo HTTP (Grafana datasource)
+    networks: [ds-net]
+
+  # ── Prometheus (metrics store) ────────────────────────────────────────────
+  prometheus:
+    image: prom/prometheus:v2.52.0
+    restart: unless-stopped
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--storage.tsdb.retention.time=30d"
+      - "--web.console.libraries=/usr/share/prometheus/console_libraries"
+      - "--web.console.templates=/usr/share/prometheus/consoles"
+      - "--web.enable-lifecycle"
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    ports:
+      - "9090:9090"
+    depends_on: [api, otel-collector]
+    networks: [ds-net]
+
+  # ── Grafana (dashboards) ──────────────────────────────────────────────────
+  grafana:
+    image: grafana/grafana:11.0.0
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_USER:     admin
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin}
+      GF_FEATURE_TOGGLES_ENABLE:  traceqlEditor
+      GF_SERVER_ROOT_URL:         "%(protocol)s://%(domain)s:%(http_port)s/grafana/"
+      GF_SERVER_SERVE_FROM_SUB_PATH: "true"
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana_data:/var/lib/grafana
+    ports:
+      - "3001:3000"   # Grafana UI (proxied via Caddy at /grafana)
+    depends_on: [prometheus, tempo]
     networks: [ds-net]
 
 volumes:
@@ -151,6 +224,9 @@ volumes:
   minio_data:
   caddy_data:
   caddy_config:
+  tempo_data:
+  prometheus_data:
+  grafana_data:
 
 networks:
   ds-net:

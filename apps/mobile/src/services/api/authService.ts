@@ -10,7 +10,12 @@ export interface AuthTokenResponse {
   accessToken: string; refreshToken: string; expiresIn: number;
   isNewUser: boolean;
   profile: { userId: string; name: string; phone: string; memberships: MembershipInfo[] };
+  // 2FA: when true, tokens are empty — call verify2Fa next
+  requiresTwoFactor?: boolean;
+  pendingUserId?:     string;
 }
+
+export interface Verify2FaParams { pendingUserId: string; totpCode: string }
 export interface MembershipInfo {
   societyId: string; societyName: string; role: string;
   flatId?: string; flatDisplay?: string;
@@ -32,6 +37,10 @@ export const authService = {
   verifyOtp: (params: VerifyOtpParams) =>
     apiClient.post<AuthTokenResponse>(
       '/auth/otp/verify', { ...params, purpose: params.purpose ?? 'login' }),
+
+  /** Second factor: submit TOTP code after OTP login when 2FA is enabled. */
+  verify2Fa: (params: Verify2FaParams) =>
+    apiClient.post<AuthTokenResponse>('/auth/2fa/verify', params),
 
   saveTokens: async (tokens: Pick<AuthTokenResponse, 'accessToken' | 'refreshToken'>) => {
     await Promise.all([

@@ -35,6 +35,10 @@ using DigitalSocieties.Marketplace.Infrastructure;
 using DigitalSocieties.Api.Endpoints.Marketplace;
 using DigitalSocieties.Wallet.Infrastructure;
 using DigitalSocieties.Api.Endpoints.Wallet;
+using DigitalSocieties.Api.Endpoints.Setup;
+using OpenTelemetry.Resources;
+using OpenTelemetry.Trace;
+using OpenTelemetry.Metrics;
 
 // ── Bootstrap logger (captures startup errors before Serilog is fully configured)
 Log.Logger = new LoggerConfiguration()
@@ -160,6 +164,9 @@ try
     builder.Services.Configure<MinioSettings>(config.GetSection(MinioSettings.SectionName));
     builder.Services.AddScoped<DigitalSocieties.Shared.Contracts.IStorageProvider, MinioStorageProvider>();
 
+    // ── DataSeeder — instance-based for /setup/demo; scoped so it gets the right DbContexts
+    builder.Services.AddScoped<DigitalSocieties.Api.Infrastructure.Seeding.DataSeeder>();
+
     // ── MediatR pipeline behaviors (order: logging → validation → handler)
     builder.Services.AddMediatR(cfg =>
     {
@@ -169,6 +176,32 @@ try
     });
 
     builder.Services.AddFluentValidationAutoValidation();
+
+    // ── OpenTelemetry (tracing + metrics → OTLP collector; /metrics for Prometheus) ──
+    var otelEndpoint = config["OpenTelemetry:Endpoint"] ?? "http://otel-collector:4317";
+    builder.Services
+        .AddOpenTelemetry()
+        .ConfigureResource(r => r
+            .AddService(
+                serviceName:    "digital-societies-api",
+                serviceVersion: typeof(Program).Assembly.GetName().Version?.ToString() ?? "0.0.0"))
+        .WithTracing(tracing => tracing
+            .AddAspNetCoreInstrumentation(opts =>
+            {
+                opts.RecordException = true;
+                opts.Filter = ctx =>
+                    !ctx.Request.Path.StartsWithSegments("/health") &&
+                    !ctx.Request.Path.StartsWithSegments("/metrics");
+            })
+            .AddHttpClientInstrumentation()
+            .AddEntityFrameworkCoreInstrumentation(opts => opts.SetDbStatementForText = true)
+            .AddOtlpExporter(opts => opts.Endpoint = new Uri(otelEndpoint)))
+        .WithMetrics(metrics => metrics
+            .AddAspNetCoreInstrumentation()
+            .AddHttpClientInstrumentation()
+            .AddRuntimeInstrumentation()
+            .AddPrometheusExporter()        // exposes /metrics endpoint
+            .AddOtlpExporter(opts => opts.Endpoint = new Uri(otelEndpoint)));
 
     // SignalR — real-time push for visitor approvals, notices, emergencies
     builder.Services.AddSignalR(opts =>
@@ -196,6 +229,7 @@ try
     app.UseAuthorization();
 
     // ── Endpoint registration ─────────────────────────────────────────────────
+    app.MapGroup("/api/v1/setup").MapSetupEndpoints();
     app.MapGroup("/api/v1/auth").MapIdentityEndpoints();
     app.MapGroup("/api/v1/billing").MapBillingEndpoints();
     app.MapGroup("/api/v1/visitors").MapVisitorEndpoints();
@@ -217,6 +251,7 @@ try
     app.MapHub<SocietyHub>("/hubs/society");
 
     app.MapHealthChecks("/health");
+    app.MapPrometheusScrapingEndpoint("/metrics");   // Prometheus pull target
 
     // ── Auto-migrate on startup (dev only — use Flyway / Liquibase in prod) ───
     if (app.Environment.IsDevelopment())
