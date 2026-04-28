@@ -26,6 +26,7 @@ public static class IdentityServiceExtensions
                 config.GetConnectionString("Postgres"),
                 npg =>
                 {
+                    npg.MigrationsAssembly(typeof(IdentityDbContext).Assembly.GetName().Name);
                     npg.MigrationsHistoryTable("__ef_migrations", "identity");
                     npg.EnableRetryOnFailure(3);
                 }));

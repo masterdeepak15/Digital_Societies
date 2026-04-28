@@ -40,6 +40,10 @@
     <PackageReference Include="OpenTelemetry.Exporter.Prometheus.AspNetCore" Version="1.8.0-rc.1" />
     <PackageReference Include="Scalar.AspNetCore"                            Version="1.2.24" />
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL"        Version="8.0.4" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design"         Version="8.0.4">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
     <PackageReference Include="StackExchange.Redis"                          Version="2.7.33" />
     <PackageReference Include="Microsoft.Extensions.Caching.StackExchangeRedis" Version="8.0.4" />
     <!-- MinIO S3-compatible object storage -->

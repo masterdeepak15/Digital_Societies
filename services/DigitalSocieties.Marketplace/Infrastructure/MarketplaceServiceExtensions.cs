@@ -12,7 +12,11 @@ public static class MarketplaceServiceExtensions
     {
         services.AddDbContext<MarketplaceDbContext>(opts =>
             opts.UseNpgsql(config.GetConnectionString("Postgres"),
-                npgsql => npgsql.MigrationsHistoryTable("__ef_migrations", "marketplace")));
+                npgsql =>
+                {
+                    npgsql.MigrationsAssembly(typeof(MarketplaceDbContext).Assembly.GetName().Name);
+                    npgsql.MigrationsHistoryTable("__ef_migrations", "marketplace");
+                }));
         return services;
     }
 }

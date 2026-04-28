@@ -12,7 +12,11 @@ public static class FacilityServiceExtensions
     {
         services.AddDbContext<FacilityDbContext>(opts =>
             opts.UseNpgsql(config.GetConnectionString("Postgres"),
-                npg => npg.MigrationsHistoryTable("__ef_migrations", "facility")));
+                npg =>
+                {
+                    npg.MigrationsAssembly(typeof(FacilityDbContext).Assembly.GetName().Name);
+                    npg.MigrationsHistoryTable("__ef_migrations", "facility");
+                }));
 
         services.AddMediatR(cfg =>
             cfg.RegisterServicesFromAssembly(typeof(FacilityServiceExtensions).Assembly));

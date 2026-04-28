@@ -24,7 +24,11 @@ public static class CallingServiceExtensions
 
         services.AddDbContext<CallingDbContext>(opts =>
             opts.UseNpgsql(config.GetConnectionString("Postgres"),
-                npgsql => npgsql.MigrationsHistoryTable("__ef_migrations", "calling")));
+                npgsql =>
+                {
+                    npgsql.MigrationsAssembly(typeof(CallingDbContext).Assembly.GetName().Name);
+                    npgsql.MigrationsHistoryTable("__ef_migrations", "calling");
+                }));
 
         // ── Register HttpClient for LiveKit REST API ──────────────────────
         services.AddHttpClient("livekit", client =>

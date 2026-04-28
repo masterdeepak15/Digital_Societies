@@ -12,7 +12,11 @@ public static class AccountingServiceExtensions
     {
         services.AddDbContext<AccountingDbContext>(opts =>
             opts.UseNpgsql(config.GetConnectionString("Postgres"),
-                npg => npg.MigrationsHistoryTable("__ef_migrations", "accounting")));
+                npg =>
+                {
+                    npg.MigrationsAssembly(typeof(AccountingDbContext).Assembly.GetName().Name);
+                    npg.MigrationsHistoryTable("__ef_migrations", "accounting");
+                }));
 
         services.AddMediatR(cfg =>
             cfg.RegisterServicesFromAssembly(typeof(AccountingServiceExtensions).Assembly));

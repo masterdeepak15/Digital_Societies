@@ -15,7 +15,11 @@ public static class ParkingServiceExtensions
     {
         services.AddDbContext<ParkingDbContext>(opts =>
             opts.UseNpgsql(config.GetConnectionString("Postgres"),
-                npgsql => npgsql.MigrationsHistoryTable("__ef_migrations", "parking")));
+                npgsql =>
+                {
+                    npgsql.MigrationsAssembly(typeof(ParkingDbContext).Assembly.GetName().Name);
+                    npgsql.MigrationsHistoryTable("__ef_migrations", "parking");
+                }));
 
         // MediatR handlers are picked up automatically via assembly scanning in Program.cs
         return services;

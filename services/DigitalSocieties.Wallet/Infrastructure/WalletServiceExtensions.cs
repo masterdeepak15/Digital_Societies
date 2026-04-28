@@ -15,7 +15,11 @@ public static class WalletServiceExtensions
 
         services.AddDbContext<WalletDbContext>(opts =>
             opts.UseNpgsql(config.GetConnectionString("Postgres"),
-                npgsql => npgsql.MigrationsHistoryTable("__ef_migrations", "wallet")));
+                npgsql =>
+                {
+                    npgsql.MigrationsAssembly(typeof(WalletDbContext).Assembly.GetName().Name);
+                    npgsql.MigrationsHistoryTable("__ef_migrations", "wallet");
+                }));
 
         return services;
     }
