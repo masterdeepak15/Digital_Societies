@@ -44,8 +44,8 @@ public static class MemberEndpoints
 
         // ── Push notification token registration ───────────────────────────
         g.MapPost("/push-token", async (
-            IPushTokenStore tokenStore,
-            DigitalSocieties.Shared.Contracts.ICurrentUser cu,
+            [FromServices] IPushTokenStore tokenStore,
+            [FromServices] DigitalSocieties.Shared.Contracts.ICurrentUser cu,
             PushTokenRequest req,
             CancellationToken ct) =>
         {
@@ -55,14 +55,15 @@ public static class MemberEndpoints
             return Results.Ok();
         }).RequireAuthorization();
 
+        // DELETE with a body is non-standard; use query param for token instead
         g.MapDelete("/push-token", async (
-            IPushTokenStore tokenStore,
-            DigitalSocieties.Shared.Contracts.ICurrentUser cu,
-            PushTokenRequest req,
+            [FromServices] IPushTokenStore tokenStore,
+            [FromServices] DigitalSocieties.Shared.Contracts.ICurrentUser cu,
+            [FromQuery] string token,
             CancellationToken ct) =>
         {
             if (cu.UserId is null) return Results.Unauthorized();
-            await tokenStore.RemoveAsync(cu.UserId.Value, req.Token, ct);
+            await tokenStore.RemoveAsync(cu.UserId.Value, token, ct);
             return Results.Ok();
         }).RequireAuthorization();
 
