@@ -93,13 +93,13 @@ public sealed class Confirm2FaHandler : IRequestHandler<Confirm2FaCommand, Resul
             return Result<bool>.Fail(Error.NotFound("User", "User not found."));
 
         if (string.IsNullOrEmpty(user.Pending2FaSecret))
-            return Result<bool>.Fail(Error.Validation("2FaNotEnrolled", "Start enrollment first via POST /auth/2fa/enroll."));
+            return Result<bool>.Fail(Error.Validation("Start enrollment first via POST /auth/2fa/enroll."));
 
         var totp = new Totp(Base32Encoding.ToBytes(user.Pending2FaSecret));
         bool valid = totp.VerifyTotp(cmd.TotpCode, out _, VerificationWindow.RfcSpecifiedNetworkDelay);
 
         if (!valid)
-            return Result<bool>.Fail(Error.Validation("InvalidTotp", "TOTP code is incorrect or expired."));
+            return Result<bool>.Fail(Error.Validation("TOTP code is incorrect or expired."));
 
         user.Activate2Fa();
         await _db.SaveChangesAsync(ct);
@@ -131,13 +131,13 @@ public sealed class Disable2FaHandler : IRequestHandler<Disable2FaCommand, Resul
 
         var user = await _db.Users.FindAsync([_currentUser.UserId.Value], ct);
         if (user is null || !user.TwoFactorEnabled)
-            return Result<bool>.Fail(Error.Validation("2FaNotEnabled", "2FA is not enabled on this account."));
+            return Result<bool>.Fail(Error.Validation("2FA is not enabled on this account."));
 
         var totp = new Totp(Base32Encoding.ToBytes(user.TwoFactorSecret!));
         bool valid = totp.VerifyTotp(cmd.TotpCode, out _, VerificationWindow.RfcSpecifiedNetworkDelay);
 
         if (!valid)
-            return Result<bool>.Fail(Error.Validation("InvalidTotp", "TOTP code is incorrect or expired."));
+            return Result<bool>.Fail(Error.Validation("TOTP code is incorrect or expired."));
 
         user.Disable2Fa();
         await _db.SaveChangesAsync(ct);
@@ -188,7 +188,7 @@ public sealed class Verify2FaHandler : IRequestHandler<Verify2FaCommand, Result<
         bool valid = totp.VerifyTotp(cmd.TotpCode, out _, VerificationWindow.RfcSpecifiedNetworkDelay);
 
         if (!valid)
-            return Result<AuthTokenResponse>.Fail(Error.Validation("InvalidTotp", "Incorrect or expired TOTP code."));
+            return Result<AuthTokenResponse>.Fail(Error.Validation("Incorrect or expired TOTP code."));
 
         var memberships = await _db.Memberships
             .IgnoreQueryFilters()
