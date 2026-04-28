@@ -84,18 +84,15 @@ public sealed class InitializeSocietyCommandHandler
     private readonly IdentityDbContext _db;
     private readonly IOtpService       _otpService;
     private readonly IJwtService       _jwt;
-    private readonly IUnitOfWork       _uow;
 
     public InitializeSocietyCommandHandler(
         IdentityDbContext db,
         IOtpService       otpService,
-        IJwtService       jwt,
-        IUnitOfWork       uow)
+        IJwtService       jwt)
     {
         _db         = db;
         _otpService = otpService;
         _jwt        = jwt;
-        _uow        = uow;
     }
 
     public async Task<Result<SetupResponse>> Handle(

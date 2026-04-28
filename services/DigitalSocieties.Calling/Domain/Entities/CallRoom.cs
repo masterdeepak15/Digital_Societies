@@ -8,7 +8,7 @@ namespace DigitalSocieties.Calling.Domain.Entities;
 /// </summary>
 public sealed class CallRoom : AuditableEntity
 {
-    public Guid              Id             { get; private set; } = Guid.NewGuid();
+    public new Guid          Id             { get; private set; } = Guid.NewGuid();
     public Guid              SocietyId      { get; private set; }
     public string            RoomName       { get; private set; } = string.Empty;
     public CallRoomType      Type           { get; private set; }

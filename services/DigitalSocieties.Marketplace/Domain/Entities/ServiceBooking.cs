@@ -10,7 +10,7 @@ namespace DigitalSocieties.Marketplace.Domain.Entities;
 /// </summary>
 public sealed class ServiceBooking : AuditableEntity
 {
-    public Guid           Id          { get; private set; } = Guid.NewGuid();
+    public new Guid       Id          { get; private set; } = Guid.NewGuid();
     public Guid           SocietyId   { get; private set; }
     public Guid           ListingId   { get; private set; }
     public Guid           ResidentId  { get; private set; }

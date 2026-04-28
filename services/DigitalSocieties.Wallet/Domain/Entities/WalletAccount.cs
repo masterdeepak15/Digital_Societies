@@ -10,7 +10,7 @@ namespace DigitalSocieties.Wallet.Domain.Entities;
 /// </summary>
 public sealed class WalletAccount : AuditableEntity
 {
-    public Guid   Id        { get; private set; } = Guid.NewGuid();
+    public new Guid Id      { get; private set; } = Guid.NewGuid();
     public Guid   SocietyId { get; private set; }
     public Guid   FlatId    { get; private set; }
     public Guid   OwnerId   { get; private set; }
@@ -61,7 +61,7 @@ public sealed class WalletAccount : AuditableEntity
 
 public sealed class WalletTransaction : AuditableEntity
 {
-    public Guid            Id            { get; private set; } = Guid.NewGuid();
+    public new Guid        Id            { get; private set; } = Guid.NewGuid();
     public Guid            WalletId      { get; private set; }
     public Guid            SocietyId     { get; private set; }
     public long            AmountPaise   { get; private set; }

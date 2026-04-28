@@ -6,7 +6,7 @@ namespace DigitalSocieties.Marketplace.Domain.Entities;
 /// <summary>One review per completed booking — 1:1 enforced at DB level.</summary>
 public sealed class ServiceReview : AuditableEntity
 {
-    public Guid   Id         { get; private set; } = Guid.NewGuid();
+    public new Guid Id       { get; private set; } = Guid.NewGuid();
     public Guid   SocietyId  { get; private set; }
     public Guid   BookingId  { get; private set; }
     public Guid   ListingId  { get; private set; }

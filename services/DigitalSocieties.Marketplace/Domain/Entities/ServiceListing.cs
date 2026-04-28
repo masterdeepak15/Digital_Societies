@@ -9,7 +9,7 @@ namespace DigitalSocieties.Marketplace.Domain.Entities;
 /// </summary>
 public sealed class ServiceListing : AuditableEntity
 {
-    public Guid      Id           { get; private set; } = Guid.NewGuid();
+    public new Guid  Id           { get; private set; } = Guid.NewGuid();
     public Guid      SocietyId    { get; private set; }
 
     /// <summary>Provider's User ID (registered in Identity module).</summary>
