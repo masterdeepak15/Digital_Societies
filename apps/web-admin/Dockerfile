@@ -2,9 +2,9 @@
 FROM node:20-alpine AS deps
 WORKDIR /app
 
-# Install dependencies only (layer-cached unless lockfile changes)
-COPY package.json package-lock.json* ./
-RUN npm ci --ignore-scripts
+# Install dependencies (no lockfile committed — use npm install)
+COPY package.json ./
+RUN npm install --legacy-peer-deps --ignore-scripts
 
 # ── Stage 2: builder ──────────────────────────────────────────────────────────
 FROM node:20-alpine AS builder
