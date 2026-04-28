@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Car, Zap, Bike, Plus, Search } from 'lucide-react'
 import { toast } from 'sonner'
@@ -50,15 +50,19 @@ export default function ParkingPage() {
 
   const { data: levels = DEMO_LEVELS } = useQuery<ParkingLevel[]>({
     queryKey: ['parking-levels'],
-    queryFn:  () => api.get('/parking/levels'),
-    onSuccess: (data: ParkingLevel[]) => { if (!selectedLevel && data[0]) setSelectedLevel(data[0].id) },
-  } as Parameters<typeof useQuery>[0])
+    queryFn:  () => api.get<ParkingLevel[]>('/parking/levels'),
+  })
+
+  // Auto-select first level when data loads (replaces removed onSuccess)
+  useEffect(() => {
+    if (!selectedLevel && levels[0]) setSelectedLevel(levels[0].id)
+  }, [levels, selectedLevel])
 
   const activeLevel = selectedLevel ?? (levels[0]?.id ?? null)
 
   const { data: slots = DEMO_SLOTS } = useQuery<ParkingSlot[]>({
     queryKey: ['parking-slots', activeLevel],
-    queryFn:  () => api.get(`/parking/levels/${activeLevel}/slots`),
+    queryFn:  () => api.get<ParkingSlot[]>(`/parking/levels/${activeLevel}/slots`),
     enabled:  !!activeLevel,
   })
 
