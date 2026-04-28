@@ -43,7 +43,7 @@ services:
 
   # ── Web Admin (Next.js 14 — standalone output) ────────────────────────────
   web-admin:
-    image: ghcr.io/masterdeepak15/digital-societies-web:latest
+    image: ghcr.io/masterdeepak15/digital-societies-web-admin:latest
     build:
       context: ../../apps/web-admin
       dockerfile: Dockerfile

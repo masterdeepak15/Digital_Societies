@@ -12,20 +12,28 @@
         }
     }
 
-    # Health check
+    # Health check (public)
     handle /health {
         reverse_proxy {$API_URL}
     }
 
-    # Block everything else
-    respond 404
+    # Web Admin (Next.js — catch-all)
+    handle /* {
+        reverse_proxy {$WEB_ADMIN_URL}
+    }
 
     # Security headers
     header {
         Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
         X-Content-Type-Options    "nosniff"
-        X-Frame-Options           "DENY"
+        X-Frame-Options           "SAMEORIGIN"
         Referrer-Policy           "strict-origin-when-cross-origin"
+        Content-Security-Policy   "default-src 'self'; img-src 'self' data: blob:; connect-src 'self' wss:; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline';"
         -Server
+    }
+
+    log {
+        output file /var/log/caddy/access.log
+        format json
     }
 }
