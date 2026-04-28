@@ -39,11 +39,12 @@ public sealed class MarketplaceDbContext : DbContext
             e.Property("UpdatedAt").HasColumnName("updated_at").HasDefaultValueSql("NOW()");
             e.Property("UpdatedBy").HasColumnName("updated_by");
 
-            // Money owned entity
+            // Money owned entity — map Paise (long) not Amount (computed decimal)
             e.OwnsOne(x => x.BaseRate, br =>
             {
-                br.Property(m => m.Amount).HasColumnName("base_rate_amount").HasPrecision(18, 2);
+                br.Property(m => m.Paise).HasColumnName("base_rate_paise");
                 br.Property(m => m.Currency).HasColumnName("base_rate_currency").HasMaxLength(3);
+                br.Ignore(m => m.Amount);
             });
 
             e.HasIndex(x => x.SocietyId).HasDatabaseName("ix_service_listings_society_id");
@@ -79,13 +80,15 @@ public sealed class MarketplaceDbContext : DbContext
 
             e.OwnsOne(x => x.QuotedAmount, q =>
             {
-                q.Property(m => m.Amount).HasColumnName("quoted_amount").HasPrecision(18, 2);
+                q.Property(m => m.Paise).HasColumnName("quoted_paise");
                 q.Property(m => m.Currency).HasColumnName("quoted_currency").HasMaxLength(3);
+                q.Ignore(m => m.Amount);
             });
             e.OwnsOne(x => x.FinalAmount, f =>
             {
-                f.Property(m => m.Amount).HasColumnName("final_amount").HasPrecision(18, 2);
+                f.Property(m => m.Paise).HasColumnName("final_paise");
                 f.Property(m => m.Currency).HasColumnName("final_currency").HasMaxLength(3);
+                f.Ignore(m => m.Amount);
             });
 
             e.HasIndex(x => x.SocietyId).HasDatabaseName("ix_service_bookings_society_id");
