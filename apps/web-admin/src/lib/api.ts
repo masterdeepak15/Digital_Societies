@@ -20,7 +20,7 @@ async function request<T>(
   }
   if (token) headers['Authorization'] = `Bearer ${token}`
 
-  const res = await fetch(`${BASE}/api/v1${path}`, { ...options, headers })
+  const res = await fetch(`${BASE}${path}`, { ...options, headers })
 
   if (!res.ok) {
     let msg = `HTTP ${res.status}`
