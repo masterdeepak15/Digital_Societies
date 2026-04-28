@@ -1,4 +1,5 @@
 using MediatR;
+using Microsoft.AspNetCore.Mvc;
 using DigitalSocieties.Communication.Infrastructure.Push;
 using DigitalSocieties.Identity.Application.Commands;
 using DigitalSocieties.Identity.Application.Queries;
