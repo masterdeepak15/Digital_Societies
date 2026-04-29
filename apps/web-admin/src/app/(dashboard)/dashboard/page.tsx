@@ -54,8 +54,9 @@ export default function DashboardPage() {
 
   if (isLoading) return <DashboardSkeleton />
 
-  // Fallback demo data so the UI renders even if backend not yet connected
-  const stats = data ?? DEMO_STATS
+  // Fallback to demo data if the API response doesn't match the expected shape
+  // (e.g. /billing/dashboard returns billing-only stats, not a full DashboardStats)
+  const stats: DashboardStats = (data && 'totalResidents' in data) ? data : DEMO_STATS
 
   return (
     <div className="space-y-6">
