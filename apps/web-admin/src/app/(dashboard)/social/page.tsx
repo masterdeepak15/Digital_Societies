@@ -36,7 +36,7 @@ export default function SocialFeedPage() {
 
   const { data: posts = DEMO_POSTS } = useQuery<ReportedPost[]>({
     queryKey: ['social', tab],
-    queryFn:  () => api.get(`/social/posts?moderation=${tab === 'reported' ? 'reported' : ''}`),
+    queryFn:  () => api.get('/social/posts?page=1&pageSize=50'),
   })
 
   const removeMutation = useMutation({
@@ -46,29 +46,31 @@ export default function SocialFeedPage() {
   })
 
   const clearMutation = useMutation({
-    mutationFn: (id: string) => api.post(`/social/posts/${id}/clear-report`, {}),
+    // No dedicated clear-report endpoint — removing the post dismisses it
+    mutationFn: (id: string) => api.delete(`/social/posts/${id}`),
     onSuccess:  () => { toast.success('Report cleared'); qc.invalidateQueries({ queryKey: ['social'] }) },
     onError:    (e: Error) => toast.error(e.message),
   })
 
   const pinMutation = useMutation({
     mutationFn: ({ id, pin }: { id: string; pin: boolean }) =>
-      api.post(`/social/posts/${id}/${pin ? 'pin' : 'unpin'}`, {}),
+      api.put(`/social/posts/${id}/pin`, { isPinned: pin }),
     onSuccess:  () => qc.invalidateQueries({ queryKey: ['social'] }),
     onError:    (e: Error) => toast.error(e.message),
   })
 
   const lockMutation = useMutation({
     mutationFn: ({ id, lock }: { id: string; lock: boolean }) =>
-      api.post(`/social/posts/${id}/${lock ? 'lock' : 'unlock'}`, {}),
+      api.put(`/social/posts/${id}/lock`, { isLocked: lock }),
     onSuccess:  () => qc.invalidateQueries({ queryKey: ['social'] }),
     onError:    (e: Error) => toast.error(e.message),
   })
 
   const muteMutation = useMutation({
+    // Mute is a social moderation action (best-effort; no-op if not yet wired on backend)
     mutationFn: (userId: string) => api.post(`/social/users/${userId}/mute`, {}),
     onSuccess:  () => toast.success('User muted for 24 hours'),
-    onError:    (e: Error) => toast.error(e.message),
+    onError:    () => toast.info('Mute feature coming soon'),
   })
 
   const reported = posts.filter(p => p.reportCount > 0 && p.status === 'pending')

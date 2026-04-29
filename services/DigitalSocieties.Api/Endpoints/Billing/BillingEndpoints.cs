@@ -1,6 +1,9 @@
 using MediatR;
+using Microsoft.EntityFrameworkCore;
 using DigitalSocieties.Billing.Application.Commands;
 using DigitalSocieties.Billing.Application.Queries;
+using DigitalSocieties.Billing.Domain.Entities;
+using DigitalSocieties.Billing.Infrastructure.Persistence;
 using DigitalSocieties.Shared.Contracts;
 using Microsoft.AspNetCore.Mvc;
 
@@ -14,6 +17,76 @@ public static class BillingEndpoints
 {
     public static RouteGroupBuilder MapBillingEndpoints(this RouteGroupBuilder group)
     {
+        // ── Admin: list all bills for the society (paginated + filtered) ────────
+        // GET /api/v1/billing/bills?status=all&search=&page=1&limit=20
+        group.MapGet("/bills", async (
+            [FromQuery] string?  status,
+            [FromQuery] string?  search,
+            [FromQuery] int      page    = 1,
+            [FromQuery] int      limit   = 20,
+            BillingDbContext     db      = default!,
+            ICurrentUser         cu      = default!,
+            CancellationToken    ct      = default) =>
+        {
+            if (cu.SocietyId is null) return Results.BadRequest("Society context required.");
+            var query = db.Bills.Where(b => b.SocietyId == cu.SocietyId);
+
+            if (!string.IsNullOrWhiteSpace(status) && status != "all"
+                && Enum.TryParse<BillStatus>(status, true, out var bs))
+                query = query.Where(b => b.Status == bs);
+
+            if (!string.IsNullOrWhiteSpace(search))
+                query = query.Where(b => b.Description.Contains(search)
+                                      || b.Period.Contains(search));
+
+            var total = await query.CountAsync(ct);
+            var items = await query
+                .OrderByDescending(b => b.DueDate)
+                .Skip((page - 1) * limit)
+                .Take(limit)
+                .Select(b => new {
+                    b.Id, b.FlatId, b.Period,
+                    AmountRupees = b.Amount.Paise / 100m,
+                    b.DueDate, Status = b.Status.ToString()
+                })
+                .ToListAsync(ct);
+
+            return Results.Ok(new { total, page, limit, items });
+        })
+        .RequireAuthorization("AdminOnly")
+        .WithName("AdminListBills")
+        .WithSummary("List all bills for the society with status/search filters")
+        .WithTags("Billing");
+
+        // ── Admin: dashboard stats for current month ──────────────────────────
+        // GET /api/v1/billing/dashboard
+        group.MapGet("/dashboard", async (
+            BillingDbContext  db = default!,
+            ICurrentUser      cu = default!,
+            CancellationToken ct = default) =>
+        {
+            if (cu.SocietyId is null) return Results.BadRequest("Society context required.");
+            var period = $"{DateTime.UtcNow.Year}-{DateTime.UtcNow.Month:D2}";
+            var bills  = await db.Bills
+                .Where(b => b.SocietyId == cu.SocietyId && b.Period == period)
+                .ToListAsync(ct);
+
+            return Results.Ok(new {
+                Period          = period,
+                Total           = bills.Count,
+                Paid            = bills.Count(b => b.Status == BillStatus.Paid),
+                Pending         = bills.Count(b => b.Status == BillStatus.Pending),
+                Overdue         = bills.Count(b => b.Status == BillStatus.Overdue),
+                TotalAmountRupees   = bills.Sum(b => b.Amount.Paise) / 100m,
+                CollectedRupees     = bills.Where(b => b.Status == BillStatus.Paid).Sum(b => b.Amount.Paise) / 100m,
+                PendingRupees       = bills.Where(b => b.Status != BillStatus.Paid).Sum(b => b.Amount.Paise) / 100m,
+            });
+        })
+        .RequireAuthorization("AdminOnly")
+        .WithName("BillingDashboard")
+        .WithSummary("Current-month billing dashboard stats for the society")
+        .WithTags("Billing");
+
         // ── Admin: generate monthly bills for entire society ──────────────────
         // POST /api/v1/billing/generate
         // Body: { "societyId": "...", "periodYear": 2026, "periodMonth": 4, "amountPaise": 150000 }

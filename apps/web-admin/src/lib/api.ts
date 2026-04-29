@@ -1,4 +1,5 @@
 import Cookies from 'js-cookie'
+import { getUser } from './auth'
 
 const BASE = process.env.NEXT_PUBLIC_API_URL ?? ''
 
@@ -19,6 +20,8 @@ async function request<T>(
     ...(options.headers as Record<string, string>),
   }
   if (token) headers['Authorization'] = `Bearer ${token}`
+  const societyId = getUser()?.societyId
+  if (societyId) headers['X-Society-Id'] = societyId
 
   const res = await fetch(`${BASE}${path}`, { ...options, headers })
 

@@ -53,12 +53,12 @@ export default function WalletPage() {
 
   const { data: wallet = DEMO_WALLET } = useQuery<SocietyWallet>({
     queryKey: ['society-wallet'],
-    queryFn:  () => api.get('/wallet'),
+    queryFn:  () => api.get('/wallet/balance'),
   })
 
   const { data: transactions = DEMO_TRANSACTIONS } = useQuery<WalletTransaction[]>({
     queryKey: ['wallet-transactions', categoryFilter],
-    queryFn:  () => api.get(`/wallet/transactions?category=${categoryFilter}`),
+    queryFn:  () => api.get(`/wallet/transactions?page=1&pageSize=50`),
   })
 
   const filtered = transactions.filter(t => {

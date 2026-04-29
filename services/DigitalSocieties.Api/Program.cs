@@ -36,6 +36,7 @@ using DigitalSocieties.Api.Endpoints.Marketplace;
 using DigitalSocieties.Wallet.Infrastructure;
 using DigitalSocieties.Api.Endpoints.Wallet;
 using DigitalSocieties.Api.Endpoints.Setup;
+using DigitalSocieties.Api.Endpoints.Settings;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
 using OpenTelemetry.Metrics;
@@ -117,6 +118,10 @@ try
     // ICurrentUser — extracted from JWT, available everywhere via DI
     builder.Services.AddScoped<DigitalSocieties.Shared.Contracts.ICurrentUser,
                                DigitalSocieties.Api.Middleware.JwtCurrentUser>();
+
+    // Translate JWT "membership:societyId:role:flatId" → "role" claim for ASP.NET auth policies
+    builder.Services.AddScoped<Microsoft.AspNetCore.Authentication.IClaimsTransformation,
+                               DigitalSocieties.Api.Middleware.MembershipClaimsTransformation>();
 
     // Rate limiting — .NET 8 built-in (no extra package needed)
     builder.Services.AddMemoryCache();
@@ -243,6 +248,7 @@ try
     app.MapGroup("/api/v1/calling").MapCallingEndpoints();
     app.MapGroup("/api/v1/marketplace").MapMarketplaceEndpoints();
     app.MapGroup("/api/v1/wallet").MapWalletEndpoints();
+    app.MapGroup("/api/v1/settings").MapSettingsEndpoints();
 
     // MCP server tools registered via AddMcpModule() in services above.
     // HTTP SSE transport (MapMcp) requires ModelContextProtocol >= 0.2.0 — upgrade in P6.

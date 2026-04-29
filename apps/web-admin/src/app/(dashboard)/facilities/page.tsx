@@ -66,6 +66,7 @@ export default function FacilitiesPage() {
   })
 
   const cancelMutation = useMutation({
+    // Admin cancel: DELETE /facilities/bookings/{id}
     mutationFn: (id: string) => api.delete(`/facilities/bookings/${id}`),
     onSuccess: () => { toast.success('Booking cancelled'); qc.invalidateQueries({ queryKey: ['facility-bookings'] }) },
     onError:   (e: Error) => toast.error(e.message),

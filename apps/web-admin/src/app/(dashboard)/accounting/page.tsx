@@ -54,30 +54,30 @@ export default function AccountingPage() {
 
   const { data: ledger = DEMO_LEDGER } = useQuery<LedgerEntry[]>({
     queryKey: ['accounting', 'ledger'],
-    queryFn:  () => api.get('/accounting/ledger'),
+    queryFn:  () => api.get('/accounting/entries'),
     enabled:  tab === 'ledger',
   })
 
   const { data: expenses = DEMO_EXPENSES } = useQuery<ExpenseRequest[]>({
     queryKey: ['accounting', 'expenses'],
-    queryFn:  () => api.get('/accounting/expenses'),
+    queryFn:  () => api.get('/accounting/entries?pendingOnly=true'),
     enabled:  tab === 'expenses',
   })
 
   const { data: pnl = DEMO_PNL } = useQuery<PnL[]>({
     queryKey: ['accounting', 'pnl'],
-    queryFn:  () => api.get('/accounting/pnl'),
+    queryFn:  () => api.get('/accounting/report'),
     enabled:  tab === 'pnl',
   })
 
   const approveMutation = useMutation({
-    mutationFn: (id: string) => api.post(`/accounting/expenses/${id}/approve`, {}),
+    mutationFn: (id: string) => api.post(`/accounting/entries/${id}/approve`, {}),
     onSuccess:  () => { toast.success('Expense approved'); qc.invalidateQueries({ queryKey: ['accounting'] }) },
     onError:    (e: Error) => toast.error(e.message),
   })
 
   const rejectMutation = useMutation({
-    mutationFn: (id: string) => api.post(`/accounting/expenses/${id}/reject`, {}),
+    mutationFn: (id: string) => api.post(`/accounting/entries/${id}/reject`, {}),
     onSuccess:  () => { toast.success('Expense rejected'); qc.invalidateQueries({ queryKey: ['accounting'] }) },
     onError:    (e: Error) => toast.error(e.message),
   })

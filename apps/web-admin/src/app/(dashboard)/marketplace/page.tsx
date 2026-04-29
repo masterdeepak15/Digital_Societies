@@ -50,7 +50,7 @@ export default function MarketplacePage() {
 
   const { data: listings = DEMO_LISTINGS } = useQuery<Listing[]>({
     queryKey: ['marketplace-listings', tab],
-    queryFn:  () => api.get(`/marketplace/listings?status=${tab === 'reported' ? 'reported' : 'pending,active'}`),
+    queryFn:  () => api.get('/marketplace/listings'),
   })
 
   const approveMutation = useMutation({
