@@ -25,12 +25,12 @@ import { useQueryClient } from '@tanstack/react-query'
 import { getToken } from './auth'
 import { API_BASE } from './api'
 
-// @microsoft/signalr must be installed:
-//   npm install @microsoft/signalr  (package is already in society-app stack)
-// We import lazily so SSR bundles don't choke on the browser-only WebSocket API.
-type HubConnection = import('@microsoft/signalr').HubConnection
-
-let _connection: HubConnection | null = null
+// @microsoft/signalr is a runtime-only dependency (WebSocket API not available in SSR).
+// The module-level variable is typed as `unknown` so there are zero static imports —
+// webpack never tries to bundle signalr at build time. The real type is resolved
+// at runtime inside the async connect() function via a guarded dynamic import.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let _connection: any = null
 
 export function useSignalR() {
   const qc = useQueryClient()
@@ -41,7 +41,10 @@ export function useSignalR() {
     let mounted = true
 
     async function connect() {
-      // Lazy import — keeps SSR clean.
+      // Dynamic import — webpack bundles signalr into a separate async chunk
+      // so it never lands in the SSR bundle. `'use client'` at the top of
+      // this file already gates SSR, and the typeof-window guard above
+      // provides an extra runtime safety net.
       const { HubConnectionBuilder, LogLevel, HttpTransportType } =
         await import('@microsoft/signalr')
 
