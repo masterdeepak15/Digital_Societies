@@ -23,7 +23,7 @@
 import { useEffect } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { getToken } from './auth'
-import { API_BASE } from './api'
+import { API_HOST } from './api'
 
 // @microsoft/signalr is a runtime-only dependency (WebSocket API not available in SSR).
 // The module-level variable is typed as `unknown` so there are zero static imports —
@@ -51,7 +51,12 @@ export function useSignalR() {
       const token = getToken()
       if (!token) return   // not authenticated — skip
 
-      const hubUrl = `${API_BASE.replace('/api/v1', '')}/hubs/society`
+      // Prefer NEXT_PUBLIC_HUB_URL (CI passes https://societies.athomes.space/hubs).
+      // Fall back to API_HOST + /hubs for local dev without the extra env var.
+      const hubBase = (process.env.NEXT_PUBLIC_HUB_URL ?? '').replace(/\/+$/, '')
+      const hubUrl  = hubBase
+        ? `${hubBase}/society`
+        : `${API_HOST}/hubs/society`
 
       const connection = new HubConnectionBuilder()
         .withUrl(hubUrl, {

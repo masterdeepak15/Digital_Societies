@@ -149,7 +149,7 @@ export default function MembersPage() {
                   <Td>{flatLabel(m)}</Td>
                   <Td><Badge label={m.role} /></Td>
                   <Td className="capitalize text-gray-500 text-sm">{m.memberType}</Td>
-                  <Td>{formatDate(m.joinedAt)}</Td>
+                  <Td>{formatDate(m.joinedAt ?? '')}</Td>
                   <Td>
                     <span className={cn(
                       'inline-flex items-center gap-1 text-xs font-medium',

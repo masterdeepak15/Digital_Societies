@@ -172,7 +172,7 @@ export default function VisitorsPage() {
                     <p className="font-medium">{v.hostFlatDisplay}</p>
                     <p className="text-xs text-gray-400">{v.hostName}</p>
                   </Td>
-                  <Td>{formatDateTime(v.expectedAt)}</Td>
+                  <Td>{v.expectedAt ? formatDateTime(v.expectedAt) : '—'}</Td>
                   <Td className="text-xs">
                     {v.entryTime ? <p className="text-green-600">{formatDateTime(v.entryTime)}</p> : <p className="text-gray-300">—</p>}
                     {v.exitTime  ? <p className="text-gray-400">{formatDateTime(v.exitTime)}</p>  : null}

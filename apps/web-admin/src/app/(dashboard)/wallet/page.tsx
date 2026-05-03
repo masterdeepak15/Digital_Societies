@@ -110,7 +110,7 @@ export default function WalletPage() {
               ₹{wallet.balance.toLocaleString('en-IN')}
             </p>
             <p className="text-brand-200 text-xs mt-2">
-              Last updated {formatDate(wallet.lastUpdated ?? wallet.lastUpdatedAt)}
+              Last updated {formatDate(wallet.lastUpdated ?? wallet.lastUpdatedAt ?? '')}
             </p>
           </div>
           <div className="bg-white/20 rounded-xl p-3">

@@ -271,7 +271,7 @@ export default function DashboardPage() {
                 </div>
                 <div className="text-right shrink-0">
                   {item.status && <Badge label={item.status} className="mb-1" />}
-                  <p className="text-xs text-gray-400">{formatDate(item.timestamp)}</p>
+                  <p className="text-xs text-gray-400">{formatDate(item.timestamp ?? '')}</p>
                 </div>
               </li>
             )

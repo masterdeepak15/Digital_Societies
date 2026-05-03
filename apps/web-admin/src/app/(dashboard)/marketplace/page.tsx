@@ -147,7 +147,7 @@ export default function MarketplacePage() {
             {displayed.map(listing => (
               <div key={listing.id} className={cn(
                 'bg-white border rounded-xl shadow-sm overflow-hidden',
-                listing.reportCount > 0 ? 'border-red-200' : 'border-gray-100'
+                (listing.reportCount ?? 0) > 0 ? 'border-red-200' : 'border-gray-100'
               )}>
                 {/* Image placeholder */}
                 <div className="h-36 bg-gray-100 flex items-center justify-center text-4xl">
@@ -159,7 +159,7 @@ export default function MarketplacePage() {
                     <h3 className="font-semibold text-gray-800 leading-tight">{listing.title}</h3>
                     {(listing.reportCount ?? 0) > 0 && (
                       <span className="flex items-center gap-1 text-xs text-red-600 bg-red-50 border border-red-200 px-2 py-0.5 rounded-full shrink-0">
-                        <AlertTriangle className="w-3 h-3" /> {listing.reportCount}
+                        <AlertTriangle className="w-3 h-3" /> {listing.reportCount ?? 0}
                       </span>
                     )}
                   </div>

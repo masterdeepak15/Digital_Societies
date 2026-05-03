@@ -1,14 +1,20 @@
 import Cookies from 'js-cookie'
 
 // Single source of truth for the backend prefix.
-// NEXT_PUBLIC_API_URL = "https://host" (without /api/v1) — we add /api/v1 here
-// so callers can write clean paths like '/wallet/balance'. Endpoints that the
-// backend exposes outside the prefix (e.g. /health, /metrics, /hubs/society)
-// can pass an absolute path starting with 'http' or '/_/' to skip prepending.
-const HOST = (process.env.NEXT_PUBLIC_API_URL ?? '').replace(/\/+$/, '')
-const PREFIX = '/api/v1'
+//
+// NEXT_PUBLIC_API_URL can be set in two equivalent ways:
+//   • "https://host"         — legacy format; we append /api/v1
+//   • "https://host/api/v1"  — full format; we use as-is (avoids double prefix)
+//
+// Callers write clean paths like '/wallet/balance'.
+// Endpoints outside the v1 prefix (e.g. /hubs/society) use absolute URLs.
+const rawApiUrl = (process.env.NEXT_PUBLIC_API_URL ?? '').replace(/\/+$/, '')
+export const API_BASE = rawApiUrl.endsWith('/api/v1')
+  ? rawApiUrl
+  : `${rawApiUrl}/api/v1`
 
-export const API_BASE = `${HOST}${PREFIX}`
+// HOST is the scheme+domain portion — used for non-v1 paths like SignalR hubs.
+export const API_HOST = API_BASE.replace(/\/api\/v1$/, '')
 
 const TOKEN_KEY = 'ds_token'
 
