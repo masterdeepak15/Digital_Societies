@@ -110,7 +110,7 @@ export default function WalletPage() {
               ₹{wallet.balance.toLocaleString('en-IN')}
             </p>
             <p className="text-brand-200 text-xs mt-2">
-              Last updated {formatDate(wallet.lastUpdated ?? wallet.lastUpdatedAt ?? '')}
+              Last updated {formatDate(wallet.lastUpdated ?? '')}
             </p>
           </div>
           <div className="bg-white/20 rounded-xl p-3">
@@ -211,7 +211,7 @@ export default function WalletPage() {
                     <p className={`font-semibold text-sm ${isCredit ? 'text-green-600' : 'text-red-500'}`}>
                       {isCredit ? '+' : '−'}₹{t.amount.toLocaleString('en-IN')}
                     </p>
-                    <p className="text-xs text-gray-400 mt-0.5">{formatDate(t.timestamp ?? t.createdAt)}</p>
+                    <p className="text-xs text-gray-400 mt-0.5">{formatDate(t.timestamp ?? '')}</p>
                   </div>
                 </div>
               )
@@ -224,7 +224,7 @@ export default function WalletPage() {
 }
 
 // ── Demo data — shape matches API WalletBalance + WalletTransactionDto ────────
-const DEMO_WALLET: WalletBalance & { lastUpdatedAt?: string } = {
+const DEMO_WALLET: WalletBalance = {
   balance:     2500,
   currency:    'INR',
   lastUpdated: '2026-04-28T10:00:00+05:30',

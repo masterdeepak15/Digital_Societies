@@ -27,7 +27,7 @@ export class ApiError extends Error {
 
 function resolveUrl(path: string): string {
   if (/^https?:\/\//i.test(path)) return path        // absolute URL — leave alone
-  if (path.startsWith('/_/')) return `${HOST}${path.slice(2)}`  // /_/health → /health
+  if (path.startsWith('/_/')) return `${API_HOST}${path.slice(2)}`  // /_/health → /health
   return `${API_BASE}${path.startsWith('/') ? path : `/${path}`}`
 }
 
