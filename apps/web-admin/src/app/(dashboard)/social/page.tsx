@@ -126,7 +126,7 @@ export default function SocialFeedPage() {
               key={post.id}
               className={cn(
                 'bg-white border rounded-xl shadow-sm overflow-hidden',
-                post.reportCount > 0 && post.status === 'pending' ? 'border-red-200' : 'border-gray-100'
+                (post.reportCount ?? 0) > 0 && post.status === 'pending' ? 'border-red-200' : 'border-gray-100'
               )}
             >
               {/* Report banner */}
@@ -134,7 +134,7 @@ export default function SocialFeedPage() {
                 <div className="bg-red-50 border-b border-red-100 px-5 py-2 flex items-center gap-2">
                   <Flag className="w-4 h-4 text-red-500" />
                   <span className="text-sm text-red-700 font-medium">
-                    {post.reportCount} report{(post.reportCount ?? 0) > 1 ? 's' : ''}
+                    {post.reportCount ?? 0} report{(post.reportCount ?? 0) > 1 ? 's' : ''}
                     {post.reportReason ? ` — ${post.reportReason}` : ''}
                   </span>
                 </div>
