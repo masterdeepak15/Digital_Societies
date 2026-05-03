@@ -2,39 +2,50 @@
 
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { CalendarCheck, Plus, Clock, Users, CheckCircle, XCircle } from 'lucide-react'
+import { CalendarCheck, Clock, Users, CheckCircle, XCircle } from 'lucide-react'
 import { toast } from 'sonner'
 import { api } from '@/lib/api'
-import { formatDate, formatDateTime, cn } from '@/lib/utils'
+import { formatDate, cn } from '@/lib/utils'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { Badge } from '@/components/ui/Badge'
 import { EmptyState } from '@/components/ui/EmptyState'
 
-// ── Types ─────────────────────────────────────────────────────────────────────
+// ── Types — aligned with API ─────────────────────────────────────────────────
+// API GET /facilities → { facilities: [{ id, name, type, capacity, availableSlots, rate }] }
 interface Facility {
-  id:           string
-  name:         string
-  description:  string
-  capacity:     number
-  openTime:     string   // "06:00"
-  closeTime:    string   // "22:00"
-  slotDuration: number   // minutes
-  isActive:     boolean
-  bookingsToday: number
+  id:              string
+  name:            string
+  type?:           string
+  capacity:        number
+  availableSlots?: number
+  rate?:           number
+  // UI-only fields kept for the demo card; populated from a future endpoint.
+  description?:    string
+  openTime?:       string
+  closeTime?:      string
+  slotDuration?:   number
+  bookingsToday?:  number
 }
 
+// API GET /facilities/bookings?date= → { items: [{ id, facilityId, facilityName, bookingDate, startTime, endTime, status, flatId, bookedBy }] }
 interface Booking {
   id:           string
   facilityName: string
   facilityId:   string
-  residentName: string
-  flatDisplay:  string
-  date:         string
+  bookedBy?:    string
+  residentName?:string  // alias used by demo data
+  flatId?:      string
+  flatDisplay?: string
+  bookingDate?: string
+  date?:        string  // legacy
   startTime:    string
   endTime:      string
-  status:       'confirmed' | 'pending' | 'cancelled'
-  guestCount:   number
+  status:       'Confirmed' | 'Pending' | 'Cancelled' | 'Completed'
+  guestCount?:  number
 }
+
+interface FacilitiesResponse { facilities: Facility[] }
+interface BookingsResponse   { items: Booking[]; total?: number }
 
 type Tab = 'bookings' | 'facilities'
 
@@ -54,16 +65,18 @@ export default function FacilitiesPage() {
   const [tab,      setTab]      = useState<Tab>('bookings')
   const [dateFilter, setDateFilter] = useState(new Date().toISOString().slice(0, 10))
 
-  const { data: facilities = DEMO_FACILITIES } = useQuery<Facility[]>({
+  const { data: facilitiesData } = useQuery<FacilitiesResponse>({
     queryKey: ['facilities'],
     queryFn:  () => api.get('/facilities'),
   })
+  const facilities: Facility[] = facilitiesData?.facilities ?? DEMO_FACILITIES
 
-  const { data: bookings = DEMO_BOOKINGS } = useQuery<Booking[]>({
+  const { data: bookingsData } = useQuery<BookingsResponse>({
     queryKey: ['facility-bookings', dateFilter],
     queryFn:  () => api.get(`/facilities/bookings?date=${dateFilter}`),
     enabled:  tab === 'bookings',
   })
+  const bookings: Booking[] = bookingsData?.items ?? DEMO_BOOKINGS
 
   const cancelMutation = useMutation({
     // Admin cancel: DELETE /facilities/bookings/{id}
@@ -72,14 +85,10 @@ export default function FacilitiesPage() {
     onError:   (e: Error) => toast.error(e.message),
   })
 
-  const toggleMutation = useMutation({
-    mutationFn: ({ id, active }: { id: string; active: boolean }) =>
-      api.patch(`/facilities/${id}`, { isActive: active }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['facilities'] }),
-    onError:   (e: Error) => toast.error(e.message),
-  })
+  // NOTE: Backend has no PATCH /facilities/{id} endpoint to toggle active state.
+  // The UI now shows active state read-only with the badge; toggle returns when API ships.
 
-  const todayBookings = bookings.filter(b => b.status !== 'cancelled')
+  const todayBookings = bookings.filter(b => b.status !== 'Cancelled')
 
   return (
     <div className="space-y-5">
@@ -101,8 +110,8 @@ export default function FacilitiesPage() {
       {/* Quick stats */}
       <div className="grid grid-cols-3 gap-4">
         <div className="bg-white border border-gray-100 rounded-xl p-4 shadow-sm">
-          <p className="text-xs text-gray-500">Active Facilities</p>
-          <p className="text-2xl font-bold text-gray-900 mt-1">{facilities.filter(f => f.isActive).length}</p>
+          <p className="text-xs text-gray-500">Total Facilities</p>
+          <p className="text-2xl font-bold text-gray-900 mt-1">{facilities.length}</p>
         </div>
         <div className="bg-white border border-gray-100 rounded-xl p-4 shadow-sm">
           <p className="text-xs text-gray-500">Bookings Today</p>
@@ -142,11 +151,13 @@ export default function FacilitiesPage() {
                     </div>
                     <div className="flex items-center gap-3 text-sm text-gray-500 flex-wrap">
                       <span className="flex items-center gap-1"><Clock className="w-3.5 h-3.5" />{b.startTime} – {b.endTime}</span>
-                      <span className="flex items-center gap-1"><Users className="w-3.5 h-3.5" />{b.guestCount} guests</span>
-                      <span>{b.residentName} · {b.flatDisplay}</span>
+                      {typeof b.guestCount === 'number' && (
+                        <span className="flex items-center gap-1"><Users className="w-3.5 h-3.5" />{b.guestCount} guests</span>
+                      )}
+                      <span>{b.bookedBy ?? b.residentName ?? '—'}{b.flatDisplay ? ` · ${b.flatDisplay}` : ''}</span>
                     </div>
                   </div>
-                  {b.status === 'confirmed' && (
+                  {b.status === 'Confirmed' && (
                     <button onClick={() => { if (confirm('Cancel this booking?')) cancelMutation.mutate(b.id) }}
                       className="flex items-center gap-1 text-xs text-red-600 border border-red-200 hover:bg-red-50 px-3 py-1.5 rounded-lg">
                       <XCircle className="w-3.5 h-3.5" /> Cancel
@@ -162,30 +173,32 @@ export default function FacilitiesPage() {
       {tab === 'facilities' && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {facilities.map(f => (
-            <div key={f.id} className={cn('bg-white border rounded-xl shadow-sm p-5',
-              f.isActive ? 'border-gray-100' : 'border-gray-200 opacity-60')}>
+            <div key={f.id} className="bg-white border border-gray-100 rounded-xl shadow-sm p-5">
               <div className="flex items-start justify-between mb-3">
                 <div className="flex items-center gap-3">
                   <span className="text-2xl">{FACILITY_ICONS[f.name] ?? '🏢'}</span>
                   <div>
                     <p className="font-semibold text-gray-800">{f.name}</p>
-                    <p className="text-xs text-gray-400">{f.openTime} – {f.closeTime} · {f.slotDuration} min slots</p>
+                    <p className="text-xs text-gray-400">
+                      {f.openTime && f.closeTime ? `${f.openTime} – ${f.closeTime}` : (f.type ?? '—')}
+                      {f.slotDuration ? ` · ${f.slotDuration} min slots` : ''}
+                    </p>
                   </div>
                 </div>
-                <button
-                  onClick={() => toggleMutation.mutate({ id: f.id, active: !f.isActive })}
-                  className={cn('flex items-center gap-1 text-xs px-3 py-1.5 rounded-lg border transition',
-                    f.isActive
-                      ? 'text-green-700 border-green-200 hover:bg-green-50'
-                      : 'text-gray-500 border-gray-200 hover:bg-gray-50')}>
-                  {f.isActive ? <CheckCircle className="w-3.5 h-3.5" /> : <XCircle className="w-3.5 h-3.5" />}
-                  {f.isActive ? 'Active' : 'Inactive'}
-                </button>
+                {/* Active toggle removed — backend has no PATCH /facilities/{id} endpoint yet. */}
+                <span className="flex items-center gap-1 text-xs text-green-700 bg-green-50 border border-green-200 px-3 py-1 rounded-lg">
+                  <CheckCircle className="w-3.5 h-3.5" /> Active
+                </span>
               </div>
-              <p className="text-sm text-gray-500 mb-3">{f.description}</p>
+              {f.description && <p className="text-sm text-gray-500 mb-3">{f.description}</p>}
               <div className="flex gap-4 text-sm">
                 <span className="flex items-center gap-1 text-gray-500"><Users className="w-3.5 h-3.5" /> Capacity {f.capacity}</span>
-                <span className="text-brand-600 font-medium">{f.bookingsToday} bookings today</span>
+                {typeof f.availableSlots === 'number' && (
+                  <span className="text-brand-600 font-medium">{f.availableSlots} slots available</span>
+                )}
+                {typeof f.rate === 'number' && (
+                  <span className="text-gray-500">₹{f.rate}/booking</span>
+                )}
               </div>
             </div>
           ))}
@@ -197,18 +210,18 @@ export default function FacilitiesPage() {
 
 // ── Demo data ─────────────────────────────────────────────────────────────────
 const DEMO_FACILITIES: Facility[] = [
-  { id:'1', name:'Clubhouse',      description:'Air-conditioned hall for meetings and events. Projector available.',          capacity:50,  openTime:'09:00', closeTime:'22:00', slotDuration:60, isActive:true, bookingsToday:2 },
-  { id:'2', name:'Gym',            description:'Fully equipped gym with cardio and weight training equipment.',               capacity:15,  openTime:'05:30', closeTime:'22:00', slotDuration:60, isActive:true, bookingsToday:8 },
-  { id:'3', name:'Swimming Pool',  description:'25m outdoor pool, heated Oct–Feb. Lifeguard on duty 7AM–8PM.',              capacity:20,  openTime:'06:00', closeTime:'20:00', slotDuration:60, isActive:true, bookingsToday:5 },
-  { id:'4', name:'Badminton Court',description:'2 indoor courts with synthetic flooring. Rackets available on request.',    capacity:8,   openTime:'06:00', closeTime:'22:00', slotDuration:60, isActive:true, bookingsToday:3 },
-  { id:'5', name:'Party Hall',     description:'500 sq ft hall for private celebrations. Kitchenette included.',            capacity:30,  openTime:'10:00', closeTime:'23:00', slotDuration:120,isActive:true, bookingsToday:1 },
-  { id:'6', name:'Terrace Garden', description:'Rooftop garden space. No loud music permitted after 10 PM.',                capacity:25,  openTime:'07:00', closeTime:'22:00', slotDuration:60, isActive:false,bookingsToday:0 },
+  { id:'1', name:'Clubhouse',       type:'Indoor', capacity:50, availableSlots:6, rate:500, description:'Air-conditioned hall for meetings and events. Projector available.', openTime:'09:00', closeTime:'22:00', slotDuration:60 },
+  { id:'2', name:'Gym',             type:'Indoor', capacity:15, availableSlots:3, rate:0,   description:'Fully equipped gym with cardio and weight training equipment.',     openTime:'05:30', closeTime:'22:00', slotDuration:60 },
+  { id:'3', name:'Swimming Pool',   type:'Outdoor',capacity:20, availableSlots:8, rate:100, description:'25m outdoor pool, heated Oct–Feb. Lifeguard on duty 7AM–8PM.',     openTime:'06:00', closeTime:'20:00', slotDuration:60 },
+  { id:'4', name:'Badminton Court', type:'Indoor', capacity:8,  availableSlots:5, rate:200, description:'2 indoor courts with synthetic flooring. Rackets available on request.', openTime:'06:00', closeTime:'22:00', slotDuration:60 },
+  { id:'5', name:'Party Hall',      type:'Indoor', capacity:30, availableSlots:1, rate:1500,description:'500 sq ft hall for private celebrations. Kitchenette included.', openTime:'10:00', closeTime:'23:00', slotDuration:120 },
+  { id:'6', name:'Terrace Garden',  type:'Outdoor',capacity:25, availableSlots:6, rate:300, description:'Rooftop garden space. No loud music permitted after 10 PM.',     openTime:'07:00', closeTime:'22:00', slotDuration:60 },
 ]
 
 const DEMO_BOOKINGS: Booking[] = [
-  { id:'1', facilityId:'2', facilityName:'Gym',            residentName:'Rajesh Sharma', flatDisplay:'A-101', date:'2026-04-28', startTime:'06:00', endTime:'07:00', status:'confirmed', guestCount:1 },
-  { id:'2', facilityId:'3', facilityName:'Swimming Pool',  residentName:'Priya Mehta',   flatDisplay:'A-102', date:'2026-04-28', startTime:'07:00', endTime:'08:00', status:'confirmed', guestCount:2 },
-  { id:'3', facilityId:'1', facilityName:'Clubhouse',      residentName:'Anita Desai',   flatDisplay:'A-104', date:'2026-04-28', startTime:'18:00', endTime:'20:00', status:'confirmed', guestCount:15 },
-  { id:'4', facilityId:'4', facilityName:'Badminton Court',residentName:'Vikram Nair',   flatDisplay:'A-105', date:'2026-04-28', startTime:'19:00', endTime:'20:00', status:'pending',   guestCount:4 },
-  { id:'5', facilityId:'5', facilityName:'Party Hall',     residentName:'Meena Patel',   flatDisplay:'B-101', date:'2026-04-28', startTime:'20:00', endTime:'23:00', status:'confirmed', guestCount:25 },
+  { id:'1', facilityId:'2', facilityName:'Gym',             bookedBy:'Rajesh Sharma', flatDisplay:'A-101', bookingDate:'2026-04-28', startTime:'06:00', endTime:'07:00', status:'Confirmed', guestCount:1 },
+  { id:'2', facilityId:'3', facilityName:'Swimming Pool',   bookedBy:'Priya Mehta',   flatDisplay:'A-102', bookingDate:'2026-04-28', startTime:'07:00', endTime:'08:00', status:'Confirmed', guestCount:2 },
+  { id:'3', facilityId:'1', facilityName:'Clubhouse',       bookedBy:'Anita Desai',   flatDisplay:'A-104', bookingDate:'2026-04-28', startTime:'18:00', endTime:'20:00', status:'Confirmed', guestCount:15 },
+  { id:'4', facilityId:'4', facilityName:'Badminton Court', bookedBy:'Vikram Nair',   flatDisplay:'A-105', bookingDate:'2026-04-28', startTime:'19:00', endTime:'20:00', status:'Pending',   guestCount:4 },
+  { id:'5', facilityId:'5', facilityName:'Party Hall',      bookedBy:'Meena Patel',   flatDisplay:'B-101', bookingDate:'2026-04-28', startTime:'20:00', endTime:'23:00', status:'Confirmed', guestCount:25 },
 ]

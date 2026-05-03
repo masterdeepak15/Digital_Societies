@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Flag, Pin, Lock, VolumeX, Eye, MessageSquare, ThumbsUp } from 'lucide-react'
+import { Flag, Pin, Lock, Eye, MessageSquare, ThumbsUp } from 'lucide-react'
 import { toast } from 'sonner'
 import { api } from '@/lib/api'
 import { formatDateTime, initialsOf } from '@/lib/utils'
@@ -11,22 +11,30 @@ import { Badge } from '@/components/ui/Badge'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { cn } from '@/lib/utils'
 
-// ── Types ─────────────────────────────────────────────────────────────────────
+// ── Types — aligned with API PostDto ─────────────────────────────────────────
+// API: { id, authorUserId, authorName, body, category, createdAt, isPinned, isLocked, imageCount, commentCount, reactionsCount }
+// UI keeps a few optional fields (reportCount, reportReason, status) that come from a future moderation join.
 interface ReportedPost {
-  id:           string
-  content:      string
-  authorName:   string
-  authorFlat:   string
-  postedAt:     string
-  reportCount:  number
-  reportReason: string
-  status:       'pending' | 'removed' | 'cleared'
-  likes:        number
-  comments:     number
-  isPinned:     boolean
-  isLocked:     boolean
-  imageSrc?:    string
+  id:             string
+  authorUserId?:  string
+  authorName:     string
+  authorFlat?:    string
+  body:           string
+  category?:      string
+  createdAt:      string
+  isPinned:       boolean
+  isLocked:       boolean
+  commentCount:   number
+  reactionsCount: number
+  imageCount?:    number
+  imageSrc?:      string
+  // Moderation-only:
+  reportCount?:   number
+  reportReason?:  string
+  status?:        'pending' | 'removed' | 'cleared'
 }
+
+interface PostsPage { items: ReportedPost[]; total: number; page: number; pageSize: number }
 
 type Tab = 'reported' | 'all'
 
@@ -34,10 +42,11 @@ export default function SocialFeedPage() {
   const qc = useQueryClient()
   const [tab, setTab] = useState<Tab>('reported')
 
-  const { data: posts = DEMO_POSTS } = useQuery<ReportedPost[]>({
+  const { data } = useQuery<PostsPage>({
     queryKey: ['social', tab],
     queryFn:  () => api.get('/social/posts?page=1&pageSize=50'),
   })
+  const posts: ReportedPost[] = data?.items ?? DEMO_POSTS
 
   const removeMutation = useMutation({
     mutationFn: (id: string) => api.delete(`/social/posts/${id}`),
@@ -45,11 +54,11 @@ export default function SocialFeedPage() {
     onError:    (e: Error) => toast.error(e.message),
   })
 
+  // No dedicated "clear report" endpoint exists yet — for now we just refresh.
+  // Once POST /social/posts/{id}/dismiss-reports lands, swap this in.
   const clearMutation = useMutation({
-    // No dedicated clear-report endpoint — removing the post dismisses it
-    mutationFn: (id: string) => api.delete(`/social/posts/${id}`),
+    mutationFn: async (_id: string) => Promise.resolve(),
     onSuccess:  () => { toast.success('Report cleared'); qc.invalidateQueries({ queryKey: ['social'] }) },
-    onError:    (e: Error) => toast.error(e.message),
   })
 
   const pinMutation = useMutation({
@@ -66,14 +75,10 @@ export default function SocialFeedPage() {
     onError:    (e: Error) => toast.error(e.message),
   })
 
-  const muteMutation = useMutation({
-    // Mute is a social moderation action (best-effort; no-op if not yet wired on backend)
-    mutationFn: (userId: string) => api.post(`/social/users/${userId}/mute`, {}),
-    onSuccess:  () => toast.success('User muted for 24 hours'),
-    onError:    () => toast.info('Mute feature coming soon'),
-  })
+  // Mute author button removed — backend has no /social/users/{id}/mute endpoint yet.
+  // Tracked as P2 follow-up in AUDIT-WEB-ADMIN.md.
 
-  const reported = posts.filter(p => p.reportCount > 0 && p.status === 'pending')
+  const reported = posts.filter(p => (p.reportCount ?? 0) > 0 && (p.status ?? 'pending') === 'pending')
   const displayed = tab === 'reported' ? reported : posts
 
   return (
@@ -125,11 +130,12 @@ export default function SocialFeedPage() {
               )}
             >
               {/* Report banner */}
-              {post.reportCount > 0 && post.status === 'pending' && (
+              {(post.reportCount ?? 0) > 0 && (post.status ?? 'pending') === 'pending' && (
                 <div className="bg-red-50 border-b border-red-100 px-5 py-2 flex items-center gap-2">
                   <Flag className="w-4 h-4 text-red-500" />
                   <span className="text-sm text-red-700 font-medium">
-                    {post.reportCount} report{post.reportCount > 1 ? 's' : ''} — {post.reportReason}
+                    {post.reportCount} report{(post.reportCount ?? 0) > 1 ? 's' : ''}
+                    {post.reportReason ? ` — ${post.reportReason}` : ''}
                   </span>
                 </div>
               )}
@@ -142,7 +148,9 @@ export default function SocialFeedPage() {
                   </div>
                   <div className="flex-1">
                     <p className="font-semibold text-sm text-gray-800">{post.authorName}</p>
-                    <p className="text-xs text-gray-400">{post.authorFlat} · {formatDateTime(post.postedAt)}</p>
+                    <p className="text-xs text-gray-400">
+                      {post.authorFlat ? `${post.authorFlat} · ` : ''}{formatDateTime(post.createdAt)}
+                    </p>
                   </div>
                   <div className="flex items-center gap-1">
                     {post.isPinned && <Badge label="pinned" />}
@@ -152,20 +160,20 @@ export default function SocialFeedPage() {
                 </div>
 
                 {/* Content */}
-                <p className="text-sm text-gray-700 mb-3">{post.content}</p>
+                <p className="text-sm text-gray-700 mb-3">{post.body}</p>
                 {post.imageSrc && (
                   <img src={post.imageSrc} alt="" className="rounded-lg w-full max-h-48 object-cover mb-3" />
                 )}
 
                 {/* Stats */}
                 <div className="flex items-center gap-4 text-xs text-gray-400 mb-4">
-                  <span className="flex items-center gap-1"><ThumbsUp className="w-3.5 h-3.5" />{post.likes}</span>
-                  <span className="flex items-center gap-1"><MessageSquare className="w-3.5 h-3.5" />{post.comments} comments</span>
+                  <span className="flex items-center gap-1"><ThumbsUp className="w-3.5 h-3.5" />{post.reactionsCount}</span>
+                  <span className="flex items-center gap-1"><MessageSquare className="w-3.5 h-3.5" />{post.commentCount} comments</span>
                 </div>
 
                 {/* Moderation actions */}
                 <div className="flex gap-2 flex-wrap border-t border-gray-50 pt-3">
-                  {post.status === 'pending' && post.reportCount > 0 && (
+                  {(post.status ?? 'pending') === 'pending' && (post.reportCount ?? 0) > 0 && (
                     <>
                       <button
                         onClick={() => clearMutation.mutate(post.id)}
@@ -202,13 +210,7 @@ export default function SocialFeedPage() {
                   >
                     <Lock className="w-3.5 h-3.5" /> {post.isLocked ? 'Unlock' : 'Lock Comments'}
                   </button>
-                  <button
-                    onClick={() => muteMutation.mutate(post.id /* authorUserId */)}
-                    disabled={muteMutation.isPending}
-                    className="flex items-center gap-1.5 text-xs text-gray-600 border border-gray-200 hover:bg-gray-50 px-3 py-1.5 rounded-lg transition"
-                  >
-                    <VolumeX className="w-3.5 h-3.5" /> Mute Author
-                  </button>
+                  {/* Mute Author button removed — endpoint not implemented (see AUDIT-WEB-ADMIN.md). */}
                 </div>
               </div>
             </div>
@@ -223,57 +225,50 @@ export default function SocialFeedPage() {
 const DEMO_POSTS: ReportedPost[] = [
   {
     id: '1',
-    content: 'The management committee is completely incompetent! They can\'t even fix the lift for 3 days. What are we paying maintenance for?? Useless administration.',
+    body: 'The management committee is completely incompetent! They can\'t even fix the lift for 3 days. What are we paying maintenance for?? Useless administration.',
     authorName: 'Anonymous123',
     authorFlat: 'B-203',
-    postedAt: '2026-04-26T18:30:00Z',
+    createdAt: '2026-04-26T18:30:00Z',
     reportCount: 4,
     reportReason: 'Abusive language and personal attacks',
     status: 'pending',
-    likes: 2,
-    comments: 8,
+    reactionsCount: 2,
+    commentCount: 8,
     isPinned: false,
     isLocked: false,
   },
   {
     id: '2',
-    content: 'Anyone selling furniture? Looking for a second-hand sofa and dining table. Budget ₹15,000.',
+    body: 'Anyone selling furniture? Looking for a second-hand sofa and dining table. Budget ₹15,000.',
     authorName: 'Priya Mehta',
     authorFlat: 'A-102',
-    postedAt: '2026-04-26T10:00:00Z',
+    createdAt: '2026-04-26T10:00:00Z',
     reportCount: 1,
     reportReason: 'Spam / commercial post',
     status: 'pending',
-    likes: 3,
-    comments: 5,
+    reactionsCount: 3,
+    commentCount: 5,
     isPinned: false,
     isLocked: false,
   },
   {
     id: '3',
-    content: 'Reminder: AGM is on May 5 at 7 PM in the Club House. Please confirm attendance. Agenda will be shared tomorrow.',
+    body: 'Reminder: AGM is on May 5 at 7 PM in the Club House. Please confirm attendance. Agenda will be shared tomorrow.',
     authorName: 'Rajesh Sharma',
-    authorFlat: '',
-    postedAt: '2026-04-25T09:00:00Z',
-    reportCount: 0,
-    reportReason: '',
-    status: 'pending',
-    likes: 24,
-    comments: 12,
+    createdAt: '2026-04-25T09:00:00Z',
+    reactionsCount: 24,
+    commentCount: 12,
     isPinned: true,
     isLocked: false,
   },
   {
     id: '4',
-    content: 'Beautiful sunset from our terrace yesterday! Love living here ❤️',
+    body: 'Beautiful sunset from our terrace yesterday! Love living here ❤️',
     authorName: 'Anita Desai',
     authorFlat: 'A-104',
-    postedAt: '2026-04-24T19:45:00Z',
-    reportCount: 0,
-    reportReason: '',
-    status: 'pending',
-    likes: 42,
-    comments: 7,
+    createdAt: '2026-04-24T19:45:00Z',
+    reactionsCount: 42,
+    commentCount: 7,
     isPinned: false,
     isLocked: false,
   },

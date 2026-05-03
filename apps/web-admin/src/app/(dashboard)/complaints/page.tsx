@@ -13,28 +13,35 @@ import { EmptyState } from '@/components/ui/EmptyState'
 import { cn } from '@/lib/utils'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
+// API DTO: { id, ticketNumber, title, description, category, priority, status, createdAt }
+// Frontend retains some optional UI-side fields populated when the backend joins them.
+type ComplaintStatus = 'Open' | 'InProgress' | 'Resolved' | 'Closed' | 'Reopened'
+
 interface Complaint {
-  id:          string
-  title:       string
-  description: string
-  category:    string
-  priority:    'low' | 'medium' | 'high' | 'urgent'
-  status:      'open' | 'in_progress' | 'resolved' | 'closed'
-  flatDisplay: string
-  reporterName: string
-  createdAt:   string
-  updatedAt:   string
-  assignedTo?: string
-  imageUrl?:   string
+  id:            string
+  ticketNumber?: string
+  title:         string
+  description:   string
+  category:      string
+  priority:      'Low' | 'Medium' | 'High' | 'Urgent'
+  status:        ComplaintStatus
+  flatDisplay?:  string
+  reporterName?: string
+  createdAt:     string
+  updatedAt?:    string
+  assignedTo?:   string
+  imageUrl?:     string
 }
 
-type StatusFilter = 'all' | 'open' | 'in_progress' | 'resolved'
+interface ComplaintsPage { items: Complaint[]; total: number; page: number; pageSize: number }
+
+type StatusFilter = 'all' | 'Open' | 'InProgress' | 'Resolved'
 
 const PRIORITY_COLOR: Record<string, string> = {
-  low:    'text-gray-500 bg-gray-100',
-  medium: 'text-blue-700 bg-blue-100',
-  high:   'text-orange-700 bg-orange-100',
-  urgent: 'text-red-700 bg-red-100',
+  Low:    'text-gray-500 bg-gray-100',
+  Medium: 'text-blue-700 bg-blue-100',
+  High:   'text-orange-700 bg-orange-100',
+  Urgent: 'text-red-700 bg-red-100',
 }
 
 export default function ComplaintsPage() {
@@ -43,14 +50,17 @@ export default function ComplaintsPage() {
   const [status,   setStatus]   = useState<StatusFilter>('all')
   const [selected, setSelected] = useState<Complaint | null>(null)
 
-  const { data: complaints = DEMO_COMPLAINTS, isLoading } = useQuery<Complaint[]>({
-    queryKey: ['complaints', status, search],
-    queryFn:  () => api.get(`/complaints?status=${status}&search=${encodeURIComponent(search)}`),
+  // API: GET /complaints?status=&category=&page=&pageSize= — search is NOT a server filter.
+  const { data, isLoading } = useQuery<ComplaintsPage>({
+    queryKey: ['complaints', status],
+    queryFn:  () => api.get(status === 'all' ? '/complaints' : `/complaints?status=${status}`),
   })
+  const complaints: Complaint[] = data?.items ?? DEMO_COMPLAINTS
 
+  // API: PUT /complaints/{id}/status, body { status: 'InProgress'|'Resolved'|'Closed'|'Reopened', note? }
   const updateMutation = useMutation({
-    mutationFn: ({ id, status }: { id: string; status: string }) =>
-      api.patch(`/complaints/${id}/status`, { status }),
+    mutationFn: ({ id, status, note }: { id: string; status: ComplaintStatus; note?: string }) =>
+      api.put(`/complaints/${id}/status`, { status, note }),
     onSuccess: () => {
       toast.success('Complaint updated')
       qc.invalidateQueries({ queryKey: ['complaints'] })
@@ -59,11 +69,22 @@ export default function ComplaintsPage() {
     onError: (e: Error) => toast.error(e.message),
   })
 
+  // API: POST /complaints/{id}/assign, body { assignedTo: string }
+  const assignMutation = useMutation({
+    mutationFn: ({ id, assignedTo }: { id: string; assignedTo: string }) =>
+      api.post(`/complaints/${id}/assign`, { assignedTo }),
+    onSuccess: () => {
+      toast.success('Complaint assigned')
+      qc.invalidateQueries({ queryKey: ['complaints'] })
+    },
+    onError: (e: Error) => toast.error(e.message),
+  })
+
   const filtered = complaints.filter(c =>
     (status === 'all' || c.status === status) &&
     (search === '' || c.title.toLowerCase().includes(search.toLowerCase()) ||
-     c.flatDisplay.toLowerCase().includes(search.toLowerCase()) ||
-     c.reporterName.toLowerCase().includes(search.toLowerCase()))
+     (c.flatDisplay  ?? '').toLowerCase().includes(search.toLowerCase()) ||
+     (c.reporterName ?? '').toLowerCase().includes(search.toLowerCase()))
   )
 
   return (
@@ -76,10 +97,10 @@ export default function ComplaintsPage() {
       {/* Status summary */}
       <div className="grid grid-cols-4 gap-3">
         {[
-          { label: 'Open',        count: complaints.filter(c => c.status === 'open').length,        color: 'text-red-600',    bg: 'bg-red-50'   },
-          { label: 'In Progress', count: complaints.filter(c => c.status === 'in_progress').length, color: 'text-amber-600',  bg: 'bg-amber-50' },
-          { label: 'Resolved',    count: complaints.filter(c => c.status === 'resolved').length,    color: 'text-green-600',  bg: 'bg-green-50' },
-          { label: 'Closed',      count: complaints.filter(c => c.status === 'closed').length,      color: 'text-gray-500',   bg: 'bg-gray-50'  },
+          { label: 'Open',        count: complaints.filter(c => c.status === 'Open').length,       color: 'text-red-600',   bg: 'bg-red-50'   },
+          { label: 'In Progress', count: complaints.filter(c => c.status === 'InProgress').length, color: 'text-amber-600', bg: 'bg-amber-50' },
+          { label: 'Resolved',    count: complaints.filter(c => c.status === 'Resolved').length,   color: 'text-green-600', bg: 'bg-green-50' },
+          { label: 'Closed',      count: complaints.filter(c => c.status === 'Closed').length,     color: 'text-gray-500',  bg: 'bg-gray-50'  },
         ].map(s => (
           <div key={s.label} className={`${s.bg} rounded-xl p-4 border border-gray-100`}>
             <p className="text-xs text-gray-500">{s.label}</p>
@@ -100,16 +121,16 @@ export default function ComplaintsPage() {
           />
         </div>
         <div className="flex gap-1 bg-gray-100 p-1 rounded-lg">
-          {(['all', 'open', 'in_progress', 'resolved'] as StatusFilter[]).map(s => (
+          {(['all', 'Open', 'InProgress', 'Resolved'] as StatusFilter[]).map(s => (
             <button
               key={s}
               onClick={() => setStatus(s)}
               className={cn(
-                'px-3 py-1.5 rounded-md text-sm font-medium capitalize transition',
+                'px-3 py-1.5 rounded-md text-sm font-medium transition',
                 status === s ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'
               )}
             >
-              {s.replace('_', ' ')}
+              {s === 'all' ? 'All' : s === 'InProgress' ? 'In Progress' : s}
             </button>
           ))}
         </div>
@@ -156,12 +177,18 @@ export default function ComplaintsPage() {
                   <Td><Badge label={c.status} /></Td>
                   <Td>{formatDateTime(c.createdAt)}</Td>
                   <Td>
-                    {c.status !== 'resolved' && c.status !== 'closed' && (
+                    {c.status !== 'Resolved' && c.status !== 'Closed' && (
                       <button
-                        onClick={e => { e.stopPropagation(); updateMutation.mutate({ id: c.id, status: c.status === 'open' ? 'in_progress' : 'resolved' }) }}
+                        onClick={e => {
+                          e.stopPropagation()
+                          updateMutation.mutate({
+                            id: c.id,
+                            status: c.status === 'Open' ? 'InProgress' : 'Resolved',
+                          })
+                        }}
                         className="text-xs text-brand-600 hover:underline font-medium"
                       >
-                        {c.status === 'open' ? 'Start work' : 'Resolve'}
+                        {c.status === 'Open' ? 'Start work' : 'Resolve'}
                       </button>
                     )}
                   </Td>
@@ -178,7 +205,9 @@ export default function ComplaintsPage() {
           complaint={selected}
           onClose={() => setSelected(null)}
           onUpdateStatus={s => updateMutation.mutate({ id: selected.id, status: s })}
+          onAssign={assignedTo => assignMutation.mutate({ id: selected.id, assignedTo })}
           isPending={updateMutation.isPending}
+          isAssigning={assignMutation.isPending}
         />
       )}
     </div>
@@ -187,17 +216,22 @@ export default function ComplaintsPage() {
 
 // ── Complaint detail drawer ───────────────────────────────────────────────────
 function ComplaintDrawer({
-  complaint, onClose, onUpdateStatus, isPending,
+  complaint, onClose, onUpdateStatus, onAssign, isPending, isAssigning,
 }: {
   complaint: Complaint
   onClose: () => void
-  onUpdateStatus: (s: string) => void
+  onUpdateStatus: (s: ComplaintStatus) => void
+  onAssign: (assignedTo: string) => void
   isPending: boolean
+  isAssigning: boolean
 }) {
-  const nextStatus: Record<string, string | undefined> = {
-    open:        'in_progress',
-    in_progress: 'resolved',
-    resolved:    'closed',
+  const [assignInput, setAssignInput] = useState(complaint.assignedTo ?? '')
+
+  const nextStatus: Partial<Record<ComplaintStatus, ComplaintStatus>> = {
+    Open:       'InProgress',
+    InProgress: 'Resolved',
+    Resolved:   'Closed',
+    Reopened:   'InProgress',
   }
   const next = nextStatus[complaint.status]
 
@@ -212,9 +246,13 @@ function ComplaintDrawer({
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-2xl leading-none">&times;</button>
         </div>
 
+        {complaint.ticketNumber && (
+          <p className="text-xs text-gray-400 font-mono">{complaint.ticketNumber}</p>
+        )}
+
         <div className="grid grid-cols-2 gap-3 text-sm">
-          <div><p className="text-gray-400 text-xs">Flat</p><p className="font-medium">{complaint.flatDisplay}</p></div>
-          <div><p className="text-gray-400 text-xs">Reporter</p><p className="font-medium">{complaint.reporterName}</p></div>
+          <div><p className="text-gray-400 text-xs">Flat</p><p className="font-medium">{complaint.flatDisplay ?? '—'}</p></div>
+          <div><p className="text-gray-400 text-xs">Reporter</p><p className="font-medium">{complaint.reporterName ?? '—'}</p></div>
           <div><p className="text-gray-400 text-xs">Category</p><p className="capitalize">{complaint.category}</p></div>
           <div><p className="text-gray-400 text-xs">Priority</p>
             <span className={cn('inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium capitalize', PRIORITY_COLOR[complaint.priority])}>
@@ -234,13 +272,33 @@ function ComplaintDrawer({
           <img src={complaint.imageUrl} alt="Complaint" className="rounded-lg w-full object-cover max-h-48" />
         )}
 
+        {/* ── Assign ──────────────────────────────────────────────────────── */}
+        <div>
+          <p className="text-gray-500 text-xs font-medium mb-1">Assign to</p>
+          <div className="flex gap-2">
+            <input
+              value={assignInput}
+              onChange={e => setAssignInput(e.target.value)}
+              placeholder="Name or team (e.g. Maintenance)"
+              className="flex-1 border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+            />
+            <button
+              onClick={() => { if (assignInput.trim()) onAssign(assignInput.trim()) }}
+              disabled={isAssigning || !assignInput.trim()}
+              className="px-3 py-1.5 bg-gray-800 hover:bg-gray-900 text-white rounded-lg text-sm font-medium disabled:opacity-50"
+            >
+              {isAssigning ? '…' : 'Assign'}
+            </button>
+          </div>
+        </div>
+
         {next && (
           <button
             onClick={() => onUpdateStatus(next)}
             disabled={isPending}
-            className="w-full bg-brand-600 hover:bg-brand-700 text-white py-2.5 rounded-lg font-medium text-sm capitalize disabled:opacity-60"
+            className="w-full bg-brand-600 hover:bg-brand-700 text-white py-2.5 rounded-lg font-medium text-sm disabled:opacity-60"
           >
-            {isPending ? 'Updating…' : `Mark as ${next.replace('_', ' ')}`}
+            {isPending ? 'Updating…' : `Mark as ${next === 'InProgress' ? 'In Progress' : next}`}
           </button>
         )}
       </div>
@@ -250,9 +308,9 @@ function ComplaintDrawer({
 
 // ── Demo data ─────────────────────────────────────────────────────────────────
 const DEMO_COMPLAINTS: Complaint[] = [
-  { id: '1', title: 'Lift breakdown — Block B',     description: 'The lift in Block B has been non-functional since yesterday morning.', category: 'lift',     priority: 'high',   status: 'open',        flatDisplay: 'B-203', reporterName: 'Arvind Joshi',  createdAt: '2026-04-26T14:32:00Z', updatedAt: '2026-04-26T14:32:00Z' },
-  { id: '2', title: 'Water leakage — 3rd floor',    description: 'Water dripping from the ceiling near the staircase on the 3rd floor.', category: 'plumbing', priority: 'urgent', status: 'in_progress', flatDisplay: 'A-301', reporterName: 'Priya Mehta',   createdAt: '2026-04-25T09:15:00Z', updatedAt: '2026-04-26T10:00:00Z', assignedTo: 'Maintenance Team' },
-  { id: '3', title: 'Parking spot occupied',        description: 'Someone has been parking in my allocated spot B2-14 for 3 days.', category: 'parking',  priority: 'medium', status: 'open',        flatDisplay: 'B-101', reporterName: 'Meena Patel',   createdAt: '2026-04-24T18:00:00Z', updatedAt: '2026-04-24T18:00:00Z' },
-  { id: '4', title: 'Gym equipment broken',         description: 'The treadmill in the gym is making loud noise and stops randomly.', category: 'facility', priority: 'medium', status: 'resolved',    flatDisplay: 'A-201', reporterName: 'Vikram Nair',   createdAt: '2026-04-20T11:30:00Z', updatedAt: '2026-04-23T16:00:00Z' },
-  { id: '5', title: 'Street light not working',     description: 'The street light near gate 2 has been off for 5 days.', category: 'electrical', priority: 'low', status: 'closed', flatDisplay: 'B-102', reporterName: 'Suresh Iyer', createdAt: '2026-04-15T20:00:00Z', updatedAt: '2026-04-18T10:00:00Z' },
+  { id: '1', ticketNumber: 'C-2026-0001', title: 'Lift breakdown — Block B',  description: 'The lift in Block B has been non-functional since yesterday morning.', category: 'Lift',       priority: 'High',   status: 'Open',       flatDisplay: 'B-203', reporterName: 'Arvind Joshi', createdAt: '2026-04-26T14:32:00Z' },
+  { id: '2', ticketNumber: 'C-2026-0002', title: 'Water leakage — 3rd floor', description: 'Water dripping from the ceiling near the staircase on the 3rd floor.', category: 'Plumbing',   priority: 'Urgent', status: 'InProgress', flatDisplay: 'A-301', reporterName: 'Priya Mehta',  createdAt: '2026-04-25T09:15:00Z', assignedTo: 'Maintenance Team' },
+  { id: '3', ticketNumber: 'C-2026-0003', title: 'Parking spot occupied',     description: 'Someone has been parking in my allocated spot B2-14 for 3 days.',     category: 'Parking',    priority: 'Medium', status: 'Open',       flatDisplay: 'B-101', reporterName: 'Meena Patel',  createdAt: '2026-04-24T18:00:00Z' },
+  { id: '4', ticketNumber: 'C-2026-0004', title: 'Gym equipment broken',      description: 'The treadmill in the gym is making loud noise and stops randomly.',  category: 'Other',      priority: 'Medium', status: 'Resolved',   flatDisplay: 'A-201', reporterName: 'Vikram Nair',  createdAt: '2026-04-20T11:30:00Z' },
+  { id: '5', ticketNumber: 'C-2026-0005', title: 'Street light not working',  description: 'The street light near gate 2 has been off for 5 days.',                category: 'Electrical', priority: 'Low',    status: 'Closed',     flatDisplay: 'B-102', reporterName: 'Suresh Iyer',  createdAt: '2026-04-15T20:00:00Z' },
 ]

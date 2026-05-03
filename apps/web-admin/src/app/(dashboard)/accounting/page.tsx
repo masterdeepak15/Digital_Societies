@@ -15,7 +15,22 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
 } from 'recharts'
 
-// ── Types ─────────────────────────────────────────────────────────────────────
+// ── Types — aligned with API (LedgerEntryDto + MonthlyReportDto) ─────────────
+// API entry: { id, entryDate, type:'Income'|'Expense', category, description, amountPaise, status }
+interface ApiLedgerEntry {
+  id:          string
+  entryDate:   string
+  type:        'Income' | 'Expense'
+  category:    string
+  description: string
+  amountPaise: number
+  status:      'PendingApproval' | 'Approved' | 'Rejected'
+  referenceDoc?: string | null
+}
+
+interface LedgerEntriesPage { items: ApiLedgerEntry[]; total: number; page: number; pageSize: number }
+
+// UI-shaped row used by the ledger table (with debit/credit/running balance derived client-side).
 interface LedgerEntry {
   id:          string
   date:        string
@@ -25,18 +40,17 @@ interface LedgerEntry {
   credit:      number   // paise
   balance:     number   // paise
   reference?:  string
+  status?:     string
 }
 
-interface ExpenseRequest {
-  id:          string
-  title:       string
-  amount:      number
-  category:    string
-  requestedBy: string
-  submittedAt: string
-  status:      'pending' | 'approved' | 'rejected'
-  notes?:      string
-  receiptUrl?: string
+// API monthly report: { period, totalIncome, totalExpense, netProfit, expenseBreakdown[], pendingApprovals }
+interface MonthlyReportDto {
+  period:        string
+  totalIncome:   number
+  totalExpense:  number
+  netProfit:     number
+  expenseBreakdown: { category: string; amount: number }[]
+  pendingApprovals: number
 }
 
 interface PnL {
@@ -48,25 +62,71 @@ interface PnL {
 
 type Tab = 'ledger' | 'expenses' | 'pnl'
 
+// Helper: turn server LedgerEntryDto[] (paged) into UI rows w/ debit/credit/running balance.
+function toLedgerRows(items: ApiLedgerEntry[]): LedgerEntry[] {
+  // Process oldest → newest so the running balance accumulates correctly.
+  const sorted = [...items].sort((a, b) =>
+    new Date(a.entryDate).getTime() - new Date(b.entryDate).getTime())
+  let running = 0
+  const rows: LedgerEntry[] = sorted.map(e => {
+    const credit = e.type === 'Income'  ? e.amountPaise : 0
+    const debit  = e.type === 'Expense' ? e.amountPaise : 0
+    running += credit - debit
+    return {
+      id:          e.id,
+      date:        e.entryDate,
+      description: e.description,
+      category:    e.category,
+      debit, credit,
+      balance:     running,
+      reference:   e.referenceDoc ?? undefined,
+      status:      e.status,
+    }
+  })
+  // Render newest first in the table.
+  return rows.reverse()
+}
+
 export default function AccountingPage() {
   const qc = useQueryClient()
-  const [tab, setTab] = useState<Tab>('ledger')
+  const [tab, setTab]           = useState<Tab>('ledger')
+  const [rejecting, setRejecting] = useState<{ id: string; title: string } | null>(null)
+  const [showAddEntry, setShowAddEntry] = useState(false)
 
-  const { data: ledger = DEMO_LEDGER } = useQuery<LedgerEntry[]>({
+  const { data: ledgerPage } = useQuery<LedgerEntriesPage>({
     queryKey: ['accounting', 'ledger'],
     queryFn:  () => api.get('/accounting/entries'),
     enabled:  tab === 'ledger',
   })
+  const ledger: LedgerEntry[] = ledgerPage?.items
+    ? toLedgerRows(ledgerPage.items)
+    : DEMO_LEDGER
 
-  const { data: expenses = DEMO_EXPENSES } = useQuery<ExpenseRequest[]>({
+  const { data: pendingPage } = useQuery<LedgerEntriesPage>({
     queryKey: ['accounting', 'expenses'],
     queryFn:  () => api.get('/accounting/entries?pendingOnly=true'),
     enabled:  tab === 'expenses',
   })
 
+  // P&L tab: API returns ONE month at a time. Fetch the last 6 months in parallel.
   const { data: pnl = DEMO_PNL } = useQuery<PnL[]>({
     queryKey: ['accounting', 'pnl'],
-    queryFn:  () => api.get('/accounting/report'),
+    queryFn: async () => {
+      const today = new Date()
+      const months = Array.from({ length: 6 }, (_, i) => {
+        const d = new Date(today.getFullYear(), today.getMonth() - (5 - i), 1)
+        return { month: d.getMonth() + 1, year: d.getFullYear(), label: d.toLocaleString('en-US', { month: 'short', year: '2-digit' }) }
+      })
+      const reports = await Promise.all(months.map(m =>
+        api.get<MonthlyReportDto>(`/accounting/report?month=${m.month}&year=${m.year}`)
+      ))
+      return months.map((m, i) => ({
+        month:   m.label,
+        income:  reports[i].totalIncome,
+        expense: reports[i].totalExpense,
+        net:     reports[i].netProfit,
+      }))
+    },
     enabled:  tab === 'pnl',
   })
 
@@ -76,15 +136,18 @@ export default function AccountingPage() {
     onError:    (e: Error) => toast.error(e.message),
   })
 
+  // API requires { rejectionReason: string }
   const rejectMutation = useMutation({
-    mutationFn: (id: string) => api.post(`/accounting/entries/${id}/reject`, {}),
-    onSuccess:  () => { toast.success('Expense rejected'); qc.invalidateQueries({ queryKey: ['accounting'] }) },
+    mutationFn: (input: { id: string; rejectionReason: string }) =>
+      api.post(`/accounting/entries/${input.id}/reject`, { rejectionReason: input.rejectionReason }),
+    onSuccess:  () => { toast.success('Expense rejected'); qc.invalidateQueries({ queryKey: ['accounting'] }); setRejecting(null) },
     onError:    (e: Error) => toast.error(e.message),
   })
 
-  const totalIncome  = ledger.reduce((s, e) => s + e.credit, 0)
-  const totalExpense = ledger.reduce((s, e) => s + e.debit,  0)
-  const currentBalance = ledger[ledger.length - 1]?.balance ?? 0
+  const totalIncome    = ledger.reduce((s, e) => s + e.credit, 0)
+  const totalExpense   = ledger.reduce((s, e) => s + e.debit,  0)
+  // After toLedgerRows() the array is reversed (newest first), so the latest balance is at index 0.
+  const currentBalance = ledger[0]?.balance ?? 0
 
   return (
     <div className="space-y-5">
@@ -92,9 +155,17 @@ export default function AccountingPage() {
         title="Accounting"
         description="Society ledger, expense approvals, and P&L"
         action={
-          <button className="flex items-center gap-1.5 border border-gray-300 hover:bg-gray-50 px-3 py-2 rounded-lg text-sm font-medium">
-            <Download className="w-4 h-4" /> Export
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setShowAddEntry(true)}
+              className="flex items-center gap-1.5 bg-brand-600 hover:bg-brand-700 text-white px-4 py-2 rounded-lg text-sm font-medium"
+            >
+              <Plus className="w-4 h-4" /> New Entry
+            </button>
+            <button className="flex items-center gap-1.5 border border-gray-300 hover:bg-gray-50 px-3 py-2 rounded-lg text-sm font-medium">
+              <Download className="w-4 h-4" /> Export
+            </button>
+          </div>
         }
       />
 
@@ -173,32 +244,34 @@ export default function AccountingPage() {
       {/* ── Expense approvals tab ───────────────────────────────────────────── */}
       {tab === 'expenses' && (
         <div className="space-y-3">
-          {expenses.length === 0 ? (
-            <div className="bg-white border border-gray-100 rounded-xl shadow-sm">
-              <EmptyState icon={Plus} title="No expense requests" />
-            </div>
-          ) : (
-            expenses.map(exp => (
+          {(() => {
+            const pending = pendingPage?.items ?? DEMO_PENDING
+            if (pending.length === 0) return (
+              <div className="bg-white border border-gray-100 rounded-xl shadow-sm">
+                <EmptyState icon={Plus} title="No expense requests" />
+              </div>
+            )
+            return pending.map(exp => (
               <div key={exp.id} className="bg-white border border-gray-100 rounded-xl shadow-sm p-5">
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex-1">
                     <div className="flex items-center gap-2 mb-1">
-                      <h3 className="font-semibold text-gray-800">{exp.title}</h3>
+                      <h3 className="font-semibold text-gray-800">{exp.description}</h3>
                       <Badge label={exp.status} />
                     </div>
                     <div className="flex items-center gap-4 text-sm text-gray-500 flex-wrap">
-                      <span>Requested by <b className="text-gray-700">{exp.requestedBy}</b></span>
+                      <span>Type: <Badge label={exp.type} /></span>
                       <span>Category: <Badge label={exp.category} /></span>
-                      <span>{formatDate(exp.submittedAt)}</span>
+                      <span>{formatDate(exp.entryDate)}</span>
                     </div>
-                    {exp.notes && <p className="text-sm text-gray-600 mt-2 bg-gray-50 rounded-lg p-2">{exp.notes}</p>}
+                    {exp.referenceDoc && <p className="text-xs text-gray-400 mt-2">Ref: {exp.referenceDoc}</p>}
                   </div>
                   <div className="text-right shrink-0">
-                    <p className="text-xl font-bold text-gray-900">{formatCurrency(exp.amount)}</p>
-                    {exp.status === 'pending' && (
+                    <p className="text-xl font-bold text-gray-900">{formatCurrency(exp.amountPaise)}</p>
+                    {exp.status === 'PendingApproval' && (
                       <div className="flex gap-2 mt-2">
                         <button
-                          onClick={() => rejectMutation.mutate(exp.id)}
+                          onClick={() => setRejecting({ id: exp.id, title: exp.description })}
                           disabled={rejectMutation.isPending}
                           className="flex items-center gap-1 text-xs text-red-600 border border-red-200 hover:bg-red-50 px-2 py-1.5 rounded-lg"
                         >
@@ -217,8 +290,26 @@ export default function AccountingPage() {
                 </div>
               </div>
             ))
-          )}
+          })()}
         </div>
+      )}
+
+      {/* New Ledger Entry modal */}
+      {showAddEntry && (
+        <CreateEntryModal
+          onClose={() => setShowAddEntry(false)}
+          onCreated={() => { qc.invalidateQueries({ queryKey: ['accounting'] }); setShowAddEntry(false) }}
+        />
+      )}
+
+      {/* Reject-with-reason modal */}
+      {rejecting && (
+        <RejectExpenseModal
+          title={rejecting.title}
+          isPending={rejectMutation.isPending}
+          onClose={() => setRejecting(null)}
+          onConfirm={reason => rejectMutation.mutate({ id: rejecting.id, rejectionReason: reason })}
+        />
       )}
 
       {/* ── P&L tab ─────────────────────────────────────────────────────────── */}
@@ -268,6 +359,146 @@ export default function AccountingPage() {
   )
 }
 
+// ── Create Ledger Entry Modal ─────────────────────────────────────────────────
+// API: POST /accounting/entries — { entryDate, type, category, description, amountPaise, referenceDoc? }
+const EXPENSE_CATEGORIES = ['maintenance', 'utilities', 'salary', 'security', 'event', 'legal', 'insurance', 'other']
+const INCOME_CATEGORIES  = ['maintenance', 'collection', 'penalty', 'interest', 'other']
+
+interface EntryForm {
+  entryDate:    string
+  type:         'Income' | 'Expense'
+  category:     string
+  description:  string
+  amountRupees: number   // UI in rupees; converted to paise before POST
+  referenceDoc: string
+}
+
+function CreateEntryModal({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
+  const today = new Date().toISOString().slice(0, 10)
+  const [form, setForm] = useState<EntryForm>({
+    entryDate: today, type: 'Expense', category: 'maintenance',
+    description: '', amountRupees: 0, referenceDoc: '',
+  })
+  const set = <K extends keyof EntryForm>(k: K, v: EntryForm[K]) =>
+    setForm(prev => ({ ...prev, [k]: v }))
+
+  const categories = form.type === 'Income' ? INCOME_CATEGORIES : EXPENSE_CATEGORIES
+
+  const mutation = useMutation({
+    mutationFn: () => api.post('/accounting/entries', {
+      entryDate:    form.entryDate,
+      type:         form.type,
+      category:     form.category,
+      description:  form.description.trim(),
+      amountPaise:  Math.round(form.amountRupees * 100),
+      referenceDoc: form.referenceDoc.trim() || null,
+    }),
+    onSuccess: () => { toast.success('Entry created'); onCreated() },
+    onError:   (e: Error) => toast.error(e.message),
+  })
+
+  const inputClass = 'w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500'
+  const isValid = form.description.trim().length >= 3 && form.amountRupees > 0
+
+  return (
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 space-y-4">
+        <h2 className="font-semibold text-lg">New Ledger Entry</h2>
+
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="block text-sm font-medium mb-1">Date</label>
+            <input type="date" value={form.entryDate} onChange={e => set('entryDate', e.target.value)} className={inputClass} />
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-1">Type</label>
+            <select value={form.type} onChange={e => { set('type', e.target.value as 'Income' | 'Expense'); set('category', 'other') }} className={inputClass}>
+              <option value="Expense">Expense</option>
+              <option value="Income">Income</option>
+            </select>
+          </div>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium mb-1">Category</label>
+          <select value={form.category} onChange={e => set('category', e.target.value)} className={inputClass}>
+            {categories.map(c => <option key={c} value={c} className="capitalize">{c}</option>)}
+          </select>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium mb-1">Description</label>
+          <input value={form.description} onChange={e => set('description', e.target.value)}
+            placeholder="Lift AMC payment — Apr 2026" className={inputClass} />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium mb-1">Amount (₹)</label>
+          <input type="number" min={1} value={form.amountRupees || ''}
+            onChange={e => set('amountRupees', Number(e.target.value))}
+            placeholder="0" className={inputClass} />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium mb-1">Reference Doc <span className="text-gray-400 font-normal text-xs">(optional)</span></label>
+          <input value={form.referenceDoc} onChange={e => set('referenceDoc', e.target.value)}
+            placeholder="INV-2041" className={inputClass} />
+        </div>
+
+        <div className="flex gap-3 pt-1">
+          <button onClick={onClose} className="flex-1 border border-gray-300 py-2 rounded-lg text-sm font-medium hover:bg-gray-50">
+            Cancel
+          </button>
+          <button
+            onClick={() => mutation.mutate()}
+            disabled={mutation.isPending || !isValid}
+            className="flex-1 bg-brand-600 hover:bg-brand-700 text-white py-2 rounded-lg text-sm font-medium disabled:opacity-60"
+          >
+            {mutation.isPending ? 'Saving…' : 'Save Entry'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── Reject expense modal ──────────────────────────────────────────────────────
+function RejectExpenseModal({
+  title, onClose, onConfirm, isPending,
+}: { title: string; onClose: () => void; onConfirm: (reason: string) => void; isPending: boolean }) {
+  const [reason, setReason] = useState('')
+  return (
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 space-y-4">
+        <h2 className="font-semibold text-lg">Reject expense</h2>
+        <p className="text-sm text-gray-500 truncate">{title}</p>
+        <div>
+          <label className="block text-sm font-medium mb-1">Reason <span className="text-red-500">*</span></label>
+          <textarea
+            value={reason}
+            onChange={e => setReason(e.target.value)}
+            rows={3}
+            placeholder="Missing invoice / wrong category / etc."
+            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 resize-none"
+          />
+        </div>
+        <div className="flex gap-3 pt-1">
+          <button onClick={onClose} className="flex-1 border border-gray-300 py-2 rounded-lg text-sm font-medium hover:bg-gray-50">
+            Cancel
+          </button>
+          <button
+            onClick={() => onConfirm(reason.trim())}
+            disabled={isPending || reason.trim().length < 3}
+            className="flex-1 bg-red-500 hover:bg-red-600 text-white py-2 rounded-lg text-sm font-medium disabled:opacity-60"
+          >
+            {isPending ? 'Rejecting…' : 'Reject expense'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── Demo data ─────────────────────────────────────────────────────────────────
 const DEMO_LEDGER: LedgerEntry[] = [
   { id: '1', date: '2026-04-01', description: 'Opening balance',             category: 'balance',      debit: 0,          credit: 0,          balance: 485000_00, reference: 'FY2026' },
@@ -280,11 +511,11 @@ const DEMO_LEDGER: LedgerEntry[] = [
   { id: '8', date: '2026-04-25', description: 'Late fee collections',        category: 'collection',   debit: 0,          credit: 5000_00,    balance: 1236500_00                    },
 ]
 
-const DEMO_EXPENSES: ExpenseRequest[] = [
-  { id: '1', title: 'Emergency pump repair',     amount: 15000_00, category: 'maintenance', requestedBy: 'Rajesh Sharma', submittedAt: '2026-04-26', status: 'pending',  notes: 'Main water pump failed — needs immediate replacement. Got 2 quotes, this is the lowest.' },
-  { id: '2', title: 'CCTV camera replacement',   amount: 28000_00, category: 'security',    requestedBy: 'Sanjay Gupta',  submittedAt: '2026-04-24', status: 'pending',  notes: '3 cameras in Block B parking have malfunctioned.' },
-  { id: '3', title: 'Society event — Diwali 25', amount: 12000_00, category: 'event',       requestedBy: 'Rajesh Sharma', submittedAt: '2025-10-20', status: 'approved', notes: 'Diwali celebration event — decorations, sweets, fireworks.' },
-  { id: '4', title: 'Pest control — quarterly',  amount: 6500_00,  category: 'maintenance', requestedBy: 'Pooja Verma',   submittedAt: '2026-04-10', status: 'approved'  },
+const DEMO_PENDING: ApiLedgerEntry[] = [
+  { id: '1', entryDate: '2026-04-26', type: 'Expense', category: 'maintenance', description: 'Emergency pump repair',     amountPaise: 15000_00, status: 'PendingApproval', referenceDoc: 'INV-PUMP-0426' },
+  { id: '2', entryDate: '2026-04-24', type: 'Expense', category: 'security',    description: 'CCTV camera replacement',   amountPaise: 28000_00, status: 'PendingApproval', referenceDoc: 'INV-CCTV-0424' },
+  { id: '3', entryDate: '2025-10-20', type: 'Expense', category: 'event',       description: 'Society event — Diwali 25', amountPaise: 12000_00, status: 'Approved' },
+  { id: '4', entryDate: '2026-04-10', type: 'Expense', category: 'maintenance', description: 'Pest control — quarterly',  amountPaise: 6500_00,  status: 'Approved' },
 ]
 
 const DEMO_PNL: PnL[] = [

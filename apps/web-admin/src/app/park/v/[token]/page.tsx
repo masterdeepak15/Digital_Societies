@@ -5,6 +5,7 @@ import { useParams } from 'next/navigation'
 import {
   MapPin, Navigation, Car, ArrowRight, AlertCircle, Loader2,
 } from 'lucide-react'
+import { api, ApiError } from '@/lib/api'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface ParkingNavDto {
@@ -28,16 +29,16 @@ export default function ParkingNavPage() {
   const mapRef = useRef<HTMLDivElement>(null)
   const mapInstance = useRef<unknown>(null)
 
-  // Fetch nav data from the API
+  // Fetch nav data from the API (uses shared /api/v1 prefix)
   useEffect(() => {
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:5000'
-    fetch(`${apiUrl}/api/v1/parking/nav/${encodeURIComponent(token)}`)
-      .then(r => {
-        if (!r.ok) throw new Error('Invalid or expired navigation link.')
-        return r.json() as Promise<ParkingNavDto>
-      })
+    api.get<ParkingNavDto>(`/parking/nav/${encodeURIComponent(token)}`)
       .then(d => { setData(d); setLoading(false) })
-      .catch(e => { setError(e.message); setLoading(false) })
+      .catch((e: ApiError | Error) => {
+        setError(e instanceof ApiError && e.status === 404
+          ? 'Invalid or expired navigation link.'
+          : e.message)
+        setLoading(false)
+      })
   }, [token])
 
   // Initialise MapLibre once data is ready

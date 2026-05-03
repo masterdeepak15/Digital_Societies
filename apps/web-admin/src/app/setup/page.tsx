@@ -90,7 +90,7 @@ export default function SetupPage() {
     const phone = s2.getValues('adminPhone')
     if (!phone) { toast.error('Enter phone first'); return }
     try {
-      await api.post('/auth/send-otp', { phone })
+      await api.post('/auth/otp/send', { phone, purpose: 'register' })
       setOtpSent(true)
       toast.success('OTP sent to admin phone!')
     } catch (e: unknown) {

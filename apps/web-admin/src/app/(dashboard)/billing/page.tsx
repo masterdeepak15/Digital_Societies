@@ -5,6 +5,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Plus, Download, Search, RefreshCw } from 'lucide-react'
 import { toast } from 'sonner'
 import { api } from '@/lib/api'
+import { getUser } from '@/lib/auth'
 import { formatCurrency, formatDate, statusColor } from '@/lib/utils'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { Badge } from '@/components/ui/Badge'
@@ -13,26 +14,50 @@ import { EmptyState } from '@/components/ui/EmptyState'
 import { Receipt } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
-// ── Types ─────────────────────────────────────────────────────────────────────
+// ── Types — aligned with API BillDto ─────────────────────────────────────────
+// GET /billing/bills → { items: ApiBillDto[], total, page, pageSize (or limit) }
+// ApiBillDto: { id, flatId, period:"YYYY-MM", amountRupees, dueDate:"YYYY-MM-DD", status }
+interface ApiBillDto {
+  id:           string
+  flatId:       string
+  period:       string   // "YYYY-MM"
+  amountRupees: number
+  dueDate:      string   // "YYYY-MM-DD"
+  status:       'Pending' | 'Paid' | 'Overdue'
+}
+
+interface ApiBillPage {
+  items:    ApiBillDto[]
+  total:    number
+  page:     number
+  pageSize?: number
+  limit?:   number
+}
+
+// UI-shaped row used by the table.
+// API doesn't join flat/owner names in the list endpoint — we show flatId until a join exists.
 interface Bill {
   id:          string
-  flatDisplay: string
-  ownerName:   string
-  billDate:    string
+  flatDisplay: string   // flatId for now; will be flatNumber once backend joins
+  period:      string   // "YYYY-MM" — shown as bill date
   dueDate:     string
-  amount:      number   // paise
-  status:      'paid' | 'pending' | 'overdue' | 'partially_paid'
-  paidAt?:     string
-  paidAmount?: number
+  amountRupees: number
+  status:      'Pending' | 'Paid' | 'Overdue'
 }
 
-interface BillPage {
-  items:      Bill[]
-  totalCount: number
-  totalPages: number
+function toUiBill(a: ApiBillDto): Bill {
+  return {
+    id:           a.id,
+    flatDisplay:  a.flatId,   // fallback until /billing/bills returns flatNumber
+    period:       a.period,
+    dueDate:      a.dueDate,
+    amountRupees: a.amountRupees,
+    status:       a.status,
+  }
 }
 
-type FilterStatus = 'all' | 'paid' | 'pending' | 'overdue'
+// API accepts "all" | "Pending" | "Paid" | "Overdue" for the status filter
+type FilterStatus = 'all' | 'Pending' | 'Paid' | 'Overdue'
 
 export default function BillingPage() {
   const qc = useQueryClient()
@@ -41,16 +66,31 @@ export default function BillingPage() {
   const [page,    setPage]    = useState(1)
   const [showGen, setShowGen] = useState(false)
 
-  const { data, isLoading } = useQuery<BillPage>({
+  // API: GET /billing/bills?status=&search=&page=&limit=
+  // Response: { items: ApiBillDto[], total, page, pageSize }
+  const { data, isLoading } = useQuery<ApiBillPage>({
     queryKey: ['bills', status, search, page],
-    queryFn: () => api.get(
+    queryFn: () => api.get<ApiBillPage>(
       `/billing/bills?status=${status}&search=${encodeURIComponent(search)}&page=${page}&limit=20`
     ),
     placeholderData: prev => prev,
   })
 
+  // Backend contract: POST /billing/generate
+  //   { societyId, period:"YYYY-MM", amountPerFlat:decimal, description, dueDate:"YYYY-MM-DD" }
+  interface GenerateBillsInput {
+    period:        string  // YYYY-MM
+    amountPerFlat: number
+    description:   string
+    dueDate:       string  // YYYY-MM-DD
+  }
+
   const generateMutation = useMutation({
-    mutationFn: (month: string) => api.post('/billing/bills/generate', { month }),
+    mutationFn: (input: GenerateBillsInput) => {
+      const societyId = getUser()?.societyId
+      if (!societyId) throw new Error('Not signed in to a society')
+      return api.post('/billing/generate', { societyId, ...input })
+    },
     onSuccess: () => {
       toast.success('Bills generated successfully')
       qc.invalidateQueries({ queryKey: ['bills'] })
@@ -59,13 +99,19 @@ export default function BillingPage() {
     onError: (e: Error) => toast.error(e.message),
   })
 
-  const bills = data?.items ?? DEMO_BILLS
+  // Map API DTOs → UI rows; fall back to DEMO when API hasn't responded yet.
+  const bills: Bill[] = data?.items ? data.items.map(toUiBill) : DEMO_BILLS
 
+  // Compute totals from UI rows (amountRupees, not paise)
   const summary = {
-    total:     bills.reduce((a, b) => a + b.amount, 0),
-    collected: bills.filter(b => b.status === 'paid').reduce((a, b) => a + (b.paidAmount ?? b.amount), 0),
-    pending:   bills.filter(b => b.status !== 'paid').reduce((a, b) => a + b.amount, 0),
+    total:     bills.reduce((a, b) => a + b.amountRupees, 0),
+    collected: bills.filter(b => b.status === 'Paid').reduce((a, b) => a + b.amountRupees, 0),
+    pending:   bills.filter(b => b.status !== 'Paid').reduce((a, b) => a + b.amountRupees, 0),
   }
+
+  // Pagination — API returns `total` (count); derive total pages from it.
+  const pageSize   = data?.pageSize ?? data?.limit ?? 20
+  const totalPages = data ? Math.max(1, Math.ceil(data.total / pageSize)) : 1
 
   return (
     <div className="space-y-5">
@@ -96,7 +142,9 @@ export default function BillingPage() {
         ].map(c => (
           <div key={c.label} className="bg-white border border-gray-100 rounded-xl p-4 shadow-sm">
             <p className="text-xs text-gray-500 mb-1">{c.label}</p>
-            <p className={`text-2xl font-bold ${c.color}`}>{formatCurrency(c.val)}</p>
+            <p className={`text-2xl font-bold ${c.color}`}>
+              ₹{c.val.toLocaleString('en-IN')}
+            </p>
           </div>
         ))}
       </div>
@@ -113,7 +161,7 @@ export default function BillingPage() {
           />
         </div>
         <div className="flex gap-1 bg-gray-100 p-1 rounded-lg">
-          {(['all', 'pending', 'overdue', 'paid'] as FilterStatus[]).map(s => (
+          {(['all', 'Pending', 'Overdue', 'Paid'] as FilterStatus[]).map(s => (
             <button
               key={s}
               onClick={() => { setStatus(s); setPage(1) }}
@@ -139,11 +187,9 @@ export default function BillingPage() {
             <Thead>
               <Tr>
                 <Th>Flat</Th>
-                <Th>Owner / Resident</Th>
-                <Th>Bill Date</Th>
+                <Th>Period</Th>
                 <Th>Due Date</Th>
-                <Th className="text-right">Amount</Th>
-                <Th className="text-right">Paid</Th>
+                <Th className="text-right">Amount (₹)</Th>
                 <Th>Status</Th>
               </Tr>
             </Thead>
@@ -151,14 +197,12 @@ export default function BillingPage() {
               {bills.map(bill => (
                 <Tr key={bill.id}>
                   <Td className="font-medium">{bill.flatDisplay}</Td>
-                  <Td>{bill.ownerName}</Td>
-                  <Td>{formatDate(bill.billDate)}</Td>
-                  <Td className={bill.status === 'overdue' ? 'text-red-500 font-medium' : ''}>
+                  <Td>{bill.period}</Td>
+                  <Td className={bill.status === 'Overdue' ? 'text-red-500 font-medium' : ''}>
                     {formatDate(bill.dueDate)}
                   </Td>
-                  <Td className="text-right font-medium">{formatCurrency(bill.amount)}</Td>
-                  <Td className="text-right text-green-600">
-                    {bill.paidAmount ? formatCurrency(bill.paidAmount) : '—'}
+                  <Td className="text-right font-medium">
+                    ₹{bill.amountRupees.toLocaleString('en-IN')}
                   </Td>
                   <Td><Badge label={bill.status} /></Td>
                 </Tr>
@@ -169,9 +213,9 @@ export default function BillingPage() {
       </div>
 
       {/* Pagination */}
-      {(data?.totalPages ?? 1) > 1 && (
+      {totalPages > 1 && (
         <div className="flex justify-center gap-2">
-          {[...Array(data!.totalPages)].map((_, i) => (
+          {[...Array(totalPages)].map((_, i) => (
             <button
               key={i}
               onClick={() => setPage(i + 1)}
@@ -190,7 +234,7 @@ export default function BillingPage() {
       {showGen && (
         <GenerateBillsModal
           onClose={() => setShowGen(false)}
-          onGenerate={month => generateMutation.mutate(month)}
+          onGenerate={input => generateMutation.mutate(input)}
           isPending={generateMutation.isPending}
         />
       )}
@@ -199,36 +243,62 @@ export default function BillingPage() {
 }
 
 // ── Generate Bills Modal ──────────────────────────────────────────────────────
+interface GenerateInput { period: string; amountPerFlat: number; description: string; dueDate: string }
+
 function GenerateBillsModal({
   onClose, onGenerate, isPending,
-}: { onClose: () => void; onGenerate: (month: string) => void; isPending: boolean }) {
-  const current = new Date()
-  const [month, setMonth] = useState(
-    `${current.getFullYear()}-${String(current.getMonth() + 1).padStart(2, '0')}`
-  )
+}: { onClose: () => void; onGenerate: (input: GenerateInput) => void; isPending: boolean }) {
+  const today      = new Date()
+  const defPeriod  = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`
+  // Default due date = 10th of the period month
+  const defDue     = `${defPeriod}-10`
+
+  const [period,        setPeriod]        = useState(defPeriod)
+  const [amount,        setAmount]        = useState(2500)
+  const [description,   setDescription]   = useState(`Maintenance — ${defPeriod}`)
+  const [dueDate,       setDueDate]       = useState(defDue)
+
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 space-y-4">
         <h2 className="font-semibold text-lg">Generate Monthly Bills</h2>
+
         <div>
-          <label className="block text-sm font-medium mb-1">Billing Month</label>
-          <input
-            type="month"
-            value={month}
-            onChange={e => setMonth(e.target.value)}
-            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
-          />
+          <label className="block text-sm font-medium mb-1">Billing Period</label>
+          <input type="month" value={period} onChange={e => setPeriod(e.target.value)}
+            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" />
         </div>
+
+        <div>
+          <label className="block text-sm font-medium mb-1">Amount per flat (₹)</label>
+          <input type="number" min={1} value={amount} onChange={e => setAmount(Number(e.target.value))}
+            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium mb-1">Description</label>
+          <input value={description} onChange={e => setDescription(e.target.value)}
+            placeholder="May 2026 Maintenance"
+            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium mb-1">Due date</label>
+          <input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)}
+            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" />
+        </div>
+
         <p className="text-xs text-gray-400">
-          This will generate bills for all active flats. Bills already generated for this month will be skipped.
+          Bills will be generated for all active flats. Flats already billed for this period will be skipped (idempotent).
         </p>
+
         <div className="flex gap-3 pt-1">
           <button onClick={onClose} className="flex-1 border border-gray-300 py-2 rounded-lg text-sm font-medium hover:bg-gray-50">
             Cancel
           </button>
           <button
-            onClick={() => onGenerate(month)}
-            disabled={isPending}
+            onClick={() => onGenerate({ period, amountPerFlat: amount, description, dueDate })}
+            disabled={isPending || !description || amount <= 0}
             className="flex-1 bg-brand-600 hover:bg-brand-700 text-white py-2 rounded-lg text-sm font-medium disabled:opacity-60"
           >
             {isPending ? 'Generating…' : 'Generate'}
@@ -239,14 +309,14 @@ function GenerateBillsModal({
   )
 }
 
-// ── Demo data ─────────────────────────────────────────────────────────────────
+// ── Demo data — shape matches UI Bill (already mapped from API) ───────────────
 const DEMO_BILLS: Bill[] = [
-  { id: '1', flatDisplay: 'A-101', ownerName: 'Rajesh Sharma',     billDate: '2026-04-01', dueDate: '2026-04-10', amount: 950000, status: 'paid',    paidAt: '2026-04-07', paidAmount: 950000 },
-  { id: '2', flatDisplay: 'A-102', ownerName: 'Priya Mehta',       billDate: '2026-04-01', dueDate: '2026-04-10', amount: 950000, status: 'pending'                                           },
-  { id: '3', flatDisplay: 'A-103', ownerName: 'Suresh Iyer',       billDate: '2026-04-01', dueDate: '2026-04-10', amount: 950000, status: 'overdue'                                           },
-  { id: '4', flatDisplay: 'A-104', ownerName: 'Anita Desai',       billDate: '2026-04-01', dueDate: '2026-04-10', amount: 950000, status: 'paid',    paidAt: '2026-04-09', paidAmount: 950000 },
-  { id: '5', flatDisplay: 'A-105', ownerName: 'Vikram Nair',       billDate: '2026-04-01', dueDate: '2026-04-10', amount: 950000, status: 'pending'                                           },
-  { id: '6', flatDisplay: 'B-101', ownerName: 'Meena Patel',       billDate: '2026-04-01', dueDate: '2026-04-10', amount: 950000, status: 'paid',    paidAt: '2026-04-03', paidAmount: 950000 },
-  { id: '7', flatDisplay: 'B-102', ownerName: 'Arvind Joshi',      billDate: '2026-04-01', dueDate: '2026-04-10', amount: 950000, status: 'overdue'                                           },
-  { id: '8', flatDisplay: 'B-103', ownerName: 'Kavitha Rao',       billDate: '2026-04-01', dueDate: '2026-04-10', amount: 950000, status: 'pending'                                           },
+  { id: '1', flatDisplay: 'flat-a101', period: '2026-04', dueDate: '2026-04-10', amountRupees: 2500, status: 'Paid'    },
+  { id: '2', flatDisplay: 'flat-a102', period: '2026-04', dueDate: '2026-04-10', amountRupees: 2500, status: 'Pending' },
+  { id: '3', flatDisplay: 'flat-a103', period: '2026-04', dueDate: '2026-04-10', amountRupees: 2500, status: 'Overdue' },
+  { id: '4', flatDisplay: 'flat-a104', period: '2026-04', dueDate: '2026-04-10', amountRupees: 2500, status: 'Paid'    },
+  { id: '5', flatDisplay: 'flat-a105', period: '2026-04', dueDate: '2026-04-10', amountRupees: 2500, status: 'Pending' },
+  { id: '6', flatDisplay: 'flat-b101', period: '2026-04', dueDate: '2026-04-10', amountRupees: 2500, status: 'Paid'    },
+  { id: '7', flatDisplay: 'flat-b102', period: '2026-04', dueDate: '2026-04-10', amountRupees: 2500, status: 'Overdue' },
+  { id: '8', flatDisplay: 'flat-b103', period: '2026-04', dueDate: '2026-04-10', amountRupees: 2500, status: 'Pending' },
 ]

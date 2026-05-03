@@ -9,29 +9,45 @@ import { cn } from '@/lib/utils'
 import { PageHeader } from '@/components/ui/PageHeader'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
+// API GET /settings → { id, name, address, registrationNumber, tier, isActive, totalFlats }
+// API PATCH /settings → { name?, address? }  — only these two are persisted server-side.
+//
+// All fields beyond name/address are UI-local preferences stored in component state.
+// A banner in the UI makes this clear so admins know what is/isn't saved.
+
+// Shape of API GET /settings response
+interface ApiSettings {
+  id:                 string
+  name:               string
+  address:            string
+  registrationNumber: string
+  tier:               string
+  isActive:           boolean
+  totalFlats:         number
+}
+
 interface SocietySettings {
-  // General
-  societyName:         string
-  registrationNumber:  string
+  // Server-persisted — sent on PATCH /settings
+  societyName:         string   // maps to API `name`
   address:             string
+  // Read-only from API
+  registrationNumber:  string
+  // UI-local only — NOT persisted to server
   city:                string
   pincode:             string
   contactEmail:        string
   contactPhone:        string
-  // Billing
   maintenanceAmount:   number
-  billingCycleDay:     number   // day of month (1–28)
+  billingCycleDay:     number
   gracePeriodDays:     number
   latePenaltyPercent:  number
   gstEnabled:          boolean
   gstNumber:           string
-  // Notifications
   smsEnabled:          boolean
   pushEnabled:         boolean
   emailEnabled:        boolean
   visitorAlerts:       boolean
   paymentReminders:    boolean
-  // Security
   visitorQrTtlMinutes: number
   offlineSyncEnabled:  boolean
   piiWipeDays:         number
@@ -104,18 +120,29 @@ export default function SettingsPage() {
   const qc = useQueryClient()
   const [tab, setTab] = useState<Tab>('general')
 
+  // API: GET /settings → { id, name, address, registrationNumber, tier, isActive, totalFlats }
+  // Map API response to form shape; fill UI-local fields from DEMO_SETTINGS defaults.
   const { data: settings = DEMO_SETTINGS } = useQuery<SocietySettings>({
     queryKey: ['society-settings'],
-    queryFn:  () => api.get('/settings'),
+    queryFn:  async () => {
+      const raw = await api.get<ApiSettings>('/settings')
+      return {
+        ...DEMO_SETTINGS,               // UI-local defaults
+        societyName:        raw.name,
+        address:            raw.address,
+        registrationNumber: raw.registrationNumber,
+      }
+    },
   })
 
   const [form, setForm] = useState<SocietySettings>(settings)
   const set = <K extends keyof SocietySettings>(k: K, v: SocietySettings[K]) =>
     setForm(prev => ({ ...prev, [k]: v }))
 
+  // API only persists name + address — send only those two fields.
   const saveMutation = useMutation({
-    mutationFn: (data: Partial<SocietySettings>) => api.patch('/settings', data),
-    onSuccess:  () => { toast.success('Settings saved'); qc.invalidateQueries({ queryKey: ['society-settings'] }) },
+    mutationFn: () => api.patch('/settings', { name: form.societyName, address: form.address }),
+    onSuccess:  () => { toast.success('Society name and address saved'); qc.invalidateQueries({ queryKey: ['society-settings'] }) },
     onError:    (e: Error) => toast.error(e.message),
   })
 
@@ -126,7 +153,7 @@ export default function SettingsPage() {
         description="Society profile, billing rules, and platform configuration"
         action={
           <button
-            onClick={() => saveMutation.mutate(form)}
+            onClick={() => saveMutation.mutate()}
             disabled={saveMutation.isPending}
             className="flex items-center gap-1.5 bg-brand-600 hover:bg-brand-700 disabled:opacity-60 text-white px-4 py-2 rounded-lg text-sm font-medium">
             <Save className="w-4 h-4" />
@@ -134,6 +161,11 @@ export default function SettingsPage() {
           </button>
         }
       />
+
+      {/* Banner — inform admin which settings are server-persisted */}
+      <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-sm text-amber-800">
+        <b>Note:</b> Only <b>Society Name</b> and <b>Address</b> (General tab) are saved to the server via the API. All other fields on this page are UI preferences stored locally — they will reset on refresh until the backend exposes additional settings endpoints.
+      </div>
 
       <div className="flex gap-5">
         {/* Sidebar tabs */}

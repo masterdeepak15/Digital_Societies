@@ -12,35 +12,46 @@ import { Table, Thead, Tbody, Th, Td, Tr } from '@/components/ui/Table'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { cn } from '@/lib/utils'
 
-// ── Types ─────────────────────────────────────────────────────────────────────
+// ── Types — kept compatible with API DTO; UI-only fields are optional ─────────
+// API returns { id, name, phone, purpose, status, entryTime, exitTime, vehicleNumber }.
+// The extra fields below are UI-side niceties populated from joined data or DEMO.
 interface Visitor {
-  id:            string
-  name:          string
-  phone:         string
-  purposeOfVisit: string
-  vehicleNumber?: string
-  hostFlatDisplay: string
-  hostName:      string
-  status:        'pending' | 'approved' | 'denied' | 'checked_in' | 'checked_out'
-  entryTime?:    string
-  exitTime?:     string
-  expectedAt:    string
-  photoUrl?:     string
-  otp?:          string
+  id:               string
+  name:             string
+  phone:            string
+  purposeOfVisit:   string
+  vehicleNumber?:   string
+  hostFlatDisplay?: string
+  hostName?:        string
+  status:           'Pending' | 'Approved' | 'Rejected' | 'Entered' | 'Exited'
+  entryTime?:       string
+  exitTime?:        string
+  expectedAt?:      string
+  photoUrl?:        string
+  otp?:             string
 }
 
-type VisitorFilter = 'all' | 'pending' | 'approved' | 'checked_in'
+interface VisitorsPage { items: Visitor[]; total: number; page: number; pageSize: number }
+
+type VisitorFilter = 'all' | 'Pending' | 'Approved' | 'Entered' | 'Exited'
 
 export default function VisitorsPage() {
   const qc = useQueryClient()
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState<VisitorFilter>('all')
 
-  const { data: visitors = DEMO_VISITORS } = useQuery<Visitor[]>({
+  const { data } = useQuery<VisitorsPage>({
     queryKey: ['visitors', filter],
-    queryFn:  () => api.get(`/visitors?status=${filter}`),
+    // Omit ?status when filter='all' so the backend returns everything.
+    queryFn:  () => api.get(filter === 'all' ? '/visitors' : `/visitors?status=${filter}`),
     refetchInterval: 30_000,   // auto-refresh every 30 s for live gate view
   })
+
+  // The API returns a paginated envelope. Map server fields ➜ UI fields where naming differs.
+  const visitors: Visitor[] = (data?.items ?? DEMO_VISITORS).map(v => ({
+    ...v,
+    purposeOfVisit: (v as unknown as { purpose?: string }).purpose ?? v.purposeOfVisit,
+  }))
 
   const approveMutation = useMutation({
     mutationFn: (id: string) => api.post(`/visitors/${id}/approve`, {}),
@@ -48,9 +59,10 @@ export default function VisitorsPage() {
     onError: (e: Error) => toast.error(e.message),
   })
 
-  const denyMutation = useMutation({
-    mutationFn: (id: string) => api.post(`/visitors/${id}/deny`, {}),
-    onSuccess: () => { toast.success('Visitor denied'); qc.invalidateQueries({ queryKey: ['visitors'] }) },
+  // Backend route is /reject, optional body { reason? }.
+  const rejectMutation = useMutation({
+    mutationFn: (id: string) => api.post(`/visitors/${id}/reject`, {}),
+    onSuccess: () => { toast.success('Visitor rejected'); qc.invalidateQueries({ queryKey: ['visitors'] }) },
     onError: (e: Error) => toast.error(e.message),
   })
 
@@ -59,10 +71,10 @@ export default function VisitorsPage() {
     (search === '' ||
      v.name.toLowerCase().includes(search.toLowerCase()) ||
      v.phone.includes(search) ||
-     v.hostFlatDisplay.toLowerCase().includes(search.toLowerCase()))
+     (v.hostFlatDisplay ?? '').toLowerCase().includes(search.toLowerCase()))
   )
 
-  const pending = visitors.filter(v => v.status === 'pending').length
+  const pending = visitors.filter(v => v.status === 'Pending').length
 
   return (
     <div className="space-y-5">
@@ -81,10 +93,10 @@ export default function VisitorsPage() {
       {/* Live status band */}
       <div className="grid grid-cols-4 gap-3">
         {[
-          { label: 'Pending',    count: visitors.filter(v => v.status === 'pending').length,    color: 'text-amber-600', bg: 'bg-amber-50'  },
-          { label: 'Approved',   count: visitors.filter(v => v.status === 'approved').length,   color: 'text-blue-600',  bg: 'bg-blue-50'   },
-          { label: 'Inside',     count: visitors.filter(v => v.status === 'checked_in').length, color: 'text-green-600', bg: 'bg-green-50'  },
-          { label: 'Checked Out', count: visitors.filter(v => v.status === 'checked_out').length, color: 'text-gray-500', bg: 'bg-gray-50'  },
+          { label: 'Pending',    count: visitors.filter(v => v.status === 'Pending').length,  color: 'text-amber-600', bg: 'bg-amber-50' },
+          { label: 'Approved',   count: visitors.filter(v => v.status === 'Approved').length, color: 'text-blue-600',  bg: 'bg-blue-50'  },
+          { label: 'Inside',     count: visitors.filter(v => v.status === 'Entered').length,  color: 'text-green-600', bg: 'bg-green-50' },
+          { label: 'Checked Out',count: visitors.filter(v => v.status === 'Exited').length,   color: 'text-gray-500',  bg: 'bg-gray-50'  },
         ].map(s => (
           <div key={s.label} className={`${s.bg} rounded-xl p-4 border border-gray-100`}>
             <p className="text-xs text-gray-500">{s.label}</p>
@@ -105,16 +117,16 @@ export default function VisitorsPage() {
           />
         </div>
         <div className="flex gap-1 bg-gray-100 p-1 rounded-lg">
-          {(['all', 'pending', 'approved', 'checked_in'] as VisitorFilter[]).map(f => (
+          {(['all', 'Pending', 'Approved', 'Entered'] as VisitorFilter[]).map(f => (
             <button
               key={f}
               onClick={() => setFilter(f)}
               className={cn(
-                'px-3 py-1.5 rounded-md text-sm font-medium transition',
+                'px-3 py-1.5 rounded-md text-sm font-medium transition capitalize',
                 filter === f ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'
               )}
             >
-              {f.replace('_', ' ')}
+              {f === 'all' ? 'all' : f === 'Entered' ? 'inside' : f.toLowerCase()}
             </button>
           ))}
         </div>
@@ -167,7 +179,7 @@ export default function VisitorsPage() {
                   </Td>
                   <Td><Badge label={v.status} /></Td>
                   <Td>
-                    {v.status === 'pending' && (
+                    {v.status === 'Pending' && (
                       <div className="flex gap-1">
                         <button
                           onClick={() => approveMutation.mutate(v.id)}
@@ -177,15 +189,15 @@ export default function VisitorsPage() {
                           <CheckCircle className="w-4 h-4" />
                         </button>
                         <button
-                          onClick={() => denyMutation.mutate(v.id)}
+                          onClick={() => rejectMutation.mutate(v.id)}
                           className="p-1.5 rounded-lg bg-red-50 hover:bg-red-100 text-red-500"
-                          title="Deny"
+                          title="Reject"
                         >
                           <XCircle className="w-4 h-4" />
                         </button>
                       </div>
                     )}
-                    {v.otp && v.status === 'approved' && (
+                    {v.otp && v.status === 'Approved' && (
                       <span className="font-mono text-sm font-bold text-brand-700 bg-brand-50 px-2 py-0.5 rounded">
                         {v.otp}
                       </span>
@@ -203,9 +215,9 @@ export default function VisitorsPage() {
 
 // ── Demo data ─────────────────────────────────────────────────────────────────
 const DEMO_VISITORS: Visitor[] = [
-  { id: '1', name: 'Ravi Kumar',       phone: '+919500000001', purposeOfVisit: 'delivery',    hostFlatDisplay: 'A-104', hostName: 'Anita Desai',   status: 'pending',     expectedAt: '2026-04-27T11:00:00Z', otp: '482931' },
-  { id: '2', name: 'Sunita Jain',      phone: '+919500000002', purposeOfVisit: 'guest',       hostFlatDisplay: 'A-201', hostName: 'Rajesh Sharma', status: 'approved',    expectedAt: '2026-04-27T14:00:00Z', otp: '173654' },
-  { id: '3', name: 'Plumber — Ramesh', phone: '+919500000003', purposeOfVisit: 'maintenance', hostFlatDisplay: 'B-203', hostName: 'Arvind Joshi',  status: 'checked_in',  expectedAt: '2026-04-27T09:00:00Z', entryTime: '2026-04-27T09:15:00Z' },
-  { id: '4', name: 'Electrician Co.',  phone: '+919500000004', purposeOfVisit: 'maintenance', hostFlatDisplay: 'A-301', hostName: 'Priya Mehta',   status: 'checked_out', expectedAt: '2026-04-26T10:00:00Z', entryTime: '2026-04-26T10:05:00Z', exitTime: '2026-04-26T12:30:00Z' },
-  { id: '5', name: 'Deepa Menon',      phone: '+919500000005', purposeOfVisit: 'guest',       hostFlatDisplay: 'B-101', hostName: 'Meena Patel',   status: 'denied',      expectedAt: '2026-04-26T16:00:00Z' },
+  { id: '1', name: 'Ravi Kumar',       phone: '+919500000001', purposeOfVisit: 'delivery',    hostFlatDisplay: 'A-104', hostName: 'Anita Desai',   status: 'Pending',  expectedAt: '2026-04-27T11:00:00Z', otp: '482931' },
+  { id: '2', name: 'Sunita Jain',      phone: '+919500000002', purposeOfVisit: 'guest',       hostFlatDisplay: 'A-201', hostName: 'Rajesh Sharma', status: 'Approved', expectedAt: '2026-04-27T14:00:00Z', otp: '173654' },
+  { id: '3', name: 'Plumber — Ramesh', phone: '+919500000003', purposeOfVisit: 'maintenance', hostFlatDisplay: 'B-203', hostName: 'Arvind Joshi',  status: 'Entered',  expectedAt: '2026-04-27T09:00:00Z', entryTime: '2026-04-27T09:15:00Z' },
+  { id: '4', name: 'Electrician Co.',  phone: '+919500000004', purposeOfVisit: 'maintenance', hostFlatDisplay: 'A-301', hostName: 'Priya Mehta',   status: 'Exited',   expectedAt: '2026-04-26T10:00:00Z', entryTime: '2026-04-26T10:05:00Z', exitTime: '2026-04-26T12:30:00Z' },
+  { id: '5', name: 'Deepa Menon',      phone: '+919500000005', purposeOfVisit: 'guest',       hostFlatDisplay: 'B-101', hostName: 'Meena Patel',   status: 'Rejected', expectedAt: '2026-04-26T16:00:00Z' },
 ]

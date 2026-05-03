@@ -10,16 +10,29 @@ import { PageHeader } from '@/components/ui/PageHeader'
 import { Badge } from '@/components/ui/Badge'
 import { EmptyState } from '@/components/ui/EmptyState'
 
-// ── Types ─────────────────────────────────────────────────────────────────────
+// ── Types — aligned with API ParkingLevelDto / ParkingSlotDto ────────────────
+// GET /parking/levels → { levels: ParkingLevelDto[] }
+// ParkingLevelDto: { id, name, totalSlots, occupiedSlots }
 interface ParkingLevel {
-  id:             string
-  name:           string
-  levelNumber:    number
-  totalSlots:     number
-  availableSlots: number
-  floorPlanUrl?:  string
+  id:            string
+  name:          string
+  totalSlots:    number
+  occupiedSlots: number
+  // UI-derived:
+  availableSlots?: number
 }
 
+// GET /parking/levels/{id}/slots → { slots: ApiSlot[] }
+// ApiSlot: { id, number, status: "Available"|"Assigned", assignedFlatId?, assignedVehicle? }
+interface ApiSlot {
+  id:               string
+  number:           string
+  status:           'Available' | 'Assigned'
+  assignedFlatId?:  string
+  assignedVehicle?: string
+}
+
+// UI slot — adds display-only fields
 interface ParkingSlot {
   id:                  string
   slotNumber:          string
@@ -28,6 +41,19 @@ interface ParkingSlot {
   isEvCharger:         boolean
   assignedFlatNumber?: string
   vehicleNumber?:      string
+}
+
+/** Map the lean API slot to the richer UI slot. */
+function toUiSlot(s: ApiSlot): ParkingSlot {
+  return {
+    id:                 s.id,
+    slotNumber:         s.number,
+    type:               'car',            // API doesn't return type yet
+    status:             s.status === 'Assigned' ? 'AssignedResident' : 'Available',
+    isEvCharger:        false,            // API doesn't return this yet
+    assignedFlatNumber: s.assignedFlatId, // flatId used as display until flatNumber is joined
+    vehicleNumber:      s.assignedVehicle,
+  }
 }
 
 type SlotFilter = 'all' | 'Available' | 'AssignedResident' | 'VisitorPass'
@@ -44,13 +70,24 @@ const SLOT_TYPE_ICON = { car: Car, bike: Bike, ev: Zap }
 export default function ParkingPage() {
   const qc = useQueryClient()
   const [selectedLevel, setSelectedLevel] = useState<string | null>(null)
-  const [filter, setFilter]     = useState<SlotFilter>('all')
-  const [search, setSearch]     = useState('')
-  const [assignModal, setAssignModal] = useState<ParkingSlot | null>(null)
+  const [filter,       setFilter]        = useState<SlotFilter>('all')
+  const [search,       setSearch]        = useState('')
+  const [assignModal,  setAssignModal]   = useState<ParkingSlot | null>(null)  // for unassign (occupied slot)
+  const [allocateSlot, setAllocateSlot]  = useState<ParkingSlot | null>(null)  // for assign (available slot)
+  const [visitorSlot,  setVisitorSlot]   = useState<ParkingSlot | null>(null)  // for visitor pass
+  const [showAddSlot,  setShowAddSlot]   = useState(false)
 
+  // API: GET /parking/levels → { levels: ParkingLevelDto[] }
   const { data: levels = DEMO_LEVELS } = useQuery<ParkingLevel[]>({
     queryKey: ['parking-levels'],
-    queryFn:  () => api.get<ParkingLevel[]>('/parking/levels'),
+    queryFn:  async () => {
+      const res = await api.get<{ levels: ParkingLevel[] }>('/parking/levels')
+      // Derive availableSlots from occupiedSlots
+      return (res.levels ?? []).map(l => ({
+        ...l,
+        availableSlots: Math.max(0, l.totalSlots - (l.occupiedSlots ?? 0)),
+      }))
+    },
   })
 
   // Auto-select first level when data loads (replaces removed onSuccess)
@@ -60,9 +97,13 @@ export default function ParkingPage() {
 
   const activeLevel = selectedLevel ?? (levels[0]?.id ?? null)
 
+  // API: GET /parking/levels/{id}/slots → { slots: ApiSlot[] }
   const { data: slots = DEMO_SLOTS } = useQuery<ParkingSlot[]>({
     queryKey: ['parking-slots', activeLevel],
-    queryFn:  () => api.get<ParkingSlot[]>(`/parking/levels/${activeLevel}/slots`),
+    queryFn:  async () => {
+      const res = await api.get<{ slots: ApiSlot[] }>(`/parking/levels/${activeLevel}/slots`)
+      return (res.slots ?? []).map(toUiSlot)
+    },
     enabled:  !!activeLevel,
   })
 
@@ -87,7 +128,10 @@ export default function ParkingPage() {
         title="Parking"
         description="Slot allocation and visitor passes"
         action={
-          <button className="flex items-center gap-1.5 bg-brand-600 hover:bg-brand-700 text-white px-4 py-2 rounded-lg text-sm font-medium">
+          <button
+            onClick={() => setShowAddSlot(true)}
+            className="flex items-center gap-1.5 bg-brand-600 hover:bg-brand-700 text-white px-4 py-2 rounded-lg text-sm font-medium"
+          >
             <Plus className="w-4 h-4" /> Add Slot
           </button>
         }
@@ -109,10 +153,10 @@ export default function ParkingPage() {
               <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
                 <div
                   className="h-full bg-green-500 rounded-full"
-                  style={{ width: `${(level.availableSlots / level.totalSlots) * 100}%` }}
+                  style={{ width: `${((level.availableSlots ?? 0) / level.totalSlots) * 100}%` }}
                 />
               </div>
-              <span className="text-xs font-medium text-green-600">{level.availableSlots} free</span>
+              <span className="text-xs font-medium text-green-600">{level.availableSlots ?? 0} free</span>
             </div>
           </button>
         ))}
@@ -167,7 +211,11 @@ export default function ParkingPage() {
                 <div key={slot.id}
                   className={cn('border-2 rounded-xl p-3 cursor-pointer hover:shadow-md transition',
                     SLOT_STATUS_COLOR[slot.status])}
-                  onClick={() => slot.status === 'AssignedResident' && setAssignModal(slot)}>
+                  onClick={() => {
+                    if (slot.status === 'AssignedResident') setAssignModal(slot)
+                    else if (slot.status === 'Available')    setAllocateSlot(slot)
+                    else if (slot.status === 'VisitorPass')  setVisitorSlot(slot)
+                  }}>
                   <div className="flex items-center justify-between mb-2">
                     <span className="font-bold text-sm">{slot.slotNumber}</span>
                     <Icon className="w-4 h-4" />
@@ -187,7 +235,7 @@ export default function ParkingPage() {
         )
       }
 
-      {/* Unassign modal */}
+      {/* Unassign modal — occupied slot */}
       {assignModal && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
           <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-sm space-y-4">
@@ -208,14 +256,194 @@ export default function ParkingPage() {
           </div>
         </div>
       )}
+
+      {/* Assign modal — available slot */}
+      {allocateSlot && (
+        <AssignSlotModal
+          slot={allocateSlot}
+          onClose={() => setAllocateSlot(null)}
+          onAssigned={() => { qc.invalidateQueries({ queryKey: ['parking-slots'] }); setAllocateSlot(null) }}
+        />
+      )}
+
+      {/* Visitor pass modal */}
+      {visitorSlot && (
+        <VisitorPassModal
+          slot={visitorSlot}
+          onClose={() => setVisitorSlot(null)}
+          onCreated={() => { qc.invalidateQueries({ queryKey: ['parking-slots'] }); setVisitorSlot(null) }}
+        />
+      )}
+
+      {/* Add Slot modal */}
+      {showAddSlot && (
+        <AddSlotModal
+          levelId={activeLevel ?? ''}
+          onClose={() => setShowAddSlot(false)}
+          onCreated={() => {
+            qc.invalidateQueries({ queryKey: ['parking-levels'] })
+            qc.invalidateQueries({ queryKey: ['parking-slots'] })
+            setShowAddSlot(false)
+          }}
+        />
+      )}
     </div>
   )
 }
 
-// ── Demo data ─────────────────────────────────────────────────────────────────
+// ── Assign Slot Modal (POST /parking/slots/{id}/assign) ───────────────────────
+function AssignSlotModal({
+  slot, onClose, onAssigned,
+}: { slot: ParkingSlot; onClose: () => void; onAssigned: () => void }) {
+  const [flatId,        setFlatId]        = useState('')
+  const [vehicleNumber, setVehicleNumber] = useState('')
+
+  const mutation = useMutation({
+    mutationFn: () => api.post(`/parking/slots/${slot.id}/assign`, {
+      flatId,
+      vehicleNumber: vehicleNumber.trim() || undefined,
+    }),
+    onSuccess: () => { toast.success(`Slot ${slot.slotNumber} assigned`); onAssigned() },
+    onError:   (e: Error) => toast.error(e.message),
+  })
+
+  const inputClass = 'w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500'
+
+  return (
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+      <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-sm space-y-4">
+        <h2 className="font-semibold text-lg">Assign Slot {slot.slotNumber}</h2>
+        <div>
+          <label className="block text-sm font-medium mb-1">Flat ID <span className="text-red-500">*</span></label>
+          <input value={flatId} onChange={e => setFlatId(e.target.value)}
+            placeholder="flat-a101" className={inputClass} />
+        </div>
+        <div>
+          <label className="block text-sm font-medium mb-1">Vehicle Number <span className="text-gray-400 font-normal text-xs">(optional)</span></label>
+          <input value={vehicleNumber} onChange={e => setVehicleNumber(e.target.value)}
+            placeholder="MH12AB1234" className={inputClass} />
+        </div>
+        <div className="flex gap-3">
+          <button onClick={onClose} className="flex-1 border border-gray-200 py-2 rounded-lg text-sm hover:bg-gray-50">Cancel</button>
+          <button
+            onClick={() => mutation.mutate()}
+            disabled={mutation.isPending || !flatId.trim()}
+            className="flex-1 bg-brand-600 hover:bg-brand-700 text-white py-2 rounded-lg text-sm font-medium disabled:opacity-60"
+          >
+            {mutation.isPending ? 'Assigning…' : 'Assign'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── Visitor Pass Modal (POST /parking/slots/{id}/visitor-pass) ────────────────
+function VisitorPassModal({
+  slot, onClose, onCreated,
+}: { slot: ParkingSlot; onClose: () => void; onCreated: () => void }) {
+  const tomorrow = new Date(Date.now() + 86400_000).toISOString().slice(0, 16)
+  const [visitorName,   setVisitorName]   = useState('')
+  const [vehicleNumber, setVehicleNumber] = useState('')
+  const [expiresAt,     setExpiresAt]     = useState(tomorrow)
+
+  const mutation = useMutation({
+    mutationFn: () => api.post(`/parking/slots/${slot.id}/visitor-pass`, {
+      visitorName:   visitorName.trim(),
+      vehicleNumber: vehicleNumber.trim() || undefined,
+      expiresAt:     new Date(expiresAt).toISOString(),
+    }),
+    onSuccess: () => { toast.success(`Visitor pass created for slot ${slot.slotNumber}`); onCreated() },
+    onError:   (e: Error) => toast.error(e.message),
+  })
+
+  const inputClass = 'w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500'
+
+  return (
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+      <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-sm space-y-4">
+        <h2 className="font-semibold text-lg">Visitor Pass — Slot {slot.slotNumber}</h2>
+        <div>
+          <label className="block text-sm font-medium mb-1">Visitor Name <span className="text-red-500">*</span></label>
+          <input value={visitorName} onChange={e => setVisitorName(e.target.value)}
+            placeholder="Amit Kumar" className={inputClass} />
+        </div>
+        <div>
+          <label className="block text-sm font-medium mb-1">Vehicle Number <span className="text-gray-400 font-normal text-xs">(optional)</span></label>
+          <input value={vehicleNumber} onChange={e => setVehicleNumber(e.target.value)}
+            placeholder="MH12XY9999" className={inputClass} />
+        </div>
+        <div>
+          <label className="block text-sm font-medium mb-1">Valid Until</label>
+          <input type="datetime-local" value={expiresAt} onChange={e => setExpiresAt(e.target.value)} className={inputClass} />
+        </div>
+        <div className="flex gap-3">
+          <button onClick={onClose} className="flex-1 border border-gray-200 py-2 rounded-lg text-sm hover:bg-gray-50">Cancel</button>
+          <button
+            onClick={() => mutation.mutate()}
+            disabled={mutation.isPending || !visitorName.trim()}
+            className="flex-1 bg-amber-500 hover:bg-amber-600 text-white py-2 rounded-lg text-sm font-medium disabled:opacity-60"
+          >
+            {mutation.isPending ? 'Creating…' : 'Create Pass'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── Add Slot Modal (POST /parking/slots) ──────────────────────────────────────
+function AddSlotModal({
+  levelId, onClose, onCreated,
+}: { levelId: string; onClose: () => void; onCreated: () => void }) {
+  const [slotNumber, setSlotNumber] = useState('')
+  const [type,       setType]       = useState<'car' | 'bike' | 'ev'>('car')
+
+  const mutation = useMutation({
+    mutationFn: () => api.post('/parking/slots', { levelId, number: slotNumber.trim(), type }),
+    onSuccess:  () => { toast.success('Slot added'); onCreated() },
+    onError:    (e: Error) => toast.error(e.message),
+  })
+
+  const inputClass = 'w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500'
+
+  return (
+    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+      <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-sm space-y-4">
+        <h2 className="font-semibold text-lg">Add Parking Slot</h2>
+        <div>
+          <label className="block text-sm font-medium mb-1">Slot Number <span className="text-red-500">*</span></label>
+          <input value={slotNumber} onChange={e => setSlotNumber(e.target.value)}
+            placeholder="B1-17" className={inputClass} />
+        </div>
+        <div>
+          <label className="block text-sm font-medium mb-1">Type</label>
+          <select value={type} onChange={e => setType(e.target.value as 'car' | 'bike' | 'ev')} className={inputClass}>
+            <option value="car">Car</option>
+            <option value="bike">Bike / Two-wheeler</option>
+            <option value="ev">EV (with charger)</option>
+          </select>
+        </div>
+        <p className="text-xs text-gray-400">Slot will be added to the currently selected level.</p>
+        <div className="flex gap-3">
+          <button onClick={onClose} className="flex-1 border border-gray-200 py-2 rounded-lg text-sm hover:bg-gray-50">Cancel</button>
+          <button
+            onClick={() => mutation.mutate()}
+            disabled={mutation.isPending || !slotNumber.trim()}
+            className="flex-1 bg-brand-600 hover:bg-brand-700 text-white py-2 rounded-lg text-sm font-medium disabled:opacity-60"
+          >
+            {mutation.isPending ? 'Adding…' : 'Add Slot'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── Demo data — shape matches API ParkingLevelDto ─────────────────────────────
 const DEMO_LEVELS: ParkingLevel[] = [
-  { id: 'L1', name: 'B1 — Basement', levelNumber: -1, totalSlots: 16, availableSlots: 4 },
-  { id: 'L2', name: 'B2 — Basement', levelNumber: -2, totalSlots: 12, availableSlots: 6 },
+  { id: 'L1', name: 'B1 — Basement', totalSlots: 16, occupiedSlots: 12, availableSlots: 4 },
+  { id: 'L2', name: 'B2 — Basement', totalSlots: 12, occupiedSlots: 6,  availableSlots: 6 },
 ]
 
 const DEMO_SLOTS: ParkingSlot[] = [

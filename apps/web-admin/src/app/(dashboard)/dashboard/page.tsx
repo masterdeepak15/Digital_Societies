@@ -10,7 +10,7 @@ import {
   ResponsiveContainer, LineChart, Line, Legend,
 } from 'recharts'
 import { api } from '@/lib/api'
-import { formatCurrency, formatDate } from '@/lib/utils'
+import { formatDate, formatCurrency } from '@/lib/utils'
 import { StatCard } from '@/components/ui/Card'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { Badge } from '@/components/ui/Badge'
@@ -20,7 +20,7 @@ interface DashboardStats {
   totalResidents:    number
   activeFlats:       number
   pendingBills:      number
-  pendingBillsAmt:   number   // paise
+  pendingBillsAmt:   number   // rupees (from API)
   openComplaints:    number
   todayVisitors:     number
   collectionRate:    number   // 0-100 %
@@ -38,6 +38,22 @@ interface Activity {
   status?:   string
 }
 
+// ── API response shapes ───────────────────────────────────────────────────────
+interface BillingKpi {
+  period:            string
+  total:             number   // count
+  paid:              number
+  pending:           number
+  overdue:           number
+  totalAmountRupees: number
+  collectedRupees:   number
+  pendingRupees:     number
+}
+interface PagedResponse<T> { items: T[]; total: number }
+interface ComplaintItem  { id: string; ticketNumber: string; title: string; status: string; createdAt: string; category?: string; priority?: string }
+interface VisitorItem    { id: string; name: string; purpose: string; status: string; entryTime?: string }
+interface NoticeItem     { id: string; title: string; type: string; createdAt: string; isPinned: boolean }
+
 const ICON_MAP = {
   bill:      Receipt,
   complaint: AlertCircle,
@@ -45,18 +61,101 @@ const ICON_MAP = {
   notice:    Bell,
 }
 
+// Compose DashboardStats from 5 parallel API calls.
+// Uses Promise.allSettled so a single failing endpoint doesn't break the whole dashboard.
+async function fetchDashboard(): Promise<DashboardStats> {
+  const [
+    billingRes,
+    openComplaintsRes,
+    residentsRes,
+    enteredVisitorsRes,
+    recentComplaintsRes,
+    recentVisitorsRes,
+    recentNoticesRes,
+  ] = await Promise.allSettled([
+    api.get<BillingKpi>('/billing/dashboard'),
+    api.get<PagedResponse<ComplaintItem>>('/complaints?status=Open&page=1&pageSize=1'),
+    api.get<PagedResponse<unknown>>('/members?role=resident&page=1&pageSize=1'),
+    api.get<PagedResponse<VisitorItem>>('/visitors?status=Entered&page=1&pageSize=50'),
+    api.get<PagedResponse<ComplaintItem>>('/complaints?page=1&pageSize=4'),
+    api.get<PagedResponse<VisitorItem>>('/visitors?page=1&pageSize=4'),
+    api.get<PagedResponse<NoticeItem>>('/notices?page=1&pageSize=4'),
+  ])
+
+  const billing        = billingRes.status       === 'fulfilled' ? billingRes.value       : null
+  const openComplaints = openComplaintsRes.status === 'fulfilled' ? openComplaintsRes.value : null
+  const residents      = residentsRes.status      === 'fulfilled' ? residentsRes.value      : null
+  const enteredVisitors= enteredVisitorsRes.status=== 'fulfilled' ? enteredVisitorsRes.value: null
+  const recentComplaints= recentComplaintsRes.status==='fulfilled' ? recentComplaintsRes.value: null
+  const recentVisitors = recentVisitorsRes.status === 'fulfilled' ? recentVisitorsRes.value : null
+  const recentNotices  = recentNoticesRes.status  === 'fulfilled' ? recentNoticesRes.value  : null
+
+  // ── Stat card values ──
+  const pendingBills    = billing?.pending ?? DEMO_STATS.pendingBills
+  const pendingBillsAmt = billing?.pendingRupees ?? DEMO_STATS.pendingBillsAmt
+  const collectionRate  = billing && billing.total > 0
+    ? Math.round((billing.paid / billing.total) * 100)
+    : DEMO_STATS.collectionRate
+  const totalResidents  = residents?.total ?? DEMO_STATS.totalResidents
+  // activeFlats: no dedicated endpoint — use billing.total (flats that got a bill) as proxy
+  const activeFlats     = billing?.total ?? DEMO_STATS.activeFlats
+  const openComplaintCount = openComplaints?.total ?? DEMO_STATS.openComplaints
+  // todayVisitors: filter Entered visitors by today's date
+  const today           = new Date().toDateString()
+  const todayVisitorCount = enteredVisitors
+    ? enteredVisitors.items.filter(v => v.entryTime && new Date(v.entryTime).toDateString() === today).length
+    : DEMO_STATS.todayVisitors
+
+  // ── Recent activity (merge complaints + visitors + notices, sort by timestamp) ──
+  const activities: Activity[] = []
+  recentComplaints?.items.forEach(c => activities.push({
+    id: c.id, type: 'complaint',
+    title:    c.title,
+    subtitle: `${c.ticketNumber} · ${c.category ?? ''} · ${c.priority ?? ''}`.replace(/ · $/, ''),
+    timestamp: c.createdAt,
+    status:   c.status,
+  }))
+  recentVisitors?.items.forEach(v => activities.push({
+    id: v.id, type: 'visitor',
+    title:     `${v.purpose} — ${v.name}`,
+    subtitle:  v.status,
+    timestamp: v.entryTime ?? '',
+    status:    v.status,
+  }))
+  recentNotices?.items.forEach(n => activities.push({
+    id: n.id, type: 'notice',
+    title:     n.title,
+    subtitle:  `${n.type}${n.isPinned ? ' · pinned' : ''}`,
+    timestamp: n.createdAt,
+  }))
+  activities.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+  const recentActivity = activities.slice(0, 5).length > 0 ? activities.slice(0, 5) : DEMO_STATS.recentActivity
+
+  return {
+    totalResidents,
+    activeFlats,
+    pendingBills,
+    pendingBillsAmt,
+    openComplaints:  openComplaintCount,
+    todayVisitors:   todayVisitorCount,
+    collectionRate,
+    // Monthly billing/complaint series: no historical endpoint exists yet — use DEMO.
+    monthlySeries:   DEMO_STATS.monthlySeries,
+    complaintSeries: DEMO_STATS.complaintSeries,
+    recentActivity,
+  }
+}
+
 export default function DashboardPage() {
-  const { data, isLoading } = useQuery<DashboardStats>({
+  const { data: stats, isLoading } = useQuery<DashboardStats>({
     queryKey: ['dashboard'],
-    queryFn:  () => api.get('/billing/dashboard'),
+    queryFn:  fetchDashboard,
     staleTime: 60_000,
   })
 
   if (isLoading) return <DashboardSkeleton />
 
-  // Fallback to demo data if the API response doesn't match the expected shape
-  // (e.g. /billing/dashboard returns billing-only stats, not a full DashboardStats)
-  const stats: DashboardStats = (data && 'totalResidents' in data) ? data : DEMO_STATS
+  const s = stats ?? DEMO_STATS
 
   return (
     <div className="space-y-6">
@@ -69,28 +168,28 @@ export default function DashboardPage() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
           label="Total Residents"
-          value={stats.totalResidents.toString()}
+          value={s.totalResidents.toString()}
           icon={<Users className="w-5 h-5 text-blue-600" />}
           delta="+3 this month"
         />
         <StatCard
           label="Active Flats"
-          value={stats.activeFlats.toString()}
+          value={s.activeFlats.toString()}
           icon={<Home className="w-5 h-5 text-indigo-600" />}
         />
         <StatCard
           label="Pending Bills"
-          value={`${stats.pendingBills} bills`}
+          value={`${s.pendingBills} bills`}
           icon={<Receipt className="w-5 h-5 text-amber-600" />}
-          delta={formatCurrency(stats.pendingBillsAmt) + ' overdue'}
+          delta={formatCurrency(s.pendingBillsAmt) + ' overdue'}
           deltaClass="text-amber-600"
         />
         <StatCard
           label="Open Complaints"
-          value={stats.openComplaints.toString()}
+          value={s.openComplaints.toString()}
           icon={<AlertCircle className="w-5 h-5 text-red-500" />}
-          delta={stats.openComplaints > 5 ? 'Needs attention' : 'Under control'}
-          deltaClass={stats.openComplaints > 5 ? 'text-red-500' : 'text-green-600'}
+          delta={s.openComplaints > 5 ? 'Needs attention' : 'Under control'}
+          deltaClass={s.openComplaints > 5 ? 'text-red-500' : 'text-green-600'}
         />
       </div>
 
@@ -98,19 +197,19 @@ export default function DashboardPage() {
       <div className="grid grid-cols-3 gap-4">
         <StatCard
           label="Today's Visitors"
-          value={stats.todayVisitors.toString()}
+          value={s.todayVisitors.toString()}
           icon={<UserCheck className="w-5 h-5 text-green-600" />}
         />
         <StatCard
           label="Collection Rate"
-          value={`${stats.collectionRate}%`}
+          value={`${s.collectionRate}%`}
           icon={<TrendingUp className="w-5 h-5 text-brand-600" />}
-          delta={stats.collectionRate >= 80 ? 'On track' : 'Below target'}
-          deltaClass={stats.collectionRate >= 80 ? 'text-green-600' : 'text-red-500'}
+          delta={s.collectionRate >= 80 ? 'On track' : 'Below target'}
+          deltaClass={s.collectionRate >= 80 ? 'text-green-600' : 'text-red-500'}
         />
         <StatCard
           label="Maintenance Requests"
-          value={stats.openComplaints.toString()}
+          value={s.openComplaints.toString()}
           icon={<Wrench className="w-5 h-5 text-purple-600" />}
         />
       </div>
@@ -121,7 +220,7 @@ export default function DashboardPage() {
         <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
           <h3 className="font-semibold text-gray-800 mb-4">Monthly Collection vs Billing</h3>
           <ResponsiveContainer width="100%" height={220}>
-            <BarChart data={stats.monthlySeries} barSize={18} barGap={4}>
+            <BarChart data={s.monthlySeries} barSize={18} barGap={4}>
               <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
               <XAxis dataKey="month" tick={{ fontSize: 11 }} />
               <YAxis tickFormatter={v => `₹${(v / 100000).toFixed(0)}L`} tick={{ fontSize: 11 }} />
@@ -140,7 +239,7 @@ export default function DashboardPage() {
         <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
           <h3 className="font-semibold text-gray-800 mb-4">Complaint Trend</h3>
           <ResponsiveContainer width="100%" height={220}>
-            <LineChart data={stats.complaintSeries}>
+            <LineChart data={s.complaintSeries}>
               <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
               <XAxis dataKey="month" tick={{ fontSize: 11 }} />
               <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
@@ -159,7 +258,7 @@ export default function DashboardPage() {
           <h3 className="font-semibold text-gray-800">Recent Activity</h3>
         </div>
         <ul className="divide-y divide-gray-50">
-          {stats.recentActivity.map(item => {
+          {s.recentActivity.map(item => {
             const Icon = ICON_MAP[item.type]
             return (
               <li key={item.id} className="flex items-center gap-4 px-5 py-3 hover:bg-gray-50">

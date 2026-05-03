@@ -6,42 +6,50 @@ import { Bell, Plus, Trash2, Pin } from 'lucide-react'
 import { toast } from 'sonner'
 import { useForm } from 'react-hook-form'
 import { api } from '@/lib/api'
+import { getUser } from '@/lib/auth'
 import { formatDateTime } from '@/lib/utils'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { Badge } from '@/components/ui/Badge'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { cn } from '@/lib/utils'
 
-// ── Types ─────────────────────────────────────────────────────────────────────
+// ── Types — aligned with API: { id, title, body, type, isPinned, createdAt, expiresAt? } ─
+type NoticeType = 'Notice' | 'Emergency' | 'Event' | 'Circular'
+
 interface Notice {
   id:          string
   title:       string
   body:        string
-  category:    string
+  type:        NoticeType
   isPinned:    boolean
-  isPublished: boolean
-  publishedAt: string
-  authorName:  string
+  createdAt:   string
+  expiresAt?:  string | null
+  authorName?: string  // optional UI-only, populated when backend joins author
 }
 
+interface NoticesPage { items: Notice[]; total: number; page: number; pageSize: number }
+
+// Form drives the POST body. Pinning is a separate PUT after the notice is created.
 interface NoticeForm {
-  title:    string
-  body:     string
-  category: string
-  isPinned: boolean
+  title:     string
+  body:      string
+  type:      NoticeType
+  pinAfter:  boolean
+  expiresAt: string  // ISO datetime-local; optional → '' means no expiry
 }
 
-const CATEGORIES = ['general', 'maintenance', 'event', 'emergency', 'billing', 'security']
+const TYPES: NoticeType[] = ['Notice', 'Emergency', 'Event', 'Circular']
 
 export default function NoticesPage() {
   const qc = useQueryClient()
   const [showCreate, setShowCreate] = useState(false)
   const [expandedId, setExpandedId] = useState<string | null>(null)
 
-  const { data: notices = DEMO_NOTICES } = useQuery<Notice[]>({
+  const { data } = useQuery<NoticesPage>({
     queryKey: ['notices'],
     queryFn:  () => api.get('/notices'),
   })
+  const notices: Notice[] = data?.items ?? DEMO_NOTICES
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => api.delete(`/notices/${id}`),
@@ -49,16 +57,17 @@ export default function NoticesPage() {
     onError:   (e: Error) => toast.error(e.message),
   })
 
+  // API: PUT /notices/{id}/pin (NOT patch).
   const pinMutation = useMutation({
     mutationFn: ({ id, pinned }: { id: string; pinned: boolean }) =>
-      api.patch(`/notices/${id}/pin`, { isPinned: pinned }),
+      api.put(`/notices/${id}/pin`, { isPinned: pinned }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['notices'] }),
     onError:   (e: Error) => toast.error(e.message),
   })
 
   const sorted = [...notices].sort((a, b) =>
     (b.isPinned ? 1 : 0) - (a.isPinned ? 1 : 0) ||
-    new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime()
+    new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
   )
 
   return (
@@ -94,15 +103,15 @@ export default function NoticesPage() {
               >
                 <div className={cn(
                   'shrink-0 w-10 h-10 rounded-xl flex items-center justify-center',
-                  n.category === 'emergency' ? 'bg-red-100' :
-                  n.category === 'billing'   ? 'bg-blue-100' :
-                  n.category === 'event'     ? 'bg-purple-100' : 'bg-gray-100'
+                  n.type === 'Emergency' ? 'bg-red-100' :
+                  n.type === 'Circular'  ? 'bg-blue-100' :
+                  n.type === 'Event'     ? 'bg-purple-100' : 'bg-gray-100'
                 )}>
                   <Bell className={cn(
                     'w-5 h-5',
-                    n.category === 'emergency' ? 'text-red-600' :
-                    n.category === 'billing'   ? 'text-blue-600' :
-                    n.category === 'event'     ? 'text-purple-600' : 'text-gray-500'
+                    n.type === 'Emergency' ? 'text-red-600' :
+                    n.type === 'Circular'  ? 'text-blue-600' :
+                    n.type === 'Event'     ? 'text-purple-600' : 'text-gray-500'
                   )} />
                 </div>
 
@@ -110,13 +119,13 @@ export default function NoticesPage() {
                   <div className="flex items-center gap-2 mb-0.5">
                     {n.isPinned && <Pin className="w-3.5 h-3.5 text-amber-500" />}
                     <h3 className="font-semibold text-gray-800 truncate">{n.title}</h3>
-                    <Badge label={n.category} />
+                    <Badge label={n.type} />
                   </div>
                   <p className={cn('text-sm text-gray-500', expandedId !== n.id && 'truncate max-w-xl')}>
                     {n.body}
                   </p>
                   <p className="text-xs text-gray-400 mt-1">
-                    {n.authorName} · {formatDateTime(n.publishedAt)}
+                    {n.authorName ? `${n.authorName} · ` : ''}{formatDateTime(n.createdAt)}
                   </p>
                 </div>
 
@@ -159,11 +168,28 @@ export default function NoticesPage() {
 // ── Create Notice Modal ───────────────────────────────────────────────────────
 function CreateNoticeModal({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
   const { register, handleSubmit, formState: { errors } } = useForm<NoticeForm>({
-    defaultValues: { category: 'general', isPinned: false },
+    defaultValues: { type: 'Notice', pinAfter: false, expiresAt: '' },
   })
 
+  // Backend contract: POST /notices { societyId, title, body, type, expiresAt? }
+  // Pinning is a separate PUT after the notice id is known.
   const mutation = useMutation({
-    mutationFn: (data: NoticeForm) => api.post('/notices', data),
+    mutationFn: async (form: NoticeForm) => {
+      const societyId = getUser()?.societyId
+      if (!societyId) throw new Error('Not signed in to a society')
+      const payload = {
+        societyId,
+        title:     form.title,
+        body:      form.body,
+        type:      form.type,
+        expiresAt: form.expiresAt ? new Date(form.expiresAt).toISOString() : null,
+      }
+      const created = await api.post<{ noticeId: string }>('/notices', payload)
+      if (form.pinAfter && created.noticeId) {
+        await api.put(`/notices/${created.noticeId}/pin`, { isPinned: true })
+      }
+      return created
+    },
     onSuccess: () => { toast.success('Notice published!'); onCreated() },
     onError: (e: Error) => toast.error(e.message),
   })
@@ -200,18 +226,24 @@ function CreateNoticeModal({ onClose, onCreated }: { onClose: () => void; onCrea
 
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="block text-sm font-medium mb-1">Category</label>
+            <label className="block text-sm font-medium mb-1">Type</label>
             <select
-              {...register('category')}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 capitalize"
+              {...register('type')}
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
             >
-              {CATEGORIES.map(c => <option key={c} value={c} className="capitalize">{c}</option>)}
+              {TYPES.map(t => <option key={t} value={t}>{t}</option>)}
             </select>
           </div>
           <div className="flex items-center gap-2 mt-6">
-            <input type="checkbox" id="pinned" {...register('isPinned')} className="w-4 h-4 accent-brand-600" />
+            <input type="checkbox" id="pinned" {...register('pinAfter')} className="w-4 h-4 accent-brand-600" />
             <label htmlFor="pinned" className="text-sm font-medium">Pin to top</label>
           </div>
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium mb-1">Expires at <span className="text-gray-400 font-normal text-xs">(optional)</span></label>
+          <input type="datetime-local" {...register('expiresAt')}
+            className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" />
         </div>
 
         <div className="flex gap-3 pt-1">
@@ -233,8 +265,8 @@ function CreateNoticeModal({ onClose, onCreated }: { onClose: () => void; onCrea
 
 // ── Demo data ─────────────────────────────────────────────────────────────────
 const DEMO_NOTICES: Notice[] = [
-  { id: '1', title: 'AGM scheduled — 5 May 2026',        body: 'The Annual General Meeting is scheduled for Tuesday 5 May 2026 at 7:00 PM in the Club House. Attendance is mandatory for all flat owners.',                              category: 'event',       isPinned: true,  isPublished: true, publishedAt: '2026-04-25T11:00:00Z', authorName: 'Rajesh Sharma'  },
-  { id: '2', title: 'Water supply interruption — 28 Apr', body: 'Due to pipeline maintenance, water supply will be interrupted from 10 AM to 2 PM on April 28. Please store water accordingly.',                                           category: 'maintenance', isPinned: false, isPublished: true, publishedAt: '2026-04-24T09:00:00Z', authorName: 'Rajesh Sharma'  },
-  { id: '3', title: 'April maintenance bills generated',  body: 'Maintenance bills for April 2026 have been generated. Please pay by 10 April to avoid late payment charges of ₹500 per month.',                                              category: 'billing',     isPinned: false, isPublished: true, publishedAt: '2026-04-01T09:00:00Z', authorName: 'Pooja Verma'    },
-  { id: '4', title: 'New security protocol at Gate 1',    body: 'Starting 1 May, all visitors must show a photo ID at Gate 1. Pre-approved visitors via the Digital Societies app can use their OTP for faster entry.',                        category: 'security',    isPinned: false, isPublished: true, publishedAt: '2026-04-20T10:00:00Z', authorName: 'Sanjay Gupta'   },
+  { id: '1', title: 'AGM scheduled — 5 May 2026',         body: 'The Annual General Meeting is scheduled for Tuesday 5 May 2026 at 7:00 PM in the Club House. Attendance is mandatory for all flat owners.',          type: 'Event',     isPinned: true,  createdAt: '2026-04-25T11:00:00Z', authorName: 'Rajesh Sharma' },
+  { id: '2', title: 'Water supply interruption — 28 Apr', body: 'Due to pipeline maintenance, water supply will be interrupted from 10 AM to 2 PM on April 28. Please store water accordingly.',                       type: 'Notice',    isPinned: false, createdAt: '2026-04-24T09:00:00Z', authorName: 'Rajesh Sharma' },
+  { id: '3', title: 'April maintenance bills generated',  body: 'Maintenance bills for April 2026 have been generated. Please pay by 10 April to avoid late payment charges of ₹500 per month.',                       type: 'Circular',  isPinned: false, createdAt: '2026-04-01T09:00:00Z', authorName: 'Pooja Verma'   },
+  { id: '4', title: 'New security protocol at Gate 1',    body: 'Starting 1 May, all visitors must show a photo ID at Gate 1. Pre-approved visitors via the Digital Societies app can use their OTP for faster entry.', type: 'Notice',    isPinned: false, createdAt: '2026-04-20T10:00:00Z', authorName: 'Sanjay Gupta'  },
 ]

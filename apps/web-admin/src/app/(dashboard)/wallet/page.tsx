@@ -9,33 +9,48 @@ import { PageHeader } from '@/components/ui/PageHeader'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 
-// ── Types ─────────────────────────────────────────────────────────────────────
-interface SocietyWallet {
-  balance:          number
-  totalCredits:     number
-  totalDebits:      number
-  lastUpdatedAt:    string
+// ── Types — aligned with API WalletDto ────────────────────────────────────────
+// NOTE: The backend /wallet/* endpoints are a per-user pre-paid wallet used for
+// marketplace bookings. This admin view shows the current admin's wallet balance
+// and transaction history.  Society-level corpus fund accounting lives in
+// /accounting/entries (see Accounting page).
+//
+// GET /wallet/balance → { balance, currency, lastUpdated }
+interface WalletBalance {
+  balance:     number
+  currency:    string
+  lastUpdated: string
 }
 
+// GET /wallet/transactions → { items: WalletTransactionDto[], total, page, pageSize }
+// WalletTransactionDto: { id, type: "Credit"|"Debit", amount, description, refTransactionId, timestamp }
 interface WalletTransaction {
-  id:          string
-  type:        'credit' | 'debit'
-  amount:      number
-  description: string
-  category:    'maintenance' | 'expense' | 'penalty' | 'refund' | 'transfer'
-  reference:   string
-  createdAt:   string
-  createdBy:   string
+  id:                string
+  type:              'Credit' | 'Debit'
+  amount:            number
+  description:       string
+  refTransactionId?: string
+  timestamp:         string
 }
 
-type CategoryFilter = 'all' | 'maintenance' | 'expense' | 'penalty' | 'refund'
+interface WalletTxPage { items: WalletTransaction[]; total: number; page: number; pageSize: number }
+
+// UI-only category mapping derived from description keywords (API doesn't categorise)
+type CategoryFilter = 'all' | 'topup' | 'booking' | 'refund'
 
 const CATEGORY_COLOR: Record<string, string> = {
-  maintenance: 'bg-blue-100 text-blue-700',
-  expense:     'bg-orange-100 text-orange-700',
-  penalty:     'bg-red-100 text-red-700',
-  refund:      'bg-purple-100 text-purple-700',
-  transfer:    'bg-gray-100 text-gray-700',
+  topup:   'bg-blue-100 text-blue-700',
+  booking: 'bg-orange-100 text-orange-700',
+  refund:  'bg-purple-100 text-purple-700',
+  other:   'bg-gray-100 text-gray-700',
+}
+
+function guessCategory(t: WalletTransaction): string {
+  const d = t.description.toLowerCase()
+  if (d.includes('top-up') || d.includes('topup') || d.includes('razorpay')) return 'topup'
+  if (d.includes('booking') || d.includes('plumber') || d.includes('service')) return 'booking'
+  if (d.includes('refund') || d.includes('cancel')) return 'refund'
+  return 'other'
 }
 
 const MONTH_DATA = [
@@ -51,41 +66,51 @@ export default function WalletPage() {
   const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>('all')
   const [search, setSearch] = useState('')
 
-  const { data: wallet = DEMO_WALLET } = useQuery<SocietyWallet>({
-    queryKey: ['society-wallet'],
-    queryFn:  () => api.get('/wallet/balance'),
+  // API: GET /wallet/balance → { balance, currency, lastUpdated }
+  const { data: walletRaw } = useQuery<WalletBalance>({
+    queryKey: ['wallet-balance'],
+    queryFn:  () => api.get<WalletBalance>('/wallet/balance'),
   })
+  const wallet = walletRaw ?? DEMO_WALLET
 
-  const { data: transactions = DEMO_TRANSACTIONS } = useQuery<WalletTransaction[]>({
-    queryKey: ['wallet-transactions', categoryFilter],
-    queryFn:  () => api.get(`/wallet/transactions?page=1&pageSize=50`),
+  // API: GET /wallet/transactions → { items: WalletTransactionDto[], total }
+  const { data: txPage } = useQuery<WalletTxPage>({
+    queryKey: ['wallet-transactions'],
+    queryFn:  () => api.get<WalletTxPage>('/wallet/transactions?page=1&pageSize=50'),
   })
+  const transactions: WalletTransaction[] = txPage?.items ?? DEMO_TRANSACTIONS
 
   const filtered = transactions.filter(t => {
-    const matchesCategory = categoryFilter === 'all' || t.category === categoryFilter
+    const category = guessCategory(t)
+    const matchesCategory = categoryFilter === 'all' || category === categoryFilter
     const matchesSearch   = search === '' ||
       t.description.toLowerCase().includes(search.toLowerCase()) ||
-      t.reference.toLowerCase().includes(search.toLowerCase())
+      (t.refTransactionId ?? '').toLowerCase().includes(search.toLowerCase())
     return matchesCategory && matchesSearch
   })
 
   return (
     <div className="space-y-5">
       <PageHeader
-        title="Society Wallet"
-        description="Corpus fund balance, credits, and expense tracking"
+        title="My Wallet"
+        description="Pre-paid wallet for marketplace bookings"
       />
+
+      {/* Info banner — clarify this is per-user, not society corpus */}
+      <div className="bg-blue-50 border border-blue-200 rounded-xl px-4 py-3 text-sm text-blue-800">
+        <b>Note:</b> This is your personal pre-paid wallet topped up via Razorpay and used for marketplace service bookings. Society-level corpus fund accounting is on the <a href="/accounting" className="underline">Accounting</a> page.
+      </div>
 
       {/* Balance card */}
       <div className="bg-gradient-to-br from-brand-600 to-brand-700 rounded-2xl p-6 text-white shadow-lg">
         <div className="flex items-start justify-between">
           <div>
-            <p className="text-brand-200 text-sm font-medium">Society Corpus Balance</p>
+            <p className="text-brand-200 text-sm font-medium">Wallet Balance</p>
             <p className="text-4xl font-bold mt-1">
               ₹{wallet.balance.toLocaleString('en-IN')}
             </p>
             <p className="text-brand-200 text-xs mt-2">
-              Last updated {formatDate(wallet.lastUpdatedAt)}
+              Last updated {formatDate(wallet.lastUpdated ?? wallet.lastUpdatedAt)}
             </p>
           </div>
           <div className="bg-white/20 rounded-xl p-3">
@@ -94,15 +119,15 @@ export default function WalletPage() {
         </div>
         <div className="grid grid-cols-2 gap-4 mt-6 pt-4 border-t border-white/20">
           <div>
-            <p className="text-brand-200 text-xs">Total Credits (YTD)</p>
+            <p className="text-brand-200 text-xs">Total Credits</p>
             <p className="text-xl font-bold text-green-300 mt-0.5">
-              ₹{wallet.totalCredits.toLocaleString('en-IN')}
+              ₹{transactions.filter(t => t.type === 'Credit').reduce((s, t) => s + t.amount, 0).toLocaleString('en-IN')}
             </p>
           </div>
           <div>
-            <p className="text-brand-200 text-xs">Total Debits (YTD)</p>
+            <p className="text-brand-200 text-xs">Total Debits</p>
             <p className="text-xl font-bold text-red-300 mt-0.5">
-              ₹{wallet.totalDebits.toLocaleString('en-IN')}
+              ₹{transactions.filter(t => t.type === 'Debit').reduce((s, t) => s + t.amount, 0).toLocaleString('en-IN')}
             </p>
           </div>
         </div>
@@ -140,7 +165,7 @@ export default function WalletPage() {
             className="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500" />
         </div>
         <div className="flex gap-1 bg-gray-100 p-1 rounded-lg flex-wrap">
-          {(['all', 'maintenance', 'expense', 'penalty', 'refund'] as CategoryFilter[]).map(c => (
+          {(['all', 'topup', 'booking', 'refund'] as CategoryFilter[]).map(c => (
             <button key={c} onClick={() => setCategoryFilter(c)}
               className={cn('px-3 py-1.5 rounded-md text-xs font-medium capitalize transition',
                 categoryFilter === c ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700')}>
@@ -157,34 +182,40 @@ export default function WalletPage() {
           </div>
         : (
           <div className="bg-white border border-gray-100 rounded-xl shadow-sm divide-y divide-gray-50">
-            {filtered.map(t => (
-              <div key={t.id} className="flex items-center gap-4 p-4">
-                <div className={cn(
-                  'w-9 h-9 rounded-full flex items-center justify-center shrink-0',
-                  t.type === 'credit' ? 'bg-green-100' : 'bg-red-100'
-                )}>
-                  {t.type === 'credit'
-                    ? <ArrowDownLeft className="w-4 h-4 text-green-600" />
-                    : <ArrowUpRight  className="w-4 h-4 text-red-500"   />
-                  }
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="font-medium text-sm text-gray-800 truncate">{t.description}</p>
-                  <div className="flex items-center gap-2 mt-0.5">
-                    <span className={cn('text-xs px-2 py-0.5 rounded-full font-medium capitalize', CATEGORY_COLOR[t.category])}>
-                      {t.category}
-                    </span>
-                    <span className="text-xs text-gray-400">{t.reference}</span>
+            {filtered.map(t => {
+              const isCredit = t.type === 'Credit'
+              const cat = guessCategory(t)
+              return (
+                <div key={t.id} className="flex items-center gap-4 p-4">
+                  <div className={cn(
+                    'w-9 h-9 rounded-full flex items-center justify-center shrink-0',
+                    isCredit ? 'bg-green-100' : 'bg-red-100'
+                  )}>
+                    {isCredit
+                      ? <ArrowDownLeft className="w-4 h-4 text-green-600" />
+                      : <ArrowUpRight  className="w-4 h-4 text-red-500"   />
+                    }
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium text-sm text-gray-800 truncate">{t.description}</p>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      <span className={cn('text-xs px-2 py-0.5 rounded-full font-medium capitalize', CATEGORY_COLOR[cat] ?? CATEGORY_COLOR.other)}>
+                        {cat}
+                      </span>
+                      {t.refTransactionId && (
+                        <span className="text-xs text-gray-400">{t.refTransactionId}</span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <p className={`font-semibold text-sm ${isCredit ? 'text-green-600' : 'text-red-500'}`}>
+                      {isCredit ? '+' : '−'}₹{t.amount.toLocaleString('en-IN')}
+                    </p>
+                    <p className="text-xs text-gray-400 mt-0.5">{formatDate(t.timestamp ?? t.createdAt)}</p>
                   </div>
                 </div>
-                <div className="text-right shrink-0">
-                  <p className={`font-semibold text-sm ${t.type === 'credit' ? 'text-green-600' : 'text-red-500'}`}>
-                    {t.type === 'credit' ? '+' : '−'}₹{t.amount.toLocaleString('en-IN')}
-                  </p>
-                  <p className="text-xs text-gray-400 mt-0.5">{formatDate(t.createdAt)}</p>
-                </div>
-              </div>
-            ))}
+              )
+            })}
           </div>
         )
       }
@@ -192,21 +223,18 @@ export default function WalletPage() {
   )
 }
 
-// ── Demo data ─────────────────────────────────────────────────────────────────
-const DEMO_WALLET: SocietyWallet = {
-  balance:       748500,
-  totalCredits:  1160000,
-  totalDebits:   392000,
-  lastUpdatedAt: '2026-04-28',
+// ── Demo data — shape matches API WalletBalance + WalletTransactionDto ────────
+const DEMO_WALLET: WalletBalance & { lastUpdatedAt?: string } = {
+  balance:     2500,
+  currency:    'INR',
+  lastUpdated: '2026-04-28T10:00:00+05:30',
 }
 
 const DEMO_TRANSACTIONS: WalletTransaction[] = [
-  { id:'1', type:'credit', amount:202000, description:'April maintenance collection', category:'maintenance', reference:'APR-2026-BATCH', createdAt:'2026-04-25', createdBy:'System' },
-  { id:'2', type:'debit',  amount:18500,  description:'Lift AMC — Schindler India', category:'expense', reference:'INV-SCH-0412', createdAt:'2026-04-22', createdBy:'Admin' },
-  { id:'3', type:'debit',  amount:6200,   description:'Common area electricity bill', category:'expense', reference:'MSEB-APR-26', createdAt:'2026-04-20', createdBy:'Admin' },
-  { id:'4', type:'credit', amount:5000,   description:'Late payment penalty — A-201', category:'penalty', reference:'PEN-A201-APR', createdAt:'2026-04-18', createdBy:'System' },
-  { id:'5', type:'debit',  amount:12000,  description:'Swimming pool chemical refill', category:'expense', reference:'PO-POOL-0408', createdAt:'2026-04-08', createdBy:'Admin' },
-  { id:'6', type:'credit', amount:195000, description:'March maintenance collection', category:'maintenance', reference:'MAR-2026-BATCH', createdAt:'2026-03-28', createdBy:'System' },
-  { id:'7', type:'debit',  amount:3500,   description:'Refund — cancelled booking B-102', category:'refund', reference:'REF-B102-0320', createdAt:'2026-03-20', createdBy:'Admin' },
-  { id:'8', type:'debit',  amount:9800,   description:'Security staff salary', category:'expense', reference:'SAL-SEC-MAR26', createdAt:'2026-03-31', createdBy:'Admin' },
+  { id:'1', type:'Credit', amount:2000, description:'Top-up via Razorpay',                     timestamp:'2026-04-25T09:30:00+05:30' },
+  { id:'2', type:'Debit',  amount:250,  description:'Plumber booking — Quick Fix',              refTransactionId:'mb-001', timestamp:'2026-04-26T10:00:00+05:30' },
+  { id:'3', type:'Credit', amount:1000, description:'Top-up via Razorpay',                     timestamp:'2026-04-20T08:00:00+05:30' },
+  { id:'4', type:'Debit',  amount:150,  description:'Cleaning service booking',                 refTransactionId:'mb-002', timestamp:'2026-04-18T11:30:00+05:30' },
+  { id:'5', type:'Credit', amount:250,  description:'Refund — cancelled booking',               refTransactionId:'mb-003', timestamp:'2026-04-15T14:00:00+05:30' },
+  { id:'6', type:'Debit',  amount:350,  description:'Electrician booking — PowerFix Services',  refTransactionId:'mb-004', timestamp:'2026-04-10T09:00:00+05:30' },
 ]

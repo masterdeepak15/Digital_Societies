@@ -8,7 +8,8 @@ import {
   ShieldAlert, Megaphone, BarChart3, CalendarCheck, Car, Globe,
   ShoppingBag, Wallet, Settings, LogOut,
 } from 'lucide-react'
-import { clearSession } from '@/lib/auth'
+import { logout as authLogout } from '@/lib/auth'
+import { stopSignalR } from '@/lib/useSignalR'
 import { useRouter } from 'next/navigation'
 
 const nav = [
@@ -31,8 +32,9 @@ export function Sidebar() {
   const pathname = usePathname()
   const router   = useRouter()
 
-  function logout() {
-    clearSession()
+  async function logout() {
+    await stopSignalR()  // close WebSocket cleanly before clearing session
+    await authLogout()   // POST /auth/logout + clears cookie/localStorage
     router.push('/login')
   }
 
