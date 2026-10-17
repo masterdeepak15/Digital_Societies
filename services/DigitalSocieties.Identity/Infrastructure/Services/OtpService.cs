@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore;
 namespace DigitalSocieties.Identity.Infrastructure.Services;
 
 /// <summary>
-/// Creates and verifies time-limited, hashed OTPs.
+/// Creates and verifies time-limited, hashed OTPs keyed by email address.
 /// Security: OTP stored as BCrypt hash; plain-text never persisted.
 /// </summary>
 public sealed class OtpService : IOtpService
@@ -17,7 +17,7 @@ public sealed class OtpService : IOtpService
 
     public async Task<OtpCreateResult> CreateAsync(string email, string purpose, CancellationToken ct)
     {
-        // Invalidate any previous pending OTPs for same phone+purpose
+        // Invalidate any previous pending OTPs for same email+purpose
         var old = await _db.OtpRequests
             .Where(o => o.Email == email && o.Purpose == purpose && !o.IsUsed && o.ExpiresAt > DateTimeOffset.UtcNow)
             .ToListAsync(ct);
@@ -35,38 +35,35 @@ public sealed class OtpService : IOtpService
 
     public async Task<Result> VerifyAsync(string email, string candidateOtp, string purpose, CancellationToken ct)
     {
+        // Only unused requests are candidates: a consumed code can never be replayed,
+        // and replaying it must not burn attempts on a newer request.
         var request = await _db.OtpRequests
-            .Where(o => o.Email == email && o.Purpose == purpose)
+            .Where(o => o.Email == email && o.Purpose == purpose && !o.IsUsed)
             .OrderByDescending(o => o.CreatedAt)
             .FirstOrDefaultAsync(ct);
 
         if (request is null)
-            return Result.Fail("OTP.NOT_FOUND", "No OTP found. Please request a new one.");
+            return Result.Fail("OTP.NOT_FOUND", "No active code found. Please request a new one.");
 
         if (request.IsExpired)
-            return Result.Fail("OTP.EXPIRED", "OTP has expired. Please request a new one.");
+            return Result.Fail("OTP.EXPIRED", "Code has expired. Please request a new one.");
 
         if (request.IsMaxedOut)
-            return Result.Fail("OTP.MAXED_OUT", "Too many failed attempts. Please request a new OTP.");
+            return Result.Fail("OTP.MAXED_OUT", "Too many failed attempts. Please request a new code.");
 
-        if (!request.Verify(candidateOtp))
+        bool match = request.Verify(candidateOtp);
+        await _db.SaveChangesAsync(ct);
+
+        if (!match)
         {
-            await _db.SaveChangesAsync(ct);
-            int remaining = 3 - request.Attempts;
-            return Result.Fail("OTP.INVALID", $"Incorrect OTP. {remaining} attempt(s) remaining.");
+            int remaining = OtpRequest.MaxAttempts - request.Attempts;
+            return Result.Fail("OTP.INVALID", $"Incorrect code. {remaining} attempt(s) remaining.");
         }
 
-        await _db.SaveChangesAsync(ct);
         return Result.Ok();
     }
 
-    private static string GenerateOtp()
-    {
-        // Cryptographically random 6-digit OTP
-        using var rng = System.Security.Cryptography.RandomNumberGenerator.Create();
-        var bytes = new byte[4];
-        rng.GetBytes(bytes);
-        int num = Math.Abs(BitConverter.ToInt32(bytes, 0)) % 1_000_000;
-        return num.ToString("D6");
-    }
+    /// <summary>Cryptographically random, unbiased 6-digit code.</summary>
+    public static string GenerateOtp()
+        => System.Security.Cryptography.RandomNumberGenerator.GetInt32(0, 1_000_000).ToString("D6");
 }
