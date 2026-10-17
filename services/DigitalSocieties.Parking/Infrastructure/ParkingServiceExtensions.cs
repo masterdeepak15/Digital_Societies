@@ -1,4 +1,4 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using DigitalSocieties.Parking.Infrastructure.Persistence;
@@ -22,6 +22,10 @@ public static class ParkingServiceExtensions
                 }));
 
         // MediatR handlers are picked up automatically via assembly scanning in Program.cs
+                // Without this the module's command/query handlers are never found and every endpoint fails with 422.
+        services.AddMediatR(cfg =>
+            cfg.RegisterServicesFromAssembly(typeof(ParkingServiceExtensions).Assembly));
+
         return services;
     }
 }

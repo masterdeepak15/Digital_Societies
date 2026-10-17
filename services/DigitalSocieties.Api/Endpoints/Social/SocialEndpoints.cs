@@ -1,4 +1,4 @@
-using MediatR;
+﻿using MediatR;
 using Microsoft.AspNetCore.Mvc;
 using DigitalSocieties.Shared.Contracts;
 using DigitalSocieties.Social.Application.Commands;
@@ -20,11 +20,11 @@ public static class SocialEndpoints
         group.MapGet("/posts", async (
             [FromQuery] Guid? groupId,
             [FromQuery] string? category,
-            [FromQuery] int page,
-            [FromQuery] int pageSize,
             IMediator mediator,
             ICurrentUser currentUser,
-            CancellationToken ct) =>
+            CancellationToken ct,
+            [FromQuery] int page = 1,
+            [FromQuery] int pageSize = 20) =>
         {
             var query = new GetFeedQuery(
                 currentUser.SocietyId!.Value,

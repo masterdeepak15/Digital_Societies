@@ -1,4 +1,4 @@
-using MediatR;
+﻿using MediatR;
 using DigitalSocieties.Visitor.Application.Commands;
 using DigitalSocieties.Visitor.Application.Queries;
 using DigitalSocieties.Shared.Contracts;
@@ -116,11 +116,11 @@ public static class VisitorEndpoints
         group.MapGet("/", async (
             [FromQuery] Guid? flatId,
             [FromQuery] string? status,
-            [FromQuery] int page,
-            [FromQuery] int pageSize,
             IMediator mediator,
             ICurrentUser currentUser,
-            CancellationToken ct) =>
+            CancellationToken ct,
+            [FromQuery] int page = 1,
+            [FromQuery] int pageSize = 20) =>
         {
             var effectiveFlatId = flatId ?? currentUser.FlatId;
             var query = new GetVisitorsQuery(

@@ -21,6 +21,7 @@ import { demo } from '@/lib/demo'
 interface ApiBillDto {
   id:           string
   flatId:       string
+  flatLabel?:   string   // "A-101"
   period:       string   // "YYYY-MM"
   amountRupees: number
   dueDate:      string   // "YYYY-MM-DD"
@@ -49,7 +50,7 @@ interface Bill {
 function toUiBill(a: ApiBillDto): Bill {
   return {
     id:           a.id,
-    flatDisplay:  a.flatId,   // fallback until /billing/bills returns flatNumber
+    flatDisplay:  a.flatLabel ?? a.flatId,
     period:       a.period,
     dueDate:      a.dueDate,
     amountRupees: a.amountRupees,

@@ -1,4 +1,4 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using DigitalSocieties.Calling.Domain.Contracts;
@@ -43,6 +43,10 @@ public static class CallingServiceExtensions
             services.AddScoped<IVideoCallProvider, JitsiProvider>();
         else
             services.AddScoped<IVideoCallProvider, LiveKitProvider>(); // default
+
+                // Without this the module's command/query handlers are never found and every endpoint fails with 422.
+        services.AddMediatR(cfg =>
+            cfg.RegisterServicesFromAssembly(typeof(CallingServiceExtensions).Assembly));
 
         return services;
     }

@@ -15,17 +15,18 @@ import { buttonClass } from '@/components/ui/Button'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { StatusPill } from '@/components/ui/StatusPill'
-import { demo } from '@/lib/demo'
+import { demo, DEMO_ENABLED } from '@/lib/demo'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
+// A figure is null when its endpoint failed or the role may not read it: shown as a dash, never a fake 0.
 interface DashboardStats {
-  totalResidents:    number
-  activeFlats:       number
-  pendingBills:      number
-  pendingBillsAmt:   number   // rupees (from API)
-  openComplaints:    number
-  todayVisitors:     number
-  collectionRate:    number   // 0-100 %
+  totalResidents:    number | null
+  activeFlats:       number | null
+  pendingBills:      number | null
+  pendingBillsAmt:   number | null   // paise
+  openComplaints:    number | null
+  todayVisitors:     number | null
+  collectionRate:    number | null   // 0-100 %
   monthlySeries:     { month: string; collected: number; billed: number }[]
   complaintSeries:   { month: string; open: number; resolved: number }[]
   recentActivity:    Activity[]
@@ -77,7 +78,7 @@ async function fetchDashboard(): Promise<DashboardStats> {
   ] = await Promise.allSettled([
     api.get<BillingKpi>('/billing/dashboard'),
     api.get<PagedResponse<ComplaintItem>>('/complaints?status=Open&page=1&pageSize=1'),
-    api.get<PagedResponse<unknown>>('/members?role=resident&page=1&pageSize=1'),
+    api.get<PagedResponse<unknown>>('/members?role=resident&page=1&pageSize=500'),  // this list endpoint sends no total: the page length is the count
     api.get<PagedResponse<VisitorItem>>('/visitors?status=Entered&page=1&pageSize=50'),
     api.get<PagedResponse<ComplaintItem>>('/complaints?page=1&pageSize=4'),
     api.get<PagedResponse<VisitorItem>>('/visitors?page=1&pageSize=4'),
@@ -93,20 +94,23 @@ async function fetchDashboard(): Promise<DashboardStats> {
   const recentNotices  = recentNoticesRes.status  === 'fulfilled' ? recentNoticesRes.value  : null
 
   // ── Stat card values ──
-  const pendingBills    = billing?.pending ?? demo(DEMO_STATS).pendingBills
-  const pendingBillsAmt = billing ? Math.round(billing.pendingRupees * 100) : demo(DEMO_STATS).pendingBillsAmt  // rupees -> paise
-  const collectionRate  = billing && billing.total > 0
-    ? Math.round((billing.paid / billing.total) * 100)
-    : demo(DEMO_STATS).collectionRate
-  const totalResidents  = residents?.total ?? demo(DEMO_STATS).totalResidents
+  // Only development falls back to demo numbers; elsewhere a failed endpoint yields null.
+  const orDemo = (live: number | null | undefined, fallback: number | null): number | null =>
+    live ?? (DEMO_ENABLED ? fallback : null)
+  const pendingBills    = orDemo(billing?.pending, DEMO_STATS.pendingBills)
+  const pendingBillsAmt = billing ? Math.round(billing.pendingRupees * 100) : orDemo(null, DEMO_STATS.pendingBillsAmt)  // rupees -> paise
+  const collectionRate  = billing
+    ? (billing.total > 0 ? Math.round((billing.paid / billing.total) * 100) : 0)
+    : orDemo(null, DEMO_STATS.collectionRate)
+  const totalResidents  = orDemo(residents?.total, DEMO_STATS.totalResidents)
   // activeFlats: no dedicated endpoint — use billing.total (flats that got a bill) as proxy
-  const activeFlats     = billing?.total ?? demo(DEMO_STATS).activeFlats
-  const openComplaintCount = openComplaints?.total ?? demo(DEMO_STATS).openComplaints
+  const activeFlats     = orDemo(billing?.total, DEMO_STATS.activeFlats)
+  const openComplaintCount = orDemo(openComplaints?.total, DEMO_STATS.openComplaints)
   // todayVisitors: filter Entered visitors by today's date
   const today           = new Date().toDateString()
   const todayVisitorCount = enteredVisitors
     ? enteredVisitors.items.filter(v => v.entryTime && new Date(v.entryTime).toDateString() === today).length
-    : demo(DEMO_STATS).todayVisitors
+    : orDemo(null, DEMO_STATS.todayVisitors)
 
   // ── Recent activity (merge complaints + visitors + notices, sort by timestamp) ──
   const activities: Activity[] = []
@@ -170,18 +174,23 @@ export default function DashboardPage() {
 
       <StatStrip
         items={[
-          { label: 'Residents', value: s.totalResidents, hint: `${s.activeFlats} flats billed` },
           {
-            label: 'Pending bills', value: s.pendingBills,
-            hint: `${s.collectionRate}% collected · ${formatCurrency(s.pendingBillsAmt)} pending`,
-            tone: s.pendingBills > 0 ? 'warn' : 'good',
+            label: 'Residents', value: s.totalResidents ?? '—',
+            hint: s.totalResidents === null ? 'Not available for your role' : s.activeFlats === null ? undefined : `${s.activeFlats} flats billed`,
           },
           {
-            label: 'Open complaints', value: s.openComplaints,
-            hint: s.openComplaints > 5 ? 'Needs attention' : 'Under control',
-            tone: s.openComplaints > 5 ? 'bad' : 'good',
+            label: 'Pending bills', value: s.pendingBills ?? '—',
+            hint: s.pendingBills === null || s.pendingBillsAmt === null
+              ? 'Not available for your role'
+              : `${s.collectionRate ?? 0}% collected · ${formatCurrency(s.pendingBillsAmt)} pending`,
+            tone: s.pendingBills !== null && s.pendingBills > 0 ? 'warn' : s.pendingBills === null ? 'neutral' : 'good',
           },
-          { label: 'Visitors today', value: s.todayVisitors },
+          {
+            label: 'Open complaints', value: s.openComplaints ?? '—',
+            hint: s.openComplaints === null ? 'Not available for your role' : s.openComplaints > 5 ? 'Needs attention' : 'Under control',
+            tone: s.openComplaints === null ? 'neutral' : s.openComplaints > 5 ? 'bad' : 'good',
+          },
+          { label: 'Visitors today', value: s.todayVisitors ?? '—', hint: s.todayVisitors === null ? 'Not available for your role' : undefined },
         ]}
       />
 

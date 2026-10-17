@@ -1,4 +1,4 @@
-using DigitalSocieties.Billing.Domain.Entities;
+﻿using DigitalSocieties.Billing.Domain.Entities;
 using DigitalSocieties.Billing.Infrastructure.Persistence;
 using DigitalSocieties.Communication.Domain.Entities;
 using DigitalSocieties.Communication.Infrastructure.Persistence;
@@ -24,7 +24,7 @@ public sealed record DemoSeedResult(Guid AdminUserId, Guid SocietyId);
 /// Idempotent: checks for the sentinel society registration number "DEMO-001" before inserting.
 /// All data uses deterministic GUIDs so re-running is safe (no duplicates).
 /// </summary>
-public sealed class DataSeeder
+public sealed partial class DataSeeder
 {
     // ── Sentinel IDs — deterministic so re-runs are safe ─────────────────────
     private static readonly Guid SocietyId     = new("10000000-0000-0000-0000-000000000001");
@@ -172,6 +172,10 @@ public sealed class DataSeeder
         {
             _logger.LogInformation("[Seeder] Demo data already present — reusing.");
         }
+
+        // Facilities, ledger, social, marketplace and wallets: each block checks for its own data.
+        using (var scope = _sp.CreateScope())
+            await SeedExtrasAsync(scope.ServiceProvider, _logger);
 
         return Result<DemoSeedResult>.Ok(new DemoSeedResult(AdminUserId, SocietyId));
     }

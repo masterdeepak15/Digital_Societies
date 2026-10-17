@@ -1,4 +1,4 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using DigitalSocieties.Wallet.Infrastructure.Persistence;
@@ -20,6 +20,10 @@ public static class WalletServiceExtensions
                     npgsql.MigrationsAssembly(typeof(WalletDbContext).Assembly.GetName().Name);
                     npgsql.MigrationsHistoryTable("__ef_migrations", "wallet");
                 }));
+
+                // Without this the module's command/query handlers are never found and every endpoint fails with 422.
+        services.AddMediatR(cfg =>
+            cfg.RegisterServicesFromAssembly(typeof(WalletServiceExtensions).Assembly));
 
         return services;
     }

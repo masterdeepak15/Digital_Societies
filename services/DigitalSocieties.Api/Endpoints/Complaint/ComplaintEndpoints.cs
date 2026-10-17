@@ -1,4 +1,4 @@
-using MediatR;
+﻿using MediatR;
 using DigitalSocieties.Complaint.Application.Commands;
 using DigitalSocieties.Complaint.Application.Queries;
 using DigitalSocieties.Shared.Contracts;
@@ -99,11 +99,11 @@ public static class ComplaintEndpoints
         // GET /api/v1/complaints/my?status=Open&page=1&pageSize=20
         group.MapGet("/my", async (
             [FromQuery] string? status,
-            [FromQuery] int page,
-            [FromQuery] int pageSize,
             IMediator mediator,
             ICurrentUser currentUser,
-            CancellationToken ct) =>
+            CancellationToken ct,
+            [FromQuery] int page = 1,
+            [FromQuery] int pageSize = 20) =>
         {
             var query = new GetMyComplaintsQuery(
                 currentUser.UserId!.Value,
@@ -123,11 +123,11 @@ public static class ComplaintEndpoints
         group.MapGet("/", async (
             [FromQuery] string? status,
             [FromQuery] string? category,
-            [FromQuery] int page,
-            [FromQuery] int pageSize,
             IMediator mediator,
             ICurrentUser currentUser,
-            CancellationToken ct) =>
+            CancellationToken ct,
+            [FromQuery] int page = 1,
+            [FromQuery] int pageSize = 20) =>
         {
             var query = new GetSocietyComplaintsQuery(
                 currentUser.SocietyId!.Value,

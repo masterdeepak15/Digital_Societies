@@ -1,4 +1,5 @@
 import Cookies from 'js-cookie'
+import { adaptResponse } from './adapters'
 
 // Single source of truth for the backend prefix.
 //
@@ -109,7 +110,10 @@ async function request<T>(
   }
 
   if (res.status === 204) return undefined as T
-  return res.json() as Promise<T>
+  const json = await res.json()
+  // GET list responses are normalised once here (see adapters.ts); writes pass through untouched.
+  const method = (fetchOptions.method ?? 'GET').toUpperCase()
+  return (method === 'GET' ? adaptResponse(path, json) : json) as T
 }
 
 export const api = {

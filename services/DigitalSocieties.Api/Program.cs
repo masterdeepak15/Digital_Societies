@@ -1,4 +1,4 @@
-using System.Text;
+﻿using System.Text;
 using Microsoft.AspNetCore.RateLimiting;
 using FluentValidation.AspNetCore;
 using Serilog;
@@ -107,6 +107,8 @@ try
     builder.Services.AddAuthorization(opts =>
     {
         opts.AddPolicy("AdminOnly",       p => p.RequireClaim("role", "admin"));
+        opts.AddPolicy("FinanceStaff",    p => p.RequireClaim("role", "admin", "accountant"));
+        opts.AddPolicy("ResidentOrFinance", p => p.RequireClaim("role", "resident", "admin", "accountant"));
         opts.AddPolicy("ResidentOrAdmin", p => p.RequireClaim("role", "resident", "admin"));
         opts.AddPolicy("GuardOnly",       p => p.RequireClaim("role", "guard"));
         opts.AddPolicy("GuardOrAdmin",    p => p.RequireClaim("role", "guard", "admin"));
