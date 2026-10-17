@@ -1,5 +1,6 @@
 import { cn } from '@/lib/utils'
 
+/** Scrolls sideways inside its own box on narrow screens instead of widening the page. */
 export function Table({ children, className }: { children: React.ReactNode; className?: string }) {
   return (
     <div className={cn('overflow-x-auto', className)}>
@@ -10,14 +11,14 @@ export function Table({ children, className }: { children: React.ReactNode; clas
 
 export function Th({ children, className }: { children: React.ReactNode; className?: string }) {
   return (
-    <th className={cn('px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider', className)}>
+    <th scope="col" className={cn('px-4 py-3 text-left text-xs font-semibold text-mute', className)}>
       {children}
     </th>
   )
 }
 
 export function Td({ children, className }: { children: React.ReactNode; className?: string }) {
-  return <td className={cn('px-4 py-3 text-gray-700', className)}>{children}</td>
+  return <td className={cn('px-4 py-3 text-ink', className)}>{children}</td>
 }
 
 export function Tr({ children, onClick, className }: {
@@ -27,8 +28,8 @@ export function Tr({ children, onClick, className }: {
     <tr
       onClick={onClick}
       className={cn(
-        'border-b border-gray-100 last:border-0',
-        onClick && 'cursor-pointer hover:bg-gray-50',
+        'border-b border-line last:border-0',
+        onClick && 'cursor-pointer hover:bg-surface-alt',
         className,
       )}
     >
@@ -38,9 +39,9 @@ export function Tr({ children, onClick, className }: {
 }
 
 export function Thead({ children }: { children: React.ReactNode }) {
-  return <thead className="bg-gray-50">{children}</thead>
+  return <thead className="border-b border-line bg-surface-alt/60">{children}</thead>
 }
 
 export function Tbody({ children }: { children: React.ReactNode }) {
-  return <tbody className="divide-y divide-gray-100">{children}</tbody>
+  return <tbody className="divide-y divide-line">{children}</tbody>
 }

@@ -2,11 +2,75 @@
 @tailwind components;
 @tailwind utilities;
 
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+/* ── Design tokens (Ledger). Values are "R G B" so Tailwind can apply opacity. ───────────── */
+:root {
+  --paper: 244 246 249;
+  --surface: 255 255 255;
+  --surface-alt: 232 236 242;
+  --line: 220 226 234;
+  --ink: 18 32 59;
+  --mute: 91 107 130;
+  --saffron: 229 143 26;
+  --saffron-dark: 138 82 0;
+  --nav: 18 32 59;
+  --nav-hi: 30 49 87;
+  --nav-text: 201 211 227;
+  --good: 30 127 79;
+  --warn: 138 82 0;
+  --bad: 179 38 30;
+  --brand-50: 238 242 248;  --brand-100: 221 229 240; --brand-200: 188 203 224; --brand-300: 147 169 203;
+  --brand-400: 94 124 168;  --brand-500: 43 65 112;   --brand-600: 30 49 87;    --brand-700: 18 32 59;
+  --brand-800: 13 24 48;    --brand-900: 8 16 31;
+}
+
+.dark {
+  --paper: 14 22 38;
+  --surface: 22 33 58;
+  --surface-alt: 28 42 71;
+  --line: 42 58 92;
+  --ink: 230 236 247;
+  --mute: 163 177 200;
+  --saffron: 229 143 26;
+  --saffron-dark: 245 179 90;
+  --nav: 10 16 28;
+  --nav-hi: 22 33 58;
+  --nav-text: 163 177 200;
+  --good: 74 222 128;
+  --warn: 245 179 90;
+  --bad: 255 138 128;
+  --brand-50: 28 42 71;     --brand-100: 34 50 84;    --brand-200: 42 58 92;    --brand-300: 74 109 176;
+  --brand-400: 107 140 214; --brand-500: 74 111 191;  --brand-600: 74 111 191;  --brand-700: 59 94 168;
+  --brand-800: 47 74 134;   --brand-900: 36 58 106;
+}
+
+html { color-scheme: light; }
+html.dark { color-scheme: dark; }
 
 body {
-  font-family: 'Inter', system-ui, sans-serif;
+  font-family: 'Plus Jakarta Sans Variable', system-ui, sans-serif;
+  background-color: rgb(var(--paper));
+  color: rgb(var(--ink));
+  font-variant-numeric: tabular-nums;
+}
+
+:focus-visible {
+  outline: 2px solid rgb(var(--saffron));
+  outline-offset: 2px;
 }
 
 /* maplibre GL */
 .maplibregl-map { border-radius: 0.5rem; }
+
+/* ── Temporary dark-mode compatibility layer ─────────────────────────────────────────────
+   Pages that have not been migrated to the new components still use literal Tailwind colors.
+   Under .dark those are remapped to the tokens so they stay readable. Delete this block when
+   phase 2 has migrated every page. */
+.dark .bg-white { background-color: rgb(var(--surface)); }
+.dark .bg-gray-50, .dark .bg-gray-100 { background-color: rgb(var(--surface-alt)); }
+.dark .hover\:bg-gray-50:hover, .dark .hover\:bg-gray-100:hover { background-color: rgb(var(--surface-alt)); }
+.dark .text-gray-900, .dark .text-gray-800, .dark .text-gray-700 { color: rgb(var(--ink)); }
+.dark .text-gray-600, .dark .text-gray-500, .dark .text-gray-400 { color: rgb(var(--mute)); }
+.dark .border-gray-100, .dark .border-gray-200, .dark .border-gray-300 { border-color: rgb(var(--line)); }
+.dark .divide-gray-100 > :not([hidden]) ~ :not([hidden]) { border-color: rgb(var(--line)); }
+.dark input, .dark select, .dark textarea { background-color: rgb(var(--surface)); color: rgb(var(--ink)); }
+.dark ::placeholder { color: rgb(var(--mute)); }
