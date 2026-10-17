@@ -7,9 +7,10 @@ using DigitalSocieties.Identity.Infrastructure.Persistence;
 namespace DigitalSocieties.Identity.Application.Queries;
 
 public sealed record FlatMemberDto(
-    Guid   UserId,
-    string Name,
-    string Phone,
+    Guid    UserId,
+    string  Name,
+    string  Email,
+    string? Phone,
     string Role,
     string MemberType,
     DateTimeOffset JoinedAt);
@@ -44,6 +45,7 @@ public sealed class GetFlatMembersHandler
             .Select(m => new FlatMemberDto(
                 m.UserId,
                 m.User!.Name,
+                m.User!.Email,
                 m.User!.Phone,
                 m.Role,
                 m.MemberType,
@@ -56,9 +58,10 @@ public sealed class GetFlatMembersHandler
 
 // ── Society-wide member list (admin) ───────────────────────────────────────
 public sealed record SocietyMemberDto(
-    Guid   UserId,
-    string Name,
-    string Phone,
+    Guid    UserId,
+    string  Name,
+    string  Email,
+    string? Phone,
     string Role,
     string MemberType,
     string? FlatNumber,
@@ -106,6 +109,7 @@ public sealed class GetSocietyMembersHandler
             .Select(m => new SocietyMemberDto(
                 m.UserId,
                 m.User!.Name,
+                m.User!.Email,
                 m.User!.Phone,
                 m.Role,
                 m.MemberType,

@@ -18,9 +18,10 @@ public sealed record SocietyInput(
     int    TotalFlats);
 
 public sealed record AdminInput(
-    string Phone,
-    string Name,
-    string Otp);
+    string  Email,
+    string  Name,
+    string  Otp,
+    string? Phone = null);   // optional profile field
 
 public sealed record SmtpInput(
     string? Host,
@@ -56,9 +57,10 @@ public sealed record SetupResponse(
     SetupUser   User);
 
 public sealed record SetupUser(
-    Guid   UserId,
-    string Name,
-    string Phone,
+    Guid    UserId,
+    string  Name,
+    string  Email,
+    string? Phone,
     IReadOnlyList<string> Roles,
     Guid   SocietyId);
 
@@ -71,7 +73,8 @@ public sealed class InitializeSocietyCommandValidator : AbstractValidator<Initia
         RuleFor(x => x.Society.Address).NotEmpty().MinimumLength(10);
         RuleFor(x => x.Society.RegistrationNumber).NotEmpty().MinimumLength(2);
         RuleFor(x => x.Society.TotalFlats).GreaterThan(0);
-        RuleFor(x => x.Admin.Phone).NotEmpty();
+        RuleFor(x => x.Admin.Email).NotEmpty().MaximumLength(DigitalSocieties.Shared.Domain.ValueObjects.Email.MaxLength);
+        RuleFor(x => x.Admin.Phone).MaximumLength(20);
         RuleFor(x => x.Admin.Name).NotEmpty().MinimumLength(2);
         RuleFor(x => x.Admin.Otp).NotEmpty().Length(6);
     }
@@ -108,9 +111,22 @@ public sealed class InitializeSocietyCommandHandler
                 "SETUP_ALREADY_DONE",
                 "Society has already been initialized. Use the admin panel to make changes."));
 
-        // 2. Verify the admin OTP
+        var adminEmail = Email.Create(request.Admin.Email);
+        if (adminEmail.IsFailure)
+            return Result<SetupResponse>.Fail(adminEmail.Error!);
+
+        PhoneNumber? adminPhone = null;
+        if (!string.IsNullOrWhiteSpace(request.Admin.Phone))
+        {
+            var p = PhoneNumber.Create(request.Admin.Phone);
+            if (p.IsFailure)
+                return Result<SetupResponse>.Fail(p.Error!);
+            adminPhone = p.Value!;
+        }
+
+        // 2. Verify the admin code (the setup screen requests it with purpose "register")
         var verifyResult = await _otpService.VerifyAsync(
-            request.Admin.Phone, request.Admin.Otp, "setup", ct);
+            adminEmail.Value!.Value, request.Admin.Otp, "register", ct);
 
         if (!verifyResult.IsSuccess)
             return Result<SetupResponse>.Fail(verifyResult.Error!);
@@ -134,19 +150,15 @@ public sealed class InitializeSocietyCommandHandler
         _db.Societies.Add(society);
         await _db.SaveChangesAsync(ct);      // save to get Id
 
-        // 4. Create admin user (or reuse if phone already registered)
-        var phone = PhoneNumber.Create(request.Admin.Phone);
-        if (!phone.IsSuccess)
-            return Result<SetupResponse>.Fail(phone.Error!);
-
+        // 4. Create admin user (or reuse if email already registered)
         var existing = await _db.Users
             .IgnoreQueryFilters()
-            .FirstOrDefaultAsync(u => u.Phone == request.Admin.Phone, ct);
+            .FirstOrDefaultAsync(u => u.Email == adminEmail.Value!.Value, ct);
 
         User adminUser;
         if (existing is null)
         {
-            throw new NotImplementedException("TASK-6-BRIDGE: setup admin moves to email identity");
+            adminUser = User.Create(adminEmail.Value!, request.Admin.Name, adminPhone);
             adminUser.MarkVerified();
             _db.Users.Add(adminUser);
         }
@@ -179,6 +191,7 @@ public sealed class InitializeSocietyCommandHandler
             new SetupUser(
                 adminUser.Id,
                 adminUser.Name,
+                adminUser.Email,
                 adminUser.Phone,
                 ["admin"],
                 society.Id)));
