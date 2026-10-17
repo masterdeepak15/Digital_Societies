@@ -33,6 +33,12 @@ public sealed class UserRepository : IUserRepository
     public async Task<User?> FindByEmailAsync(string email, CancellationToken ct = default)
         => await _db.Users
             .Include(u => u.Devices)
+            // Login tokens and the login response are built from these; without them a
+            // successful sign-in carries no roles.
+            .Include(u => u.Memberships.Where(m => m.IsActive))
+                .ThenInclude(m => m.Society)
+            .Include(u => u.Memberships.Where(m => m.IsActive))
+                .ThenInclude(m => m.Flat)
             .FirstOrDefaultAsync(u => u.Email == email, ct);
 
     public async Task<User?> FindWithMembershipsAsync(Guid userId, CancellationToken ct = default)
