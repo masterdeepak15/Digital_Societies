@@ -1,91 +1,139 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
-import { router } from 'expo-router';
+import { Alert, Pressable, ScrollView, Text, View } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { apiClient } from '../../services/api/apiClient';
 import { useAuthStore } from '../../store/authStore';
-import { Colors }    from '../../theme/colors';
-import { Typography } from '../../theme/typography';
-import { Spacing, Radius } from '../../theme/spacing';
+import { useTheme } from '../../theme/ThemeProvider';
+import { courtyardTints } from '../../theme/themes';
+import { Button, Card, Icon, ScreenHeader, type IconName } from '../../ui';
+import { greetingFor, summariseBills, visitorLabel, type BillLike, type VisitorLike } from './homeModel';
 
-const QUICK_ACTIONS = [
-  { icon: '💰', label: 'Pay Bill',      route: '/(app)/bills'      },
-  { icon: '🚪', label: 'Approve Visitor', route: '/(app)/visitors'  },
-  { icon: '🔧', label: 'Complaint',     route: '/(app)/complaints' },
-  { icon: '📢', label: 'Notices',       route: '/(app)/notices'    },
-  { icon: '🏊', label: 'Book Facility', route: '/(app)/facilities' },
-  { icon: '🚗', label: 'Parking',       route: '/(app)/parking'    },
-] as const;
+interface Paged<T> { items?: T[] }
+type PendingVisitor = VisitorLike & { id: string };
+
+const TILES: { key: 'mint' | 'sky' | 'peach' | 'lilac'; icon: IconName; title: string; hint: string; route: string }[] = [
+  { key: 'mint',  icon: 'log-in',   title: 'Visitors',   hint: 'Approve or review',      route: 'Visitors' },
+  { key: 'peach', icon: 'tool',     title: 'Complaints', hint: 'Raise or track',         route: 'Complaints' },
+  { key: 'lilac', icon: 'calendar', title: 'Book',       hint: 'Clubhouse, pool, court', route: 'Facilities' },
+  { key: 'sky',   icon: 'bell',     title: 'Notices',    hint: 'From the committee',     route: 'Notices' },
+];
 
 export default function HomeScreen() {
-  const name = useAuthStore((s) => s.name);
+  const nav = useNavigation<any>();
+  const { colors, fonts, radius, scheme } = useTheme();
+  const tints = courtyardTints[scheme];
+  const queryClient = useQueryClient();
+  const { name, memberships, activeSocietyId } = useAuthStore();
+  const membership = memberships.find((m) => m.societyId === activeSocietyId) ?? memberships[0];
+  const firstName = (name ?? '').split(' ')[0] || 'there';
+  const where = [membership?.flatDisplay, membership?.societyName].filter(Boolean).join(' · ');
+
+  const bills = useQuery({
+    queryKey: ['home', 'bills'],
+    queryFn: async () => (await apiClient.get<Paged<BillLike>>('/billing/my?page=1&pageSize=20')).data.items ?? [],
+    staleTime: 60_000,
+  });
+  const visitor = useQuery({
+    queryKey: ['home', 'pending-visitor'],
+    queryFn: async () => (await apiClient.get<Paged<PendingVisitor>>('/visitors?status=Pending&page=1&pageSize=1')).data.items?.[0] ?? null,
+    staleTime: 15_000,
+    refetchInterval: 30_000,
+  });
+
+  const answer = useMutation({
+    mutationFn: async ({ id, approve }: { id: string; approve: boolean }) => {
+      if (approve) await apiClient.post(`/visitors/${id}/approve`);
+      else await apiClient.post(`/visitors/${id}/reject`, { reason: 'Rejected by resident' });
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['home', 'pending-visitor'] }),
+    onError: () => Alert.alert('Could not send your answer', 'Please try again.'),
+  });
+
+  const due = bills.data ? summariseBills(bills.data, new Date()).due : null;
 
   return (
-    <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
-      {/* Header */}
-      <View style={styles.header}>
-        <View>
-          <Text style={styles.greeting}>Good morning 👋</Text>
-          <Text style={styles.name}>{name ?? 'Resident'}</Text>
-        </View>
-        <TouchableOpacity style={styles.notifBtn} onPress={() => router.push('/(app)/notifications')}>
-          <Text style={styles.notifIcon}>🔔</Text>
-        </TouchableOpacity>
+    <ScrollView style={{ flex: 1, backgroundColor: colors.ground }} contentContainerStyle={{ padding: 22, paddingTop: 56, paddingBottom: 32, gap: 18 }} showsVerticalScrollIndicator={false}>
+      <ScreenHeader
+        subtitle={where || greetingFor(new Date())}
+        title={`${greetingFor(new Date())}, ${firstName}`}
+        right={
+          <Pressable accessibilityRole="button" accessibilityLabel="Notices" onPress={() => nav.navigate('Notices')}
+            style={{ width: 46, height: 46, borderRadius: 23, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, alignItems: 'center', justifyContent: 'center' }}>
+            <Icon name="bell" size={22} />
+          </Pressable>
+        }
+      />
+
+      {/* Maintenance */}
+      <View style={{ backgroundColor: colors.primary, borderRadius: radius.card + 4, padding: 22 }}>
+        {bills.isLoading ? (
+          <Text style={{ color: colors.onPrimary, fontFamily: fonts.semibold, fontSize: 15 }}>Loading your bills…</Text>
+        ) : bills.isError ? (
+          <Text style={{ color: colors.onPrimary, fontFamily: fonts.semibold, fontSize: 15 }}>Could not load your bills. Pull down to retry.</Text>
+        ) : due ? (
+          <View style={{ flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', gap: 12 }}>
+            <View style={{ flex: 1 }}>
+              <Text style={{ color: colors.onPrimary, opacity: 0.85, fontFamily: fonts.semibold, fontSize: 14 }}>
+                Maintenance due{due.dueDate ? ` · ${due.dueDate}` : ''}
+              </Text>
+              <Text style={{ color: colors.onPrimary, fontFamily: fonts.extrabold, fontSize: 36, marginTop: 4 }}>
+                ₹{due.amount.toLocaleString('en-IN')}
+              </Text>
+              {due.overdueDays > 0 ? (
+                <Text style={{ color: colors.onPrimary, fontFamily: fonts.bold, fontSize: 14 }}>
+                  Overdue by {due.overdueDays} {due.overdueDays === 1 ? 'day' : 'days'}
+                </Text>
+              ) : null}
+            </View>
+            <Pressable accessibilityRole="button" onPress={() => nav.navigate('Bills')}
+              style={{ minHeight: 50, paddingHorizontal: 24, borderRadius: radius.pill, backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center' }}>
+              <Text style={{ color: colors.onAccent, fontFamily: fonts.extrabold, fontSize: 16 }}>Pay now</Text>
+            </Pressable>
+          </View>
+        ) : (
+          <View>
+            <Text style={{ color: colors.onPrimary, fontFamily: fonts.extrabold, fontSize: 22 }}>You are all paid up</Text>
+            <Text style={{ color: colors.onPrimary, opacity: 0.85, fontFamily: fonts.regular, fontSize: 14, marginTop: 4 }}>No maintenance is due right now.</Text>
+          </View>
+        )}
       </View>
 
-      {/* Pending Bill Banner */}
-      <TouchableOpacity style={styles.billBanner} onPress={() => router.push('/(app)/bills')}>
-        <View>
-          <Text style={styles.billLabel}>Maintenance Due</Text>
-          <Text style={styles.billAmount}>₹3,500</Text>
-          <Text style={styles.billDue}>Due: 10 May 2026</Text>
-        </View>
-        <Text style={styles.payNow}>PAY NOW →</Text>
-      </TouchableOpacity>
-
-      {/* Quick Actions Grid */}
-      <Text style={styles.sectionTitle}>Quick Actions</Text>
-      <View style={styles.grid}>
-        {QUICK_ACTIONS.map((action) => (
-          <TouchableOpacity
-            key={action.label}
-            style={styles.gridItem}
-            onPress={() => router.push(action.route as any)}
-            activeOpacity={0.7}>
-            <Text style={styles.gridIcon}>{action.icon}</Text>
-            <Text style={styles.gridLabel}>{action.label}</Text>
-          </TouchableOpacity>
-        ))}
+      {/* Tiles */}
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 12 }}>
+        {TILES.map((t) => {
+          const tint = tints[t.key];
+          return (
+            <Pressable key={t.route} accessibilityRole="button" accessibilityLabel={`${t.title}. ${t.hint}`} onPress={() => nav.navigate(t.route)}
+              style={{ width: '48%', flexGrow: 1, minHeight: 116, borderRadius: radius.card, backgroundColor: tint.bg, padding: 16, justifyContent: 'space-between' }}>
+              <Icon name={t.icon} size={28} color={tint.fg} />
+              <View>
+                <Text style={{ color: tint.fg, fontFamily: fonts.extrabold, fontSize: 17 }}>{t.title}</Text>
+                <Text style={{ color: tint.fg, fontFamily: fonts.medium, fontSize: 13 }}>{t.hint}</Text>
+              </View>
+            </Pressable>
+          );
+        })}
       </View>
 
-      {/* Recent Visitors */}
-      <Text style={styles.sectionTitle}>Pending Approvals</Text>
-      <View style={styles.card}>
-        <Text style={styles.emptyState}>No pending visitor approvals</Text>
-      </View>
+      {/* Needs your answer */}
+      {visitor.data ? (
+        <Card>
+          <Text style={{ color: colors.muted, fontFamily: fonts.semibold, fontSize: 13 }}>Needs your answer</Text>
+          <Text style={{ color: colors.text, fontFamily: fonts.extrabold, fontSize: 17, marginTop: 2 }}>{visitorLabel(visitor.data)}</Text>
+          <Text style={{ color: colors.muted, fontFamily: fonts.regular, fontSize: 13, marginTop: 2 }}>Waiting at the gate</Text>
+          <View style={{ flexDirection: 'row', gap: 10, marginTop: 14 }}>
+            <View style={{ flex: 1 }}>
+              <Button title="Not expecting" variant="secondary" disabled={answer.isPending} onPress={() => answer.mutate({ id: visitor.data!.id, approve: false })} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Button title="Let in" loading={answer.isPending} onPress={() => answer.mutate({ id: visitor.data!.id, approve: true })} />
+            </View>
+          </View>
+        </Card>
+      ) : null}
+
+      <Button title="SOS" variant="danger" icon="alert-triangle" onPress={() => nav.navigate('Sos')} />
     </ScrollView>
   );
 }
-
-const styles = StyleSheet.create({
-  container:     { flex: 1, backgroundColor: Colors.background },
-  header:        { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-                   padding: Spacing.md, paddingTop: Spacing.xl, backgroundColor: Colors.primary },
-  greeting:      { ...Typography.body2, color: Colors.textOnPrimary + 'cc' },
-  name:          { ...Typography.h3, color: Colors.textOnPrimary },
-  notifBtn:      { width: 44, height: 44, borderRadius: Radius.full,
-                   backgroundColor: '#ffffff22', alignItems: 'center', justifyContent: 'center' },
-  notifIcon:     { fontSize: 20 },
-  billBanner:    { margin: Spacing.md, backgroundColor: Colors.secondary, borderRadius: Radius.lg,
-                   padding: Spacing.md, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  billLabel:     { ...Typography.caption, color: Colors.textOnPrimary + 'cc' },
-  billAmount:    { ...Typography.h2, color: Colors.textOnPrimary },
-  billDue:       { ...Typography.caption, color: Colors.textOnPrimary + 'cc' },
-  payNow:        { ...Typography.body2, fontWeight: '700', color: Colors.textOnPrimary },
-  sectionTitle:  { ...Typography.h4, color: Colors.textPrimary, margin: Spacing.md, marginBottom: Spacing.sm },
-  grid:          { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: Spacing.sm },
-  gridItem:      { width: '33.33%', padding: Spacing.xs, alignItems: 'center' },
-  gridIcon:      { fontSize: 32, marginBottom: Spacing.xs },
-  gridLabel:     { ...Typography.caption, color: Colors.textPrimary, textAlign: 'center', fontWeight: '600' },
-  card:          { margin: Spacing.md, backgroundColor: Colors.surface, borderRadius: Radius.md,
-                   padding: Spacing.md, borderWidth: 1, borderColor: Colors.border },
-  emptyState:    { ...Typography.body2, color: Colors.textSecondary, textAlign: 'center', paddingVertical: Spacing.md },
-});

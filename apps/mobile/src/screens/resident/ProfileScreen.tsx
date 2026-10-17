@@ -1,18 +1,23 @@
 import React, { useState } from 'react';
-import {
-  View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, Alert,
-} from 'react-native';
+import { Alert, ScrollView, Text, View } from 'react-native';
+import { router } from 'expo-router';
 import { authService } from '../../services/api/authService';
 import { useAuthStore } from '../../store/authStore';
-import { Colors } from '../../theme/colors';
-import { Typography } from '../../theme/typography';
-import { Spacing, Radius } from '../../theme/spacing';
+import { getServerOrigin } from '../../config/serverConfig';
+import { useTheme } from '../../theme/ThemeProvider';
+import { Button, Card, ScreenHeader, TextField, ThemeModeSelector } from '../../ui';
 
 export default function ProfileScreen() {
-  const { name, email, phone, setProfileFields } = useAuthStore();
+  const { colors, fonts } = useTheme();
+  const { name, email, phone, setProfileFields, logout } = useAuthStore();
   const [nameDraft,  setNameDraft]  = useState(name ?? '');
   const [phoneDraft, setPhoneDraft] = useState(phone ?? '');
   const [saving,     setSaving]     = useState(false);
+  const [host,       setHost]       = useState<string>('');
+
+  React.useEffect(() => {
+    getServerOrigin().then((o) => setHost(o ? o.replace(/^https:\/\//, '') : 'Not set'));
+  }, []);
 
   const save = async () => {
     const newName  = nameDraft.trim();
@@ -34,41 +39,50 @@ export default function ProfileScreen() {
       }
       Alert.alert('Saved', 'Your profile has been updated.');
     } catch (e: any) {
-      Alert.alert('Error', e.response?.data?.detail ?? 'Could not save your profile.');
+      Alert.alert('Could not save', e.response?.data?.detail ?? 'Please try again.');
     } finally {
       setSaving(false);
     }
   };
 
+  const signOut = async () => {
+    try {
+      const refresh = await (await import('expo-secure-store')).getItemAsync('ds_refresh_token');
+      if (refresh) await authService.logout(refresh);
+    } catch { /* the session is cleared locally regardless */ }
+    await authService.clearTokens();
+    logout();
+    router.replace('/(auth)/login');
+  };
+
   return (
-    <View style={styles.container}>
-      <Text style={styles.label}>Email (used to sign in)</Text>
-      <Text style={styles.readonly}>{email ?? '—'}</Text>
+    <ScrollView style={{ flex: 1, backgroundColor: colors.ground }} contentContainerStyle={{ padding: 22, paddingTop: 56, gap: 18 }} keyboardShouldPersistTaps="handled">
+      <ScreenHeader title="Me" subtitle={email ?? undefined} />
 
-      <Text style={styles.label}>Name</Text>
-      <TextInput style={styles.input} value={nameDraft} onChangeText={setNameDraft}
-        autoCapitalize="words" maxLength={200} />
+      <Card style={{ gap: 14 }}>
+        <TextField label="Name" value={nameDraft} onChangeText={setNameDraft} autoCapitalize="words" maxLength={200} />
+        <TextField label="Mobile number (optional)" value={phoneDraft} onChangeText={setPhoneDraft}
+          keyboardType="phone-pad" placeholder="+919876543210" maxLength={20} />
+        <Text style={{ color: colors.muted, fontFamily: fonts.regular, fontSize: 13 }}>
+          Only used for SMS alerts if your society has turned them on.
+        </Text>
+        <Button title="Save changes" onPress={save} loading={saving} />
+      </Card>
 
-      <Text style={styles.label}>Mobile number (optional)</Text>
-      <TextInput style={styles.input} value={phoneDraft} onChangeText={setPhoneDraft}
-        keyboardType="phone-pad" placeholder="+919876543210" maxLength={20} />
-      <Text style={styles.hint}>Only used for SMS alerts if your society has enabled them.</Text>
+      <Card style={{ gap: 10 }}>
+        <Text style={{ color: colors.text, fontFamily: fonts.bold, fontSize: 15 }}>Appearance</Text>
+        <ThemeModeSelector />
+      </Card>
 
-      <TouchableOpacity style={styles.btn} onPress={save} disabled={saving}>
-        {saving ? <ActivityIndicator color="#fff" /> : <Text style={styles.btnText}>Save</Text>}
-      </TouchableOpacity>
-    </View>
+      <Card style={{ gap: 4 }}>
+        <Text style={{ color: colors.muted, fontFamily: fonts.semibold, fontSize: 13 }}>Server</Text>
+        <Text style={{ color: colors.text, fontFamily: fonts.bold, fontSize: 15 }}>{host}</Text>
+        <Text style={{ color: colors.muted, fontFamily: fonts.regular, fontSize: 13 }}>
+          To use a different server, sign out and change it on the sign-in screen.
+        </Text>
+      </Card>
+
+      <View><Button title="Sign out" variant="secondary" icon="log-out" onPress={signOut} /></View>
+    </ScrollView>
   );
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background, padding: Spacing.md },
-  label:     { ...Typography.body2, color: Colors.textSecondary, marginTop: Spacing.md, marginBottom: Spacing.xs },
-  readonly:  { ...Typography.body1, color: Colors.textPrimary },
-  input:     { borderWidth: 1, borderColor: Colors.border, borderRadius: Radius.md, padding: Spacing.sm,
-               ...Typography.body1, color: Colors.textPrimary, backgroundColor: Colors.surface },
-  hint:      { ...Typography.caption, color: Colors.textSecondary, marginTop: Spacing.xs },
-  btn:       { backgroundColor: Colors.primary, borderRadius: Radius.md, padding: Spacing.md,
-               alignItems: 'center', marginTop: Spacing.lg },
-  btnText:   { ...Typography.h4, color: Colors.textOnPrimary },
-});
