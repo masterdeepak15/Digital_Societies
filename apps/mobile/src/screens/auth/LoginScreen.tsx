@@ -1,55 +1,95 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity,
   StyleSheet, ActivityIndicator, KeyboardAvoidingView, Platform, Alert,
 } from 'react-native';
 import { router } from 'expo-router';
-import { authService } from '../../services/api/authService';
+import { authService, AuthTokenResponse } from '../../services/api/authService';
 import { useAuthStore } from '../../store/authStore';
+import { normalizeEmail, isValidEmail } from '../../utils/email';
 import { Colors } from '../../theme/colors';
 import { Typography } from '../../theme/typography';
 import { Spacing, Radius } from '../../theme/spacing';
 
-// Login flow: phone → OTP → (TOTP if 2FA enabled) → app
-type LoginStep = 'phone' | 'otp' | 'totp';
+// Login flow: email → code → (TOTP if 2FA enabled) → (name, first login only) → app
+type LoginStep = 'email' | 'otp' | 'totp' | 'name';
+
+const RESEND_SECONDS = 60;
 
 export default function LoginScreen() {
-  const { login } = useAuthStore();
-  const [step,          setStep]          = useState<LoginStep>('phone');
-  const [phone,         setPhone]         = useState('');
+  const { login, setProfileFields } = useAuthStore();
+  const [step,          setStep]          = useState<LoginStep>('email');
+  const [email,         setEmail]         = useState('');
   const [otp,           setOtp]           = useState('');
   const [totp,          setTotp]          = useState('');
+  const [name,          setName]          = useState('');
   const [loading,       setLoading]       = useState(false);
   const [masked,        setMasked]        = useState('');
   const [countdown,     setCountdown]     = useState(0);
   const [pendingUserId, setPendingUserId] = useState<string | null>(null);
+  const timer = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const handleSendOtp = async () => {
-    if (phone.replace(/\D/g, '').length < 10) {
-      Alert.alert('Invalid number', 'Enter a valid 10-digit mobile number.');
+  useEffect(() => () => { if (timer.current) clearInterval(timer.current); }, []);
+
+  const startCountdown = (seconds: number) => {
+    if (timer.current) clearInterval(timer.current);
+    setCountdown(seconds);
+    timer.current = setInterval(() => {
+      setCountdown((prev: number) => {
+        if (prev <= 1) {
+          if (timer.current) clearInterval(timer.current);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+  };
+
+  // Used for the first send and for "Resend code".
+  const sendCode = async () => {
+    const address = normalizeEmail(email);
+    if (!isValidEmail(address)) {
+      Alert.alert('Invalid email', 'Enter a valid email address.');
       return;
     }
     setLoading(true);
     try {
-      const { data } = await authService.sendOtp({ phone: `+91${phone.replace(/\D/g, '')}` });
-      setMasked(data.maskedPhone);
+      const { data } = await authService.sendOtp({ email: address });
+      setEmail(address);
+      setMasked(data.maskedEmail);
+      setOtp('');
       setStep('otp');
-      startCountdown(60);
+      startCountdown(RESEND_SECONDS);
     } catch (e: any) {
-      Alert.alert('Error', e.response?.data?.detail ?? 'Failed to send OTP. Try again.');
+      // Rate limited: show the server message and keep the resend lock on.
+      if (e.response?.status === 429) startCountdown(RESEND_SECONDS);
+      Alert.alert('Error', e.response?.data?.detail ?? 'Failed to send the code. Try again.');
     } finally {
       setLoading(false);
     }
   };
 
+  const completeLogin = async (data: AuthTokenResponse, isNewUser: boolean) => {
+    await authService.saveTokens({ accessToken: data.accessToken, refreshToken: data.refreshToken });
+    login(data.profile, data.accessToken);
+    if (data.profile.memberships.length > 0)
+      await authService.setActiveSociety(data.profile.memberships[0].societyId);
+    if (isNewUser) {
+      setName('');
+      setStep('name');
+      return;
+    }
+    router.replace('/(app)');
+  };
+
   const handleVerify = async () => {
     if (otp.length !== 6) {
-      Alert.alert('Invalid OTP', 'Enter the 6-digit OTP.');
+      Alert.alert('Invalid code', 'Enter the 6-digit code from your email.');
       return;
     }
     setLoading(true);
     try {
-      const { data } = await authService.verifyOtp({ phone: `+91${phone.replace(/\D/g, '')}`, otp });
+      const { data } = await authService.verifyOtp({ email, otp });
 
       // 2FA gate: backend says we need a second factor before issuing tokens
       if (data.requiresTwoFactor && data.pendingUserId) {
@@ -59,14 +99,9 @@ export default function LoginScreen() {
         return;
       }
 
-      // Standard login (no 2FA)
-      await authService.saveTokens({ accessToken: data.accessToken, refreshToken: data.refreshToken });
-      login(data.profile, data.accessToken);
-      if (data.profile.memberships.length > 0)
-        await authService.setActiveSociety(data.profile.memberships[0].societyId);
-      router.replace('/(app)');
+      await completeLogin(data, data.isNewUser);
     } catch (e: any) {
-      Alert.alert('Incorrect OTP', e.response?.data?.detail ?? 'Verification failed.');
+      Alert.alert('Incorrect code', e.response?.data?.detail ?? 'Verification failed.');
     } finally {
       setLoading(false);
     }
@@ -81,11 +116,7 @@ export default function LoginScreen() {
     setLoading(true);
     try {
       const { data } = await authService.verify2Fa({ pendingUserId, totpCode: totp });
-      await authService.saveTokens({ accessToken: data.accessToken, refreshToken: data.refreshToken });
-      login(data.profile, data.accessToken);
-      if (data.profile.memberships.length > 0)
-        await authService.setActiveSociety(data.profile.memberships[0].societyId);
-      router.replace('/(app)');
+      await completeLogin(data, false);
     } catch (e: any) {
       Alert.alert('Incorrect code', e.response?.data?.detail ?? 'Invalid or expired code.');
     } finally {
@@ -93,14 +124,22 @@ export default function LoginScreen() {
     }
   };
 
-  const startCountdown = (seconds: number) => {
-    setCountdown(seconds);
-    const interval = setInterval(() => {
-      setCountdown((prev: number) => {
-        if (prev <= 1) { clearInterval(interval); return 0; }
-        return prev - 1;
-      });
-    }, 1000);
+  const handleSaveName = async () => {
+    const trimmed = name.trim();
+    if (trimmed.length < 2) {
+      Alert.alert('Name required', 'Enter your name (at least 2 characters).');
+      return;
+    }
+    setLoading(true);
+    try {
+      await authService.setName(trimmed);
+      setProfileFields({ name: trimmed });
+      router.replace('/(app)');
+    } catch (e: any) {
+      Alert.alert('Error', e.response?.data?.detail ?? 'Could not save your name.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -111,35 +150,38 @@ export default function LoginScreen() {
         <Text style={styles.brand}>🏢 Digital Societies</Text>
         <Text style={styles.subtitle}>Society ka digital OS</Text>
 
-        {/* ── Step 1: Phone number ──────────────────────────────── */}
-        {step === 'phone' && (
+        {/* ── Step 1: Email ─────────────────────────────────────── */}
+        {step === 'email' && (
           <>
-            <Text style={styles.label}>Mobile Number</Text>
+            <Text style={styles.label}>Email</Text>
             <View style={styles.phoneRow}>
-              <Text style={styles.prefix}>+91</Text>
               <TextInput
                 style={styles.input}
-                placeholder="98765 43210"
-                keyboardType="number-pad"
-                maxLength={10}
-                value={phone}
-                onChangeText={setPhone}
+                placeholder="you@example.com"
+                keyboardType="email-address"
+                autoCapitalize="none"
+                autoCorrect={false}
+                autoComplete="email"
+                textContentType="emailAddress"
+                maxLength={250}
+                value={email}
+                onChangeText={setEmail}
                 returnKeyType="done"
-                onSubmitEditing={handleSendOtp}
+                onSubmitEditing={sendCode}
               />
             </View>
-            <TouchableOpacity style={styles.btn} onPress={handleSendOtp} disabled={loading}>
+            <TouchableOpacity style={styles.btn} onPress={sendCode} disabled={loading}>
               {loading
                 ? <ActivityIndicator color="#fff" />
-                : <Text style={styles.btnText}>Send OTP</Text>}
+                : <Text style={styles.btnText}>Send code</Text>}
             </TouchableOpacity>
           </>
         )}
 
-        {/* ── Step 2: SMS OTP ───────────────────────────────────── */}
+        {/* ── Step 2: emailed code ──────────────────────────────── */}
         {step === 'otp' && (
           <>
-            <Text style={styles.label}>Enter OTP sent to {masked}</Text>
+            <Text style={styles.label}>Enter the code sent to {masked}</Text>
             <TextInput
               style={[styles.input, styles.otpInput]}
               placeholder="• • • • • •"
@@ -155,12 +197,13 @@ export default function LoginScreen() {
                 ? <ActivityIndicator color="#fff" />
                 : <Text style={styles.btnText}>Verify & Login</Text>}
             </TouchableOpacity>
-            <TouchableOpacity
-              disabled={countdown > 0}
-              onPress={() => { setStep('phone'); setOtp(''); }}>
+            <TouchableOpacity disabled={countdown > 0 || loading} onPress={sendCode}>
               <Text style={[styles.resend, countdown > 0 && styles.resendDisabled]}>
-                {countdown > 0 ? `Resend in ${countdown}s` : 'Resend OTP'}
+                {countdown > 0 ? `Resend in ${countdown}s` : 'Resend code'}
               </Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => { setStep('email'); setOtp(''); }}>
+              <Text style={styles.resend}>← Change email</Text>
             </TouchableOpacity>
           </>
         )}
@@ -194,8 +237,34 @@ export default function LoginScreen() {
                 ? <ActivityIndicator color="#fff" />
                 : <Text style={styles.btnText}>Verify Code</Text>}
             </TouchableOpacity>
-            <TouchableOpacity onPress={() => { setStep('phone'); setPendingUserId(null); setTotp(''); }}>
+            <TouchableOpacity onPress={() => { setStep('email'); setPendingUserId(null); setTotp(''); }}>
               <Text style={styles.resend}>← Start over</Text>
+            </TouchableOpacity>
+          </>
+        )}
+
+        {/* ── Step 4: first login — ask for a name ───────────────── */}
+        {step === 'name' && (
+          <>
+            <Text style={styles.label}>Welcome! What should we call you?</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Your name"
+              autoCapitalize="words"
+              maxLength={200}
+              value={name}
+              onChangeText={setName}
+              returnKeyType="done"
+              onSubmitEditing={handleSaveName}
+              autoFocus
+            />
+            <TouchableOpacity style={styles.btn} onPress={handleSaveName} disabled={loading}>
+              {loading
+                ? <ActivityIndicator color="#fff" />
+                : <Text style={styles.btnText}>Continue</Text>}
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => router.replace('/(app)')}>
+              <Text style={styles.resend}>Skip for now</Text>
             </TouchableOpacity>
           </>
         )}

@@ -1,15 +1,15 @@
 import { apiClient, TokenKeys } from './apiClient';
 import * as SecureStore from 'expo-secure-store';
 
-export interface SendOtpParams  { phone: string; purpose?: string }
+export interface SendOtpParams  { email: string; purpose?: string }
 export interface VerifyOtpParams {
-  phone: string; otp: string; purpose?: string;
+  email: string; otp: string; purpose?: string;
   deviceId?: string; deviceName?: string; platform?: string;
 }
 export interface AuthTokenResponse {
   accessToken: string; refreshToken: string; expiresIn: number;
   isNewUser: boolean;
-  profile: { userId: string; name: string; phone: string; memberships: MembershipInfo[] };
+  profile: { userId: string; name: string; email: string; phone?: string | null; memberships: MembershipInfo[] };
   // 2FA: when true, tokens are empty — call verify2Fa next
   requiresTwoFactor?: boolean;
   pendingUserId?:     string;
@@ -22,7 +22,7 @@ export interface MembershipInfo {
 }
 
 export interface MeResponse {
-  userId: string; name: string; phone: string; memberships: MembershipInfo[];
+  userId: string; name: string; email: string; phone?: string | null; memberships: MembershipInfo[];
 }
 
 export const authService = {
@@ -31,7 +31,7 @@ export const authService = {
     apiClient.get<MeResponse>('/auth/me'),
 
   sendOtp: (params: SendOtpParams) =>
-    apiClient.post<{ maskedPhone: string; expiresInSeconds: number }>(
+    apiClient.post<{ maskedEmail: string; expiresInSeconds: number }>(
       '/auth/otp/send', { ...params, purpose: params.purpose ?? 'login' }),
 
   verifyOtp: (params: VerifyOtpParams) =>
@@ -41,6 +41,13 @@ export const authService = {
   /** Second factor: submit TOTP code after OTP login when 2FA is enabled. */
   verify2Fa: (params: Verify2FaParams) =>
     apiClient.post<AuthTokenResponse>('/auth/2fa/verify', params),
+
+  /** Set (E.164 or bare Indian mobile) or clear (null) the optional phone number. */
+  setPhone: (phone: string | null) =>
+    apiClient.put('/auth/me/phone', { phone }),
+
+  setName: (name: string) =>
+    apiClient.put('/auth/me/name', { name }),
 
   saveTokens: async (tokens: Pick<AuthTokenResponse, 'accessToken' | 'refreshToken'>) => {
     await Promise.all([
