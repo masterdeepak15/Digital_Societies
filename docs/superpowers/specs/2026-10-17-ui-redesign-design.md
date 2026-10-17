@@ -13,16 +13,18 @@ Make the web admin and the mobile app look and feel professional instead of basi
 - Visual direction by role: **web admin = Ledger**, **resident mobile = Courtyard**, **guard mobile = Control Room**; admin/staff mobile use Ledger. One shared logo and one shared server sheet tie them together.
 - Server address: **HTTPS only**. An `https://ip:port` address works only when the phone trusts that server's certificate; plain `http://` is rejected and cleartext traffic stays disabled in the APK.
 - Free tooling only (EAS free tier or a local Gradle build for the APK; Google Fonts; `@expo/vector-icons`).
+- **Appearance mode: Light / Dark / System for everyone**, on web and mobile, default System. Every role theme has both a light and a dark variant (a resident can use Courtyard in dark; a guard can use Control Room in light). The choice is remembered per device/browser.
 
 ### Success criteria
 - The mobile sign-in screen has a server button; saving a valid HTTPS address makes every API call and live-update (SignalR) connection use it, with no rebuild.
 - No screen in the mobile app still contains a hardcoded server URL.
 - Phase-1 screens match the approved mockups: web sign-in, web overview, mobile sign-in + server sheet, resident home, guard gate, app navigation shell.
 - Resident navigation shows 4 tabs, guard 4 tabs; other screens stay reachable.
-- Text and key UI colors meet WCAG AA contrast (4.5:1 body, 3:1 large text/UI), checked by an automated test over the theme tokens.
+- Text and key UI colors meet WCAG AA contrast (4.5:1 body, 3:1 large text/UI) in **all six theme variants** (3 themes × light/dark), checked by an automated test over the theme tokens.
+- The user can switch Light / Dark / System from Profile and the server sheet on mobile, and from the sidebar footer on web; System follows the OS and changes live; the web applies the stored mode before first paint (no flash of the wrong theme).
 
 ### Out of scope (phase 2)
-Restyling the remaining web pages (billing, members, visitors, complaints, notices, accounting, facilities, parking, marketplace, social, wallet, settings, setup) and the remaining mobile screens beyond the shell; dark mode for web; iOS build; Play Store listing. Phase-2 pages keep working in phase 1; they pick up the new tokens/components gradually.
+Restyling the remaining web pages (billing, members, visitors, complaints, notices, accounting, facilities, parking, marketplace, social, wallet, settings, setup) and the remaining mobile screens beyond the shell; iOS build; Play Store listing. Phase-2 pages keep working in phase 1; they pick up the new tokens/components gradually. Until then, un-migrated web pages get a temporary dark-mode compatibility layer (section 3.6).
 
 ## 2. Current state (from review)
 
@@ -49,6 +51,24 @@ Restyling the remaining web pages (billing, members, visitors, complaints, notic
 
 Courtyard module tints: mint `#DCEFE5`, sky `#DCEBFA`, peach `#FDE6D3`, lilac `#E8E3FA` (text on each uses the darker tone from the mockup). Numerals use tabular figures everywhere.
 
+### 3.1a Dark / light variants
+
+Each theme is a pair `{ light, dark }`. Starting values (the contrast test is the arbiter: a failing foreground is darkened/lightened minimally and ledgered):
+
+| Token | Ledger light | Ledger dark | Courtyard light | Courtyard dark | Control Room light | Control Room dark |
+|---|---|---|---|---|---|---|
+| Ground | `#F4F6F9` | `#0E1626` | `#F2F7F4` | `#0B1A17` | `#F2F5FA` | `#0E1624` |
+| Surface | `#FFFFFF` | `#16213A` | `#FFFFFF` | `#12261F` | `#FFFFFF` | `#16213A` |
+| Primary | `#12203B` | `#E58F1A` | `#0E5A4C` | `#5CCFB4` | `#0C7C74` | `#35D0C5` |
+| On primary | `#FFFFFF` | `#12203B` | `#FFFFFF` | `#062A22` | `#FFFFFF` | `#0A101C` |
+| Text | `#12203B` | `#E6ECF7` | `#0B2B26` | `#E4F2EC` | `#0E1624` | `#E6ECF7` |
+| Muted | `#5B6B82` | `#A3B1C8` | `#41635B` | `#9DBDB2` | `#4A5B78` | `#93A3C0` |
+| Line | `#DCE2EA` | `#2A3A5C` | `#DCE8E1` | `#23443A` | `#D5DCE8` | `#2A3A5C` |
+| Accent / on accent | `#E58F1A` / `#12203B` | `#E58F1A` / `#12203B` | `#F5B82E` / `#0B2B26` | `#F5B82E` / `#0B2B26` | `#E58F1A` / `#12203B` | `#FFB020` / `#0A101C` |
+| Success / warning / danger | `#1E7F4F` / `#8A5200` / `#B3261E` | `#4ADE80` / `#F5B35A` / `#FF8A80` | same as Ledger light | same as Ledger dark | same as Ledger light | `#4ADE80` / `#FFB020` / `#FF6B5E` |
+
+Courtyard dark tints (`bg`/`fg`): mint `#17382F`/`#BFE9DA`, sky `#142A44`/`#BBD8F5`, peach `#40281A`/`#F7D2B5`, lilac `#2A2347`/`#D5CDF5`.
+
 ### 3.2 Mobile: server address
 
 New module `src/config/serverConfig.ts` (single source of truth):
@@ -72,12 +92,20 @@ Consumers:
 - Navigation: `ResidentTabs` becomes 4 tabs (Home, Bills, Community, Me); Visitors, Complaints, Notices, Facilities, Parking, Marketplace, Wallet, SOS, Video call become stack screens opened from Home tiles (the existing screen components are reused as-is). `GuardTabs` becomes Gate, Log, SOS, Me. Admin/Staff tab sets are re-themed only.
 - Phase-1 screens rebuilt: `LoginScreen` (+ server sheet), resident `HomeScreen`, guard `GateScreen`, resident `ProfileScreen` (restyled).
 
+### 3.3a Mobile appearance mode
+
+`type ThemeMode = 'light' | 'dark' | 'system'`, persisted in AsyncStorage (`ds_theme_mode`, default `system`). `resolveScheme(mode, systemScheme)` picks light/dark (`system` follows `useColorScheme()` and updates live). `useTheme()` returns the role theme in the resolved scheme. A segmented `ThemeModeSelector` (Light / Dark / System) appears in Profile and in the server sheet ("Appearance") so it is reachable before sign-in. The status bar style follows the resolved scheme.
+
 ### 3.4 Web
 
 - Tailwind: replace the `brand` blue scale with Ledger tokens (`ink`, `paper`, `line`, `saffron`, status colors); load Plus Jakarta Sans with `next/font/google` (removes the render-blocking CSS `@import`); focus ring uses the accent.
 - Components in `src/components/ui` rebuilt or added: `Button`, `Input`, `StatStrip` (one panel with hairline dividers instead of separate cards), `StatusPill` (replaces/wraps `Badge`), `Card`, `Table` (sticky header, horizontal scroll box), `EmptyState` (explains what to do next), `PageHeader`. Existing exports keep their names/props so un-migrated pages compile.
 - Layout: `Sidebar` rebuilt (navy, grouped Money / People / Operations, current-page marker, user block) and a new `Topbar` (page title, date, search, notifications, primary action). Below 900 px the sidebar collapses behind a menu button.
 - Pages rebuilt: `/login` (email step, code step with resend countdown, 2FA step, in the new style) and `/dashboard` (stat strip, collections chart, bills needing follow-up table, at-the-gate and open-complaints lists, wired to the same endpoints as today; no behavior change).
+
+### 3.6 Web appearance mode
+
+Tokens become CSS variables (`:root` for light, `.dark` for dark) exposed to Tailwind (`darkMode: 'class'`). `ThemeToggle` (Light / Dark / System) sits in the sidebar footer; the mode is stored in `localStorage` (`ds_theme`). A tiny inline script in the root layout sets the `dark` class from the stored mode (or `prefers-color-scheme` for System) before first paint; a `matchMedia` listener keeps System live. **Temporary compatibility layer** in `globals.css`: under `.dark`, the literal Tailwind utilities still used by un-migrated pages (`bg-white`, `bg-gray-50/100`, `text-gray-900/800/700/600/500`, `border-gray-100/200/300`, `divide-gray-100`) are remapped to the dark tokens so phase-2 pages stay readable; the layer is deleted when phase 2 finishes.
 
 ### 3.5 APK build
 
@@ -87,7 +115,8 @@ Consumers:
 ## 4. Testing
 
 - Mobile (jest): `normalizeServerUrl` (accepts domain, domain+port, IPv4+port, IPv6, trailing slash, pasted `/api/v1`; rejects http, empty, bad port, bare host); `getApiBase`/`getHubUrl` string building; `testConnection` error classification with a mocked transport; theme-token contrast test (WCAG ratios for text/ground, text/surface, primary/ground, muted/ground in each theme); a source test that fails if any file under `src/` still contains `localhost:` or a literal `/api/v1` base outside `serverConfig.ts`.
-- Web: `tsc --noEmit`, `next build`, then a real browser pass (sign-in with Mailpit code, overview) with screenshots compared to the mockups.
+- Mobile also: `resolveScheme` table, mode persistence round-trip (mocked AsyncStorage), `themeForRole(role, scheme)` for all roles × both schemes.
+- Web: `tsc --noEmit`, `next build`, then a real browser pass (sign-in with Mailpit code, overview, plus an un-migrated page such as Members) in both light and dark with screenshots compared to the mockups.
 - Mobile UI cannot be run on a device or emulator in this environment: verification is jest + `tsc` on touched files + a manual checklist handed to the user (sheet open/save/test, wrong address error, switching servers logs out, each role's theme and tabs).
 
 ## 5. Risks and open points
