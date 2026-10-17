@@ -1,19 +1,20 @@
 'use client'
 
 import { useQuery } from '@tanstack/react-query'
-import {
-  Users, Receipt, AlertCircle, UserCheck,
-  TrendingUp, Home, Bell, Wrench,
-} from 'lucide-react'
+import Link from 'next/link'
+import { Receipt, AlertCircle, UserCheck, Bell, TrendingUp } from 'lucide-react'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, LineChart, Line, Legend,
 } from 'recharts'
 import { api } from '@/lib/api'
 import { formatDate, formatCurrency } from '@/lib/utils'
-import { StatCard } from '@/components/ui/Card'
+import { Card } from '@/components/ui/Card'
+import { StatStrip } from '@/components/ui/StatStrip'
+import { buttonClass } from '@/components/ui/Button'
+import { EmptyState } from '@/components/ui/EmptyState'
 import { PageHeader } from '@/components/ui/PageHeader'
-import { Badge } from '@/components/ui/Badge'
+import { StatusPill } from '@/components/ui/StatusPill'
 import { demo } from '@/lib/demo'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -93,7 +94,7 @@ async function fetchDashboard(): Promise<DashboardStats> {
 
   // ── Stat card values ──
   const pendingBills    = billing?.pending ?? demo(DEMO_STATS).pendingBills
-  const pendingBillsAmt = billing?.pendingRupees ?? demo(DEMO_STATS).pendingBillsAmt
+  const pendingBillsAmt = billing ? Math.round(billing.pendingRupees * 100) : demo(DEMO_STATS).pendingBillsAmt  // rupees -> paise
   const collectionRate  = billing && billing.total > 0
     ? Math.round((billing.paid / billing.total) * 100)
     : demo(DEMO_STATS).collectionRate
@@ -157,128 +158,111 @@ export default function DashboardPage() {
   if (isLoading) return <DashboardSkeleton />
 
   const s = stats ?? demo(DEMO_STATS)
+  const hasTrends = s.monthlySeries.length > 0 || s.complaintSeries.length > 0
 
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Dashboard"
-        description={`Overview as of ${formatDate(new Date().toISOString())}`}
+        title="Overview"
+        description={`As of ${formatDate(new Date().toISOString())}`}
+        action={<Link href="/billing" className={buttonClass('primary')}>Generate bills</Link>}
       />
 
-      {/* ── Stat cards ──────────────────────────────────────────────────────── */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard
-          label="Total Residents"
-          value={s.totalResidents.toString()}
-          icon={<Users className="w-5 h-5 text-blue-600" />}
-          delta="+3 this month"
-        />
-        <StatCard
-          label="Active Flats"
-          value={s.activeFlats.toString()}
-          icon={<Home className="w-5 h-5 text-indigo-600" />}
-        />
-        <StatCard
-          label="Pending Bills"
-          value={`${s.pendingBills} bills`}
-          icon={<Receipt className="w-5 h-5 text-amber-600" />}
-          delta={formatCurrency(s.pendingBillsAmt) + ' overdue'}
-          deltaClass="text-amber-600"
-        />
-        <StatCard
-          label="Open Complaints"
-          value={s.openComplaints.toString()}
-          icon={<AlertCircle className="w-5 h-5 text-red-500" />}
-          delta={s.openComplaints > 5 ? 'Needs attention' : 'Under control'}
-          deltaClass={s.openComplaints > 5 ? 'text-red-500' : 'text-green-600'}
-        />
-      </div>
+      <StatStrip
+        items={[
+          { label: 'Residents', value: s.totalResidents, hint: `${s.activeFlats} flats billed` },
+          {
+            label: 'Pending bills', value: s.pendingBills,
+            hint: `${s.collectionRate}% collected · ${formatCurrency(s.pendingBillsAmt)} pending`,
+            tone: s.pendingBills > 0 ? 'warn' : 'good',
+          },
+          {
+            label: 'Open complaints', value: s.openComplaints,
+            hint: s.openComplaints > 5 ? 'Needs attention' : 'Under control',
+            tone: s.openComplaints > 5 ? 'bad' : 'good',
+          },
+          { label: 'Visitors today', value: s.todayVisitors },
+        ]}
+      />
 
-      {/* Secondary stats */}
-      <div className="grid grid-cols-3 gap-4">
-        <StatCard
-          label="Today's Visitors"
-          value={s.todayVisitors.toString()}
-          icon={<UserCheck className="w-5 h-5 text-green-600" />}
-        />
-        <StatCard
-          label="Collection Rate"
-          value={`${s.collectionRate}%`}
-          icon={<TrendingUp className="w-5 h-5 text-brand-600" />}
-          delta={s.collectionRate >= 80 ? 'On track' : 'Below target'}
-          deltaClass={s.collectionRate >= 80 ? 'text-green-600' : 'text-red-500'}
-        />
-        <StatCard
-          label="Maintenance Requests"
-          value={s.openComplaints.toString()}
-          icon={<Wrench className="w-5 h-5 text-purple-600" />}
-        />
-      </div>
+      {hasTrends ? (
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+          <Card>
+            <h2 className="mb-4 text-[15px] font-bold text-ink">Collections, last months</h2>
+            <div className="text-mute">
+              <ResponsiveContainer width="100%" height={220}>
+                <BarChart data={s.monthlySeries} barSize={18} barGap={4}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#8893A8" strokeOpacity={0.25} />
+                  <XAxis dataKey="month" tick={{ fontSize: 11, fill: 'currentColor' }} stroke="#8893A8" />
+                  <YAxis tickFormatter={v => `₹${(v / 10000000).toFixed(0)}L`} tick={{ fontSize: 11, fill: 'currentColor' }} stroke="#8893A8" />
+                  <Tooltip
+                    formatter={(val: number) => [formatCurrency(val), '']}
+                    contentStyle={{ fontSize: 12, background: 'rgb(var(--surface))', border: '1px solid rgb(var(--line))', color: 'rgb(var(--ink))' }}
+                  />
+                  <Legend wrapperStyle={{ fontSize: 12 }} />
+                  <Bar dataKey="billed"    fill="#8893A8" fillOpacity={0.45} name="Billed"    radius={[3,3,0,0]} />
+                  <Bar dataKey="collected" fill="#E58F1A" name="Collected" radius={[3,3,0,0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </Card>
 
-      {/* ── Charts ──────────────────────────────────────────────────────────── */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Collection trend */}
-        <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
-          <h3 className="font-semibold text-gray-800 mb-4">Monthly Collection vs Billing</h3>
-          <ResponsiveContainer width="100%" height={220}>
-            <BarChart data={s.monthlySeries} barSize={18} barGap={4}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-              <XAxis dataKey="month" tick={{ fontSize: 11 }} />
-              <YAxis tickFormatter={v => `₹${(v / 100000).toFixed(0)}L`} tick={{ fontSize: 11 }} />
-              <Tooltip
-                formatter={(val: number) => [formatCurrency(val), '']}
-                contentStyle={{ fontSize: 12 }}
-              />
-              <Legend wrapperStyle={{ fontSize: 12 }} />
-              <Bar dataKey="billed"    fill="#dbeafe" name="Billed"    radius={[3,3,0,0]} />
-              <Bar dataKey="collected" fill="#2563eb" name="Collected" radius={[3,3,0,0]} />
-            </BarChart>
-          </ResponsiveContainer>
+          <Card>
+            <h2 className="mb-4 text-[15px] font-bold text-ink">Complaint trend</h2>
+            <div className="text-mute">
+              <ResponsiveContainer width="100%" height={220}>
+                <LineChart data={s.complaintSeries}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#8893A8" strokeOpacity={0.25} />
+                  <XAxis dataKey="month" tick={{ fontSize: 11, fill: 'currentColor' }} stroke="#8893A8" />
+                  <YAxis tick={{ fontSize: 11, fill: 'currentColor' }} allowDecimals={false} stroke="#8893A8" />
+                  <Tooltip contentStyle={{ fontSize: 12, background: 'rgb(var(--surface))', border: '1px solid rgb(var(--line))', color: 'rgb(var(--ink))' }} />
+                  <Legend wrapperStyle={{ fontSize: 12 }} />
+                  <Line type="monotone" dataKey="open"     stroke="#FF6B5E" dot={false} name="Open"     strokeWidth={2} />
+                  <Line type="monotone" dataKey="resolved" stroke="#4ADE80" dot={false} name="Resolved" strokeWidth={2} />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          </Card>
         </div>
+      ) : (
+        <Card className="p-0">
+          <EmptyState
+            icon={TrendingUp}
+            title="Trends will appear here"
+            description="Monthly collection and complaint charts fill in as billing and complaint history builds up."
+          />
+        </Card>
+      )}
 
-        {/* Complaint trend */}
-        <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
-          <h3 className="font-semibold text-gray-800 mb-4">Complaint Trend</h3>
-          <ResponsiveContainer width="100%" height={220}>
-            <LineChart data={s.complaintSeries}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-              <XAxis dataKey="month" tick={{ fontSize: 11 }} />
-              <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
-              <Tooltip contentStyle={{ fontSize: 12 }} />
-              <Legend wrapperStyle={{ fontSize: 12 }} />
-              <Line type="monotone" dataKey="open"     stroke="#ef4444" dot={false} name="Open"     strokeWidth={2} />
-              <Line type="monotone" dataKey="resolved" stroke="#22c55e" dot={false} name="Resolved" strokeWidth={2} />
-            </LineChart>
-          </ResponsiveContainer>
+      <section aria-labelledby="recent-activity" className="overflow-hidden rounded-xl border border-line bg-surface">
+        <div className="border-b border-line px-5 py-4">
+          <h2 id="recent-activity" className="text-[15px] font-bold text-ink">Recent activity</h2>
         </div>
-      </div>
-
-      {/* ── Recent activity ──────────────────────────────────────────────────── */}
-      <div className="bg-white rounded-xl border border-gray-100 shadow-sm">
-        <div className="px-5 py-4 border-b border-gray-100">
-          <h3 className="font-semibold text-gray-800">Recent Activity</h3>
-        </div>
-        <ul className="divide-y divide-gray-50">
-          {s.recentActivity.map(item => {
-            const Icon = ICON_MAP[item.type]
-            return (
-              <li key={item.id} className="flex items-center gap-4 px-5 py-3 hover:bg-gray-50">
-                <div className="bg-gray-100 rounded-full p-2 shrink-0">
-                  <Icon className="w-4 h-4 text-gray-500" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-gray-800 truncate">{item.title}</p>
-                  <p className="text-xs text-gray-400">{item.subtitle}</p>
-                </div>
-                <div className="text-right shrink-0">
-                  {item.status && <Badge label={item.status} className="mb-1" />}
-                  <p className="text-xs text-gray-400">{formatDate(item.timestamp ?? '')}</p>
-                </div>
-              </li>
-            )
-          })}
-        </ul>
-      </div>
+        {s.recentActivity.length === 0 ? (
+          <EmptyState icon={Bell} title="No activity yet" description="New complaints, visitors and notices show up here." />
+        ) : (
+          <ul className="divide-y divide-line">
+            {s.recentActivity.map(item => {
+              const Icon = ICON_MAP[item.type]
+              return (
+                <li key={item.id} className="flex items-center gap-4 px-5 py-3">
+                  <div className="shrink-0 rounded-full bg-surface-alt p-2">
+                    <Icon className="h-4 w-4 text-mute" aria-hidden="true" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-semibold text-ink">{item.title}</p>
+                    <p className="text-xs text-mute">{item.subtitle}</p>
+                  </div>
+                  <div className="shrink-0 text-right">
+                    {item.status && <StatusPill label={item.status} className="mb-1" />}
+                    <p className="text-xs text-mute">{formatDate(item.timestamp ?? '')}</p>
+                  </div>
+                </li>
+              )
+            })}
+          </ul>
+        )}
+      </section>
     </div>
   )
 }
@@ -286,16 +270,12 @@ export default function DashboardPage() {
 // ── Skeleton ──────────────────────────────────────────────────────────────────
 function DashboardSkeleton() {
   return (
-    <div className="space-y-6 animate-pulse">
-      <div className="h-8 bg-gray-200 rounded w-48" />
-      <div className="grid grid-cols-4 gap-4">
-        {[...Array(4)].map((_, i) => (
-          <div key={i} className="h-28 bg-gray-100 rounded-xl" />
-        ))}
-      </div>
-      <div className="grid grid-cols-2 gap-6">
-        <div className="h-72 bg-gray-100 rounded-xl" />
-        <div className="h-72 bg-gray-100 rounded-xl" />
+    <div className="animate-pulse space-y-6" aria-busy="true" aria-label="Loading overview">
+      <div className="h-8 w-48 rounded bg-surface-alt" />
+      <div className="h-28 rounded-xl bg-surface-alt" />
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        <div className="h-72 rounded-xl bg-surface-alt" />
+        <div className="h-72 rounded-xl bg-surface-alt" />
       </div>
     </div>
   )
