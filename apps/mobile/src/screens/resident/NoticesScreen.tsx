@@ -9,6 +9,7 @@ import { apiClient } from '../../services/api/apiClient';
 import { useAuthStore } from '../../store/authStore';
 import { Colors } from '../../theme/colors';
 import { Spacing } from '../../theme/spacing';
+import { useHubUrl } from '../../config/useHubUrl';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -44,6 +45,7 @@ const fetchNotices = async (type?: string): Promise<PagedResult<Notice>> => {
 
 export default function NoticesScreen() {
   const { accessToken, activeSocietyId } = useAuthStore();
+  const hubUrl = useHubUrl();
   const queryClient = useQueryClient();
   const [filter, setFilter] = useState<string | undefined>(undefined);
   const [expanded, setExpanded] = useState<string | null>(null);
@@ -57,12 +59,11 @@ export default function NoticesScreen() {
 
   // ── SignalR — real-time notice push ─────────────────────────────────────────
   useEffect(() => {
-    if (!accessToken || !activeSocietyId) return;
+    if (!accessToken || !activeSocietyId || !hubUrl) return;
 
-    const apiUrl = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:5000';
 
     const connection = new HubConnectionBuilder()
-      .withUrl(`${apiUrl}/hubs/society?access_token=${accessToken}`, {
+      .withUrl(`${hubUrl}?access_token=${accessToken}`, {
         headers: { 'X-Society-Id': activeSocietyId },
       })
       .withAutomaticReconnect([0, 2000, 5000, 10000])
@@ -85,7 +86,7 @@ export default function NoticesScreen() {
     );
 
     return () => { connection.stop(); };
-  }, [accessToken, activeSocietyId, queryClient]);
+  }, [accessToken, activeSocietyId, hubUrl, queryClient]);
 
   // ── Type config ──────────────────────────────────────────────────────────────
   const typeConfig: Record<Notice['type'], { color: string; icon: string }> = {

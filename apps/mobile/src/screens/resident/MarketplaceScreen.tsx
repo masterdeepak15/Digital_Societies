@@ -6,6 +6,7 @@ import {
 import { Colors } from '../../theme/colors';
 import { Spacing } from '../../theme/spacing';
 import { Typography } from '../../theme/typography';
+import { apiFetch } from '../../services/api/apiFetch';
 
 const colors    = { ...Colors, successLight: '#d4edda', warningLight: '#fff3cd', backgroundSecondary: Colors.divider };
 const spacing   = Spacing;
@@ -36,15 +37,6 @@ const CATEGORY_ICONS: Record<string, string> = {
 const STATUS_COLORS: Record<string, string> = {
   Pending:'#fff3cd', Confirmed:'#d1ecf1', Completed:'#d4edda', Cancelled:'#f8d7da',
 };
-
-const API_BASE = 'http://localhost:8080/api/v1';
-async function apiFetch<T>(path: string, opts?: RequestInit): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, {
-    headers: { 'Content-Type': 'application/json' }, ...opts,
-  });
-  if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.message ?? 'Error'); }
-  return res.json();
-}
 
 // ── Book Modal ─────────────────────────────────────────────────────────────
 function BookModal({ listing, onClose, onBooked }: {

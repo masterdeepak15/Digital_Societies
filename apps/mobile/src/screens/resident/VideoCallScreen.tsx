@@ -24,6 +24,7 @@ import {
 import { Colors } from '../../theme/colors';
 import { Spacing } from '../../theme/spacing';
 import { Typography } from '../../theme/typography';
+import { apiFetch } from '../../services/api/apiFetch';
 
 // ── Theme alias ────────────────────────────────────────────────────────────
 const colors = { ...Colors };
@@ -41,20 +42,6 @@ interface CallRoomDto {
 }
 
 type CallState = 'connecting' | 'ringing' | 'active' | 'ended' | 'error';
-
-const API_BASE = 'http://localhost:8080/api/v1';
-
-async function apiFetch<T>(path: string, opts?: RequestInit): Promise<T> {
-  const res = await fetch(`${API_BASE}${path}`, {
-    headers: { 'Content-Type': 'application/json', ...(opts?.headers ?? {}) },
-    ...opts,
-  });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ message: 'Request failed' }));
-    throw new Error(err.message ?? 'Request failed');
-  }
-  return res.json();
-}
 
 // ── Props ──────────────────────────────────────────────────────────────────
 interface Props {

@@ -10,6 +10,7 @@ import { apiClient } from '../../services/api/apiClient';
 import { useAuthStore } from '../../store/authStore';
 import { Colors } from '../../theme/colors';
 import { Spacing } from '../../theme/spacing';
+import { useHubUrl } from '../../config/useHubUrl';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -74,6 +75,7 @@ const reactToPost = async ({ postId, type }: { postId: string; type: string }) =
 export default function FeedScreen() {
   const navigation = useNavigation<any>();
   const { accessToken, activeSocietyId } = useAuthStore();
+  const hubUrl = useHubUrl();
   const queryClient = useQueryClient();
   const [category, setCategory] = useState<string | undefined>(undefined);
 
@@ -92,11 +94,10 @@ export default function FeedScreen() {
 
   // ── SignalR ─────────────────────────────────────────────────────────────────
   useEffect(() => {
-    if (!accessToken || !activeSocietyId) return;
-    const apiUrl = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:5000';
+    if (!accessToken || !activeSocietyId || !hubUrl) return;
 
     const conn = new HubConnectionBuilder()
-      .withUrl(`${apiUrl}/hubs/society?access_token=${accessToken}`, {
+      .withUrl(`${hubUrl}?access_token=${accessToken}`, {
         headers: { 'X-Society-Id': activeSocietyId },
       })
       .withAutomaticReconnect()
@@ -111,7 +112,7 @@ export default function FeedScreen() {
 
     conn.start().catch(err => console.warn('[SignalR Feed]', err));
     return () => { conn.stop(); };
-  }, [accessToken, activeSocietyId, queryClient]);
+  }, [accessToken, activeSocietyId, hubUrl, queryClient]);
 
   // ── Render post card ─────────────────────────────────────────────────────────
   const renderPost = useCallback(({ item }: { item: FeedPost }) => {
