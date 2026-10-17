@@ -12,7 +12,7 @@ namespace DigitalSocieties.Identity.Application.Commands;
 
 // ── Command ──────────────────────────────────────────────────────────────────
 public sealed record VerifyOtpCommand(
-    string Phone,
+    string Email,
     string Otp,
     string Purpose,
     string? DeviceId,
@@ -36,7 +36,17 @@ public sealed record UserProfile(
     string Name,
     string Email,
     string? Phone,
-    IReadOnlyList<MembershipInfo> Memberships);
+    IReadOnlyList<MembershipInfo> Memberships)
+{
+    /// <summary>Safe projection of a user: never exposes 2FA secrets or other entity internals.</summary>
+    public static UserProfile FromUser(User user) => new(
+        user.Id, user.Name, user.Email, user.Phone,
+        user.Memberships
+            .Where(m => m.IsActive)
+            .Select(m => new MembershipInfo(
+                m.SocietyId, m.Society?.Name ?? "", m.Role.ToString(), m.FlatId, m.Flat?.DisplayName))
+            .ToList());
+}
 
 public sealed record MembershipInfo(
     Guid   SocietyId,
@@ -50,7 +60,7 @@ public sealed class VerifyOtpCommandValidator : AbstractValidator<VerifyOtpComma
 {
     public VerifyOtpCommandValidator()
     {
-        RuleFor(x => x.Phone).NotEmpty();
+        RuleFor(x => x.Email).NotEmpty().MaximumLength(DigitalSocieties.Shared.Domain.ValueObjects.Email.MaxLength);
         RuleFor(x => x.Otp).NotEmpty().Length(6).WithMessage("OTP must be 6 digits.");
         RuleFor(x => x.Purpose).NotEmpty();
     }
@@ -79,20 +89,23 @@ public sealed class VerifyOtpCommandHandler : IRequestHandler<VerifyOtpCommand, 
     public async Task<Result<AuthTokenResponse>> Handle(
         VerifyOtpCommand request, CancellationToken ct)
     {
+        var emailResult = DigitalSocieties.Shared.Domain.ValueObjects.Email.Create(request.Email);
+        if (emailResult.IsFailure)
+            return Result<AuthTokenResponse>.Fail(emailResult.Error!);
+        var email = emailResult.Value!;
+
         // Verify OTP
-        var verifyResult = await _otpService.VerifyAsync(request.Phone, request.Otp, request.Purpose, ct);
+        var verifyResult = await _otpService.VerifyAsync(email.Value, request.Otp, request.Purpose, ct);
         if (!verifyResult.IsSuccess)
             return Result<AuthTokenResponse>.Fail(verifyResult.Error!);
 
         // Get or create user
-        var user = await _users.FindByEmailAsync(request.Phone, ct); // TASK-4-BRIDGE: command field becomes Email
+        var user = await _users.FindByEmailAsync(email.Value, ct);
         bool isNew = user is null;
 
         if (isNew)
         {
-            user = User.Create(
-                DigitalSocieties.Shared.Domain.ValueObjects.Email.Create(request.Phone).Value!, // TASK-4-BRIDGE
-                "New User");
+            user = User.Create(email, "New User");
         }
 
         user!.MarkVerified();

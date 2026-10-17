@@ -50,7 +50,7 @@ public sealed class BillingDbContextFactory : IDesignTimeDbContextFactory<Billin
     private sealed class NullCurrentUser : ICurrentUser
     {
         public Guid? UserId => null; public Guid? SocietyId => null;
-        public Guid? FlatId => null; public string? Phone => null;
+        public Guid? FlatId => null; public string? Email => null;
         public IReadOnlyList<string> Roles => [];
         public bool IsInRole(string r) => false; public bool IsAuthenticated => false;
     }

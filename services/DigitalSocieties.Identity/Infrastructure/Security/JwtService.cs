@@ -52,7 +52,7 @@ public sealed class JwtService : IJwtService
         {
             new(JwtRegisteredClaimNames.Sub,   user.Id.ToString()),
             new(JwtRegisteredClaimNames.Jti,   Guid.NewGuid().ToString()),
-            new("phone",  user.Phone),
+            new("email",  user.Email),
             new("name",   user.Name),
         };
 
