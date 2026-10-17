@@ -8,7 +8,7 @@ import { z } from 'zod'
 import { toast } from 'sonner'
 import { Building2, Mail, ShieldCheck, Loader2, KeyRound } from 'lucide-react'
 import { api } from '@/lib/api'
-import { saveSession, type AdminUser } from '@/lib/auth'
+import { saveSession, profileToAdminUser, type ApiProfile } from '@/lib/auth'
 
 const emailSchema = z.object({
   email: z.string().trim().toLowerCase().max(250).email('Enter a valid email address'),
@@ -27,7 +27,8 @@ type TotpForm  = z.infer<typeof totpSchema>
 interface SendOtpResp   { maskedEmail: string; expiresInSeconds: number }
 interface VerifyOtpResp {
   accessToken:      string
-  user:             AdminUser
+  refreshToken:     string
+  profile:          ApiProfile
   requiresTwoFactor?: boolean
   pendingUserId?:   string
 }
@@ -83,11 +84,12 @@ export default function LoginPage() {
 
       // Guard: only admin / accountant can access web console
       const allowed = ['admin', 'accountant']
-      if (!resp.user?.roles?.some(r => allowed.includes(r.toLowerCase()))) {
+      const user = profileToAdminUser(resp.profile)
+      if (!user.roles.some(r => allowed.includes(r))) {
         toast.error('Access denied. Only Admin or Accountant accounts may log in here.')
         return
       }
-      saveSession(resp.accessToken, resp.user)
+      saveSession(resp.accessToken, user, resp.refreshToken)
       router.push('/dashboard')
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : 'Invalid OTP')
@@ -102,11 +104,12 @@ export default function LoginPage() {
         totpCode: data.totp,
       })
       const allowed = ['admin', 'accountant']
-      if (!resp.user?.roles?.some(r => allowed.includes(r.toLowerCase()))) {
+      const user = profileToAdminUser(resp.profile)
+      if (!user.roles.some(r => allowed.includes(r))) {
         toast.error('Access denied.')
         return
       }
-      saveSession(resp.accessToken, resp.user)
+      saveSession(resp.accessToken, user, resp.refreshToken)
       router.push('/dashboard')
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : 'Invalid authenticator code')

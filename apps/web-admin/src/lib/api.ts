@@ -17,6 +17,7 @@ export const API_BASE = rawApiUrl.endsWith('/api/v1')
 export const API_HOST = API_BASE.replace(/\/api\/v1$/, '')
 
 const TOKEN_KEY = 'ds_token'
+const REFRESH_KEY = 'ds_refresh'
 
 export class ApiError extends Error {
   constructor(public status: number, message: string) {
@@ -35,16 +36,20 @@ function resolveUrl(path: string): string {
 let _refreshPromise: Promise<string | null> | null = null
 
 async function doRefresh(): Promise<string | null> {
-  const token = Cookies.get(TOKEN_KEY)
-  if (!token) return null
+  // POST /auth/refresh takes the refresh token in the body (not the access token).
+  const refreshToken = Cookies.get(REFRESH_KEY)
+  if (!refreshToken) return null
   try {
     const res = await fetch(resolveUrl('/auth/refresh'), {
       method:  'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ refreshToken }),
     })
     if (!res.ok) return null
-    const { accessToken } = (await res.json()) as { accessToken?: string }
+    const { accessToken, refreshToken: rotated } =
+      (await res.json()) as { accessToken?: string; refreshToken?: string }
     if (accessToken) Cookies.set(TOKEN_KEY, accessToken, { expires: 7, sameSite: 'Lax' })
+    if (rotated)     Cookies.set(REFRESH_KEY, rotated, { expires: 30, sameSite: 'Lax' })
     return accessToken ?? null
   } catch {
     return null
@@ -53,6 +58,7 @@ async function doRefresh(): Promise<string | null> {
 
 function clearSessionAndRedirect() {
   Cookies.remove(TOKEN_KEY)
+  Cookies.remove(REFRESH_KEY)
   if (typeof localStorage !== 'undefined') localStorage.removeItem('ds_user')
   if (typeof window !== 'undefined') window.location.href = '/login'
 }

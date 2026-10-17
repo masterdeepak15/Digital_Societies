@@ -13,6 +13,7 @@ import { Table, Thead, Tbody, Th, Td, Tr } from '@/components/ui/Table'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { Receipt } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { demo } from '@/lib/demo'
 
 // ── Types — aligned with API BillDto ─────────────────────────────────────────
 // GET /billing/bills → { items: ApiBillDto[], total, page, pageSize (or limit) }
@@ -100,7 +101,7 @@ export default function BillingPage() {
   })
 
   // Map API DTOs → UI rows; fall back to DEMO when API hasn't responded yet.
-  const bills: Bill[] = data?.items ? data.items.map(toUiBill) : DEMO_BILLS
+  const bills: Bill[] = data?.items ? data.items.map(toUiBill) : demo(DEMO_BILLS)
 
   // Compute totals from UI rows (amountRupees, not paise)
   const summary = {

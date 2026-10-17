@@ -11,20 +11,20 @@ import { Badge } from '@/components/ui/Badge'
 import { Table, Thead, Tbody, Th, Td, Tr } from '@/components/ui/Table'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { cn } from '@/lib/utils'
+import { demo } from '@/lib/demo'
 
 // ── Types — aligned with API MemberDto ────────────────────────────────────────
 // API GET /members → { items: MemberDto[], total, page, pageSize }
-// MemberDto: { userId, name, phone, role, flatId, flatNumber, wing }
+// MemberDto: { userId, name, email, phone?, role, memberType, flatNumber, wing, joinedAt }
 interface Member {
   userId:       string
   name:         string
-  phone:        string
+  email?:       string
+  phone?:       string | null
   role:         string
   flatId?:      string
   flatNumber?:  string
   wing?:        string
-  // UI-only optional fields kept for future joins (not returned by API today).
-  email?:       string
   memberType?:  string
   joinedAt?:    string
   isActive?:    boolean
@@ -52,12 +52,13 @@ export default function MembersPage() {
     queryKey: ['members', role],
     queryFn:  () => api.get(role === 'all' ? '/members' : `/members?role=${role}`),
   })
-  const members: Member[] = data?.items ?? DEMO_MEMBERS
+  const members: Member[] = data?.items ?? demo(DEMO_MEMBERS)
 
   const filtered = members.filter(m =>
     (role === 'all' || m.role === role) &&
     (search === '' || m.name.toLowerCase().includes(search.toLowerCase()) ||
-     m.phone.includes(search) || (m.flatNumber ?? '').toLowerCase().includes(search.toLowerCase()))
+     (m.email ?? '').toLowerCase().includes(search.toLowerCase()) ||
+     (m.phone ?? '').includes(search) || (m.flatNumber ?? '').toLowerCase().includes(search.toLowerCase()))
   )
 
   return (
@@ -82,7 +83,7 @@ export default function MembersPage() {
           <input
             value={search}
             onChange={e => setSearch(e.target.value)}
-            placeholder="Search name, phone, flat…"
+            placeholder="Search name, email, phone, flat…"
             className="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500"
           />
         </div>
@@ -119,7 +120,7 @@ export default function MembersPage() {
             <Thead>
               <Tr>
                 <Th>Member</Th>
-                <Th>Phone</Th>
+                <Th>Contact</Th>
                 <Th>Flat</Th>
                 <Th>Role</Th>
                 <Th>Type</Th>
@@ -145,7 +146,7 @@ export default function MembersPage() {
                       </div>
                     </div>
                   </Td>
-                  <Td>{m.phone}</Td>
+                  <Td>{m.phone ?? '—'}</Td>
                   <Td>{flatLabel(m)}</Td>
                   <Td><Badge label={m.role} /></Td>
                   <Td className="capitalize text-gray-500 text-sm">{m.memberType}</Td>
@@ -170,30 +171,35 @@ export default function MembersPage() {
 }
 
 // ── Add Member Modal ──────────────────────────────────────────────────────────
-// API: POST /members/family — { flatId, name, phone, relationship }
-// relationship: 'Owner' | 'Tenant' | 'Family'
+// API: POST /members/family — { email, name, memberType, phone? }
+// The member is added to the caller's own flat (taken from the JWT).
 interface AddMemberForm {
   name:         string
+  email:        string
   phone:        string
-  flatId:       string
   relationship: 'Owner' | 'Tenant' | 'Family'
 }
 
 function AddMemberModal({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
   const [form, setForm] = useState<AddMemberForm>({
-    name: '', phone: '', flatId: '', relationship: 'Owner',
+    name: '', email: '', phone: '', relationship: 'Owner',
   })
   const set = <K extends keyof AddMemberForm>(k: K, v: AddMemberForm[K]) =>
     setForm(prev => ({ ...prev, [k]: v }))
 
   const mutation = useMutation({
-    mutationFn: () => api.post('/members/family', form),
+    mutationFn: () => api.post('/members/family', {
+      email:      form.email.trim(),
+      name:       form.name.trim(),
+      memberType: form.relationship.toLowerCase(),
+      phone:      form.phone.trim() || null,
+    }),
     onSuccess:  () => { toast.success('Member added successfully'); onCreated() },
     onError:    (e: Error) => toast.error(e.message),
   })
 
   const inputClass = 'w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500'
-  const isValid = form.name.trim().length >= 2 && form.phone.trim().length >= 10 && form.flatId.trim().length > 0
+  const isValid = form.name.trim().length >= 2 && /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(form.email.trim())
 
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
@@ -207,16 +213,16 @@ function AddMemberModal({ onClose, onCreated }: { onClose: () => void; onCreated
         </div>
 
         <div>
-          <label className="block text-sm font-medium mb-1">Phone</label>
-          <input value={form.phone} onChange={e => set('phone', e.target.value)}
-            placeholder="+919876543210" type="tel" className={inputClass} />
+          <label className="block text-sm font-medium mb-1">Email</label>
+          <input value={form.email} onChange={e => set('email', e.target.value)}
+            placeholder="name@example.com" type="email" autoCapitalize="none" className={inputClass} />
+          <p className="text-xs text-gray-400 mt-0.5">They sign in with this address. Added to your own flat.</p>
         </div>
 
         <div>
-          <label className="block text-sm font-medium mb-1">Flat ID</label>
-          <input value={form.flatId} onChange={e => set('flatId', e.target.value)}
-            placeholder="flat-a101" className={inputClass} />
-          <p className="text-xs text-gray-400 mt-0.5">Enter the flat's internal ID (e.g. flat-a101)</p>
+          <label className="block text-sm font-medium mb-1">Phone <span className="text-gray-400 font-normal">— optional</span></label>
+          <input value={form.phone} onChange={e => set('phone', e.target.value)}
+            placeholder="+919876543210" type="tel" className={inputClass} />
         </div>
 
         <div>

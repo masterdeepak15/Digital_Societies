@@ -9,6 +9,7 @@ import { formatDate, cn } from '@/lib/utils'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { Badge } from '@/components/ui/Badge'
 import { EmptyState } from '@/components/ui/EmptyState'
+import { demo } from '@/lib/demo'
 
 // ── Types — aligned with API ─────────────────────────────────────────────────
 // API GET /facilities → { facilities: [{ id, name, type, capacity, availableSlots, rate }] }
@@ -69,14 +70,14 @@ export default function FacilitiesPage() {
     queryKey: ['facilities'],
     queryFn:  () => api.get('/facilities'),
   })
-  const facilities: Facility[] = facilitiesData?.facilities ?? DEMO_FACILITIES
+  const facilities: Facility[] = facilitiesData?.facilities ?? demo(DEMO_FACILITIES)
 
   const { data: bookingsData } = useQuery<BookingsResponse>({
     queryKey: ['facility-bookings', dateFilter],
     queryFn:  () => api.get(`/facilities/bookings?date=${dateFilter}`),
     enabled:  tab === 'bookings',
   })
-  const bookings: Booking[] = bookingsData?.items ?? DEMO_BOOKINGS
+  const bookings: Booking[] = bookingsData?.items ?? demo(DEMO_BOOKINGS)
 
   const cancelMutation = useMutation({
     // Admin cancel: DELETE /facilities/bookings/{id}

@@ -14,6 +14,7 @@ import { formatDate, formatCurrency } from '@/lib/utils'
 import { StatCard } from '@/components/ui/Card'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { Badge } from '@/components/ui/Badge'
+import { demo } from '@/lib/demo'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 interface DashboardStats {
@@ -91,20 +92,20 @@ async function fetchDashboard(): Promise<DashboardStats> {
   const recentNotices  = recentNoticesRes.status  === 'fulfilled' ? recentNoticesRes.value  : null
 
   // ── Stat card values ──
-  const pendingBills    = billing?.pending ?? DEMO_STATS.pendingBills
-  const pendingBillsAmt = billing?.pendingRupees ?? DEMO_STATS.pendingBillsAmt
+  const pendingBills    = billing?.pending ?? demo(DEMO_STATS).pendingBills
+  const pendingBillsAmt = billing?.pendingRupees ?? demo(DEMO_STATS).pendingBillsAmt
   const collectionRate  = billing && billing.total > 0
     ? Math.round((billing.paid / billing.total) * 100)
-    : DEMO_STATS.collectionRate
-  const totalResidents  = residents?.total ?? DEMO_STATS.totalResidents
+    : demo(DEMO_STATS).collectionRate
+  const totalResidents  = residents?.total ?? demo(DEMO_STATS).totalResidents
   // activeFlats: no dedicated endpoint — use billing.total (flats that got a bill) as proxy
-  const activeFlats     = billing?.total ?? DEMO_STATS.activeFlats
-  const openComplaintCount = openComplaints?.total ?? DEMO_STATS.openComplaints
+  const activeFlats     = billing?.total ?? demo(DEMO_STATS).activeFlats
+  const openComplaintCount = openComplaints?.total ?? demo(DEMO_STATS).openComplaints
   // todayVisitors: filter Entered visitors by today's date
   const today           = new Date().toDateString()
   const todayVisitorCount = enteredVisitors
     ? enteredVisitors.items.filter(v => v.entryTime && new Date(v.entryTime).toDateString() === today).length
-    : DEMO_STATS.todayVisitors
+    : demo(DEMO_STATS).todayVisitors
 
   // ── Recent activity (merge complaints + visitors + notices, sort by timestamp) ──
   const activities: Activity[] = []
@@ -129,7 +130,7 @@ async function fetchDashboard(): Promise<DashboardStats> {
     timestamp: n.createdAt,
   }))
   activities.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
-  const recentActivity = activities.slice(0, 5).length > 0 ? activities.slice(0, 5) : DEMO_STATS.recentActivity
+  const recentActivity = activities.slice(0, 5).length > 0 ? activities.slice(0, 5) : demo(DEMO_STATS).recentActivity
 
   return {
     totalResidents,
@@ -140,8 +141,8 @@ async function fetchDashboard(): Promise<DashboardStats> {
     todayVisitors:   todayVisitorCount,
     collectionRate,
     // Monthly billing/complaint series: no historical endpoint exists yet — use DEMO.
-    monthlySeries:   DEMO_STATS.monthlySeries,
-    complaintSeries: DEMO_STATS.complaintSeries,
+    monthlySeries:   demo(DEMO_STATS).monthlySeries,
+    complaintSeries: demo(DEMO_STATS).complaintSeries,
     recentActivity,
   }
 }
@@ -155,7 +156,7 @@ export default function DashboardPage() {
 
   if (isLoading) return <DashboardSkeleton />
 
-  const s = stats ?? DEMO_STATS
+  const s = stats ?? demo(DEMO_STATS)
 
   return (
     <div className="space-y-6">

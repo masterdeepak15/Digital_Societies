@@ -11,6 +11,7 @@ import { Badge } from '@/components/ui/Badge'
 import { Table, Thead, Tbody, Th, Td, Tr } from '@/components/ui/Table'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { cn } from '@/lib/utils'
+import { demo } from '@/lib/demo'
 
 // ── Types — kept compatible with API DTO; UI-only fields are optional ─────────
 // API returns { id, name, phone, purpose, status, entryTime, exitTime, vehicleNumber }.
@@ -48,7 +49,7 @@ export default function VisitorsPage() {
   })
 
   // The API returns a paginated envelope. Map server fields ➜ UI fields where naming differs.
-  const visitors: Visitor[] = (data?.items ?? DEMO_VISITORS).map(v => ({
+  const visitors: Visitor[] = (data?.items ?? demo(DEMO_VISITORS)).map(v => ({
     ...v,
     purposeOfVisit: (v as unknown as { purpose?: string }).purpose ?? v.purposeOfVisit,
   }))

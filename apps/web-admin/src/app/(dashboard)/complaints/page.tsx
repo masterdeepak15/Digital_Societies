@@ -11,6 +11,7 @@ import { Badge } from '@/components/ui/Badge'
 import { Table, Thead, Tbody, Th, Td, Tr } from '@/components/ui/Table'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { cn } from '@/lib/utils'
+import { demo } from '@/lib/demo'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 // API DTO: { id, ticketNumber, title, description, category, priority, status, createdAt }
@@ -55,7 +56,7 @@ export default function ComplaintsPage() {
     queryKey: ['complaints', status],
     queryFn:  () => api.get(status === 'all' ? '/complaints' : `/complaints?status=${status}`),
   })
-  const complaints: Complaint[] = data?.items ?? DEMO_COMPLAINTS
+  const complaints: Complaint[] = data?.items ?? demo(DEMO_COMPLAINTS)
 
   // API: PUT /complaints/{id}/status, body { status: 'InProgress'|'Resolved'|'Closed'|'Reopened', note? }
   const updateMutation = useMutation({
