@@ -110,7 +110,7 @@ Endpoints returning lists accept `page` (1-based) and `pageSize` (or `limit`). R
 ## 1. Auth & Identity (`/api/v1/auth`)
 
 ### POST `/auth/otp/send`
-Send OTP to phone via SMS (MSG91). Rate-limited 3/hour per phone.
+Email a 6-digit sign-in code. Rate-limited 3/hour per email address. The response is identical for known and unknown addresses.
 
 **Auth:** `AllowAnonymous`
 **Command:** `SendOtpCommand`
@@ -118,22 +118,27 @@ Send OTP to phone via SMS (MSG91). Rate-limited 3/hour per phone.
 **Request:**
 ```json
 {
-  "phone": "+919876543210",
+  "email": "deepak@example.com",
   "purpose": "login"
 }
 ```
-- `phone` (string, required) — Indian format `+91XXXXXXXXXX` or 10-digit starting 6-9.
+- `email` (string, required) — trimmed and lowercased server-side; max 250 characters.
 - `purpose` (string, required) — `"login" | "register" | "step_up"`.
 
 **Response 200:**
 ```json
 {
-  "maskedPhone": "+91XXXXXX3210",
+  "maskedEmail": "d***@example.com",
   "expiresInSeconds": 600
 }
 ```
 
-**Errors:** 400 `INVALID_PHONE`, 429 rate-limit exceeded.
+**Errors:** 400 `EMAIL.INVALID`, 429 `OTP.RATE_LIMITED`, 503 `EMAIL.NOT_CONFIGURED` / `EMAIL.SEND_FAILED` (SMTP missing or down).
+
+---
+
+### PUT `/auth/me/phone` and PUT `/auth/me/name`
+Authenticated profile updates. `{ "phone": "+14155552671" }` sets the optional phone (E.164, or a bare Indian mobile number); `null` or blank clears it. `{ "name": "Priya Shah" }` renames the user (used by the first-login name prompt). Both return 204. `GET /auth/me` returns the safe profile `{ userId, name, email, phone, memberships }`.
 
 ---
 
@@ -146,7 +151,7 @@ Verify the 6-digit OTP and issue an access + refresh token. If 2FA is enabled, r
 **Request:**
 ```json
 {
-  "phone": "+919876543210",
+  "email": "deepak@example.com",
   "otp": "482913",
   "purpose": "login",
   "deviceId": "device-uuid",
@@ -167,7 +172,8 @@ Verify the 6-digit OTP and issue an access + refresh token. If 2FA is enabled, r
   "profile": {
     "userId": "4f8b...",
     "name": "Deepak Sharma",
-    "phone": "+919876543210",
+    "email": "deepak@example.com",
+    "phone": null,
     "memberships": [
       {
         "societyId": "1a2b...",
@@ -296,9 +302,10 @@ First-run wizard. Creates the society, the admin user, and (optionally) writes i
     "totalFlats": 120
   },
   "admin": {
-    "phone": "+919876543210",
+    "email": "deepak@example.com",
     "name": "Deepak Sharma",
-    "otp": "482913"
+    "otp": "482913",
+    "phone": null
   },
   "smtp":     { "host": "...", "port": 587, "user": "...", "password": "...", "from": "..." },
   "razorpay": { "keyId": "rzp_live_...", "keySecret": "..." },
@@ -314,7 +321,8 @@ First-run wizard. Creates the society, the admin user, and (optionally) writes i
   "user": {
     "userId": "4f8b...",
     "name": "Deepak Sharma",
-    "phone": "+919876543210",
+    "email": "deepak@example.com",
+    "phone": null,
     "roles": ["admin"],
     "societyId": "1a2b..."
   }

@@ -28,7 +28,7 @@ cd Digital_Societies/infra/docker
 
 # 2. Configure secrets
 cp .env.prod.example .env
-# Edit .env — set DOMAIN, POSTGRES_PASSWORD, JWT_SECRET_KEY, MINIO keys, MSG91_API_KEY
+# Edit .env — set DOMAIN, POSTGRES_PASSWORD, JWT_SECRET_KEY, MINIO keys, SMTP_* (sign-in emails; MSG91_API_KEY is optional)
 
 # 3. Launch  (API + PostgreSQL + Redis + MinIO + Caddy with auto-HTTPS)
 docker compose -f docker-compose.prod.yml up -d
@@ -47,9 +47,22 @@ docker compose -f docker-compose.prod.yml up -d
 | `JWT_SECRET_KEY` | ≥32-char random secret (`openssl rand -base64 32`) |
 | `MINIO_ACCESS_KEY` | MinIO access key |
 | `MINIO_SECRET_KEY` | MinIO secret key (≥8 chars) |
-| `MSG91_API_KEY` | MSG91 API key for OTP SMS |
+| `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURITY`, `SMTP_USERNAME`, `SMTP_PASSWORD`, `SMTP_FROM_ADDRESS` | SMTP relay used to email sign-in codes (see **Email setup**) |
+| `MSG91_API_KEY` | *Optional.* Enables SMS alerts (visitor/payment fallback). Leave empty to run with no SMS. Login never needs it. |
 
 ---
+
+## Email setup (sign-in codes)
+
+Users sign in with their **email address** and a 6-digit code. Delivery uses plain SMTP, so any free relay works:
+
+| Where | Setup |
+|---|---|
+| Local dev | `docker compose -f docker-compose.yml -f docker-compose.dev.yml up` starts **Mailpit**; open http://localhost:8025 to read the codes. No account needed. |
+| Gmail | `SMTP_HOST=smtp.gmail.com`, `SMTP_PORT=587`, `SMTP_SECURITY=StartTls`, username = your address, password = an **App Password**. |
+| Brevo (free tier, ~300 mails/day) | `SMTP_HOST=smtp-relay.brevo.com`, port 587, StartTls, SMTP login/key from your Brevo account. |
+
+If SMTP is not configured in production, `POST /auth/otp/send` returns `503 EMAIL.NOT_CONFIGURED`. Phone numbers are optional profile data; SMS is only used when `MSG91_API_KEY` is set.
 
 ## Local Development
 
