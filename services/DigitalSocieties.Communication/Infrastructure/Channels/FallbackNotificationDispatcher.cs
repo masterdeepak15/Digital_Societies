@@ -21,22 +21,22 @@ namespace DigitalSocieties.Communication.Infrastructure.Channels;
 public sealed class FallbackNotificationDispatcher : INotificationDispatcher
 {
     private readonly ExpoPushChannel    _push;
-    private readonly Msg91SmsChannel    _sms;
+    private readonly INotificationChannel? _sms;   // null when SMS is not configured
     private readonly ILogger<FallbackNotificationDispatcher> _log;
 
     public FallbackNotificationDispatcher(
         ExpoPushChannel  push,
-        Msg91SmsChannel  sms,
+        IEnumerable<INotificationChannel> channels,
         ILogger<FallbackNotificationDispatcher> log)
     {
         _push = push;
-        _sms  = sms;
+        _sms  = channels.FirstOrDefault(c => c.ChannelName == "sms");
         _log  = log;
     }
 
     public async Task<string?> DispatchAsync(
         NotificationMessage message,
-        string              recipientPhone,
+        string?             recipientPhone,
         CancellationToken   ct = default)
     {
         // ── 1. Try push first (free, instant, rich) ───────────────────────
@@ -60,7 +60,7 @@ public sealed class FallbackNotificationDispatcher : INotificationDispatcher
         }
 
         // ── 2. Fall back to SMS (always reaches the phone number) ─────────
-        if (_sms.IsEnabled)
+        if (_sms is { IsEnabled: true } && !string.IsNullOrWhiteSpace(recipientPhone))
         {
             // SMS recipient = phone number, not userId
             var smsMessage = message with { Recipient = recipientPhone };

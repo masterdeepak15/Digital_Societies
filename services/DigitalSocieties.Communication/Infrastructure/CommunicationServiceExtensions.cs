@@ -16,6 +16,7 @@ public static class CommunicationServiceExtensions
         this IServiceCollection services, IConfiguration config)
     {
         services.Configure<Msg91Settings>(config.GetSection(Msg91Settings.SectionName));
+        services.Configure<EmailSettings>(config.GetSection(EmailSettings.SectionName));
 
         services.AddDbContext<CommunicationDbContext>(opts =>
             opts.UseNpgsql(config.GetConnectionString("Postgres"),
@@ -30,10 +31,17 @@ public static class CommunicationServiceExtensions
         services.AddHttpClient("expo");  // Expo push notifications
 
         // OCP: Register all notification channels (injected as IEnumerable<INotificationChannel>)
-        services.AddScoped<Msg91SmsChannel>();
+        services.AddScoped<SmtpEmailChannel>();
         services.AddScoped<ExpoPushChannel>();
-        services.AddScoped<INotificationChannel>(sp => sp.GetRequiredService<Msg91SmsChannel>());
+        services.AddScoped<INotificationChannel>(sp => sp.GetRequiredService<SmtpEmailChannel>());
         services.AddScoped<INotificationChannel>(sp => sp.GetRequiredService<ExpoPushChannel>());
+
+        // SMS is optional (paid): register it only when an API key is configured.
+        if (config.GetSection(Msg91Settings.SectionName).Get<Msg91Settings>()?.IsConfigured == true)
+        {
+            services.AddScoped<Msg91SmsChannel>();
+            services.AddScoped<INotificationChannel>(sp => sp.GetRequiredService<Msg91SmsChannel>());
+        }
 
         // Fallback dispatcher: push → SMS (guard offline hardening).
         // Registered against the Shared interface so Visitor/Billing modules can inject it.
