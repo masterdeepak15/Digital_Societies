@@ -37,8 +37,9 @@ export function profileToAdminUser(p: ApiProfile): AdminUser {
 }
 
 export function saveSession(token: string, user: AdminUser, refreshToken?: string) {
-  Cookies.set(TOKEN_KEY, token, { expires: 7, sameSite: 'Lax' })
-  if (refreshToken) Cookies.set(REFRESH_KEY, refreshToken, { expires: 30, sameSite: 'Lax' })
+  const secure = typeof location !== 'undefined' && location.protocol === 'https:'
+  Cookies.set(TOKEN_KEY, token, { expires: 7, sameSite: 'Lax', secure })
+  if (refreshToken) Cookies.set(REFRESH_KEY, refreshToken, { expires: 30, sameSite: 'Lax', secure })
   localStorage.setItem(USER_KEY, JSON.stringify(user))
 }
 

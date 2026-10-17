@@ -121,6 +121,28 @@ public class OtpServiceTests
     }
 
     [Fact]
+    public async Task OtpRequest_TwoWritersOfTheSameRow_SecondConflictsInsteadOfBothRedeeming()
+    {
+        var o = NewOptions();
+        await using var seed = Ctx(o);
+        var created = await new OtpService(seed).CreateAsync(Email, Purpose, default);
+        await using var dbA = Ctx(o);
+        await using var dbB = Ctx(o);
+        // Both requests read the still-unused code before either has saved.
+        var rowA = await dbA.OtpRequests.SingleAsync();
+        var rowB = await dbB.OtpRequests.SingleAsync();
+
+        rowA.Verify(created.PlainOtp).Should().BeTrue();
+        await dbA.SaveChangesAsync();
+        rowB.Verify(created.PlainOtp).Should().BeTrue();
+
+        // Without a concurrency token the second save silently overwrites the first and both
+        // callers would mint a session from one single-use code.
+        var second = async () => await dbB.SaveChangesAsync();
+        await second.Should().ThrowAsync<DbUpdateConcurrencyException>();
+    }
+
+    [Fact]
     public async Task Verify_UsesLatestUnusedRequest()
     {
         var o = NewOptions();

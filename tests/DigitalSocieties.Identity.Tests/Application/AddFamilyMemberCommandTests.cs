@@ -67,6 +67,19 @@ public class AddFamilyMemberCommandTests
     }
 
     [Fact]
+    public async Task AddFamilyMember_PhoneAlreadyUsedByAnotherUser_FailsPhoneTaken()
+    {
+        var other = User.Create(Email.Create("other@example.com").Value!, "Other", PhoneNumber.Create("+14155552671").Value!);
+        _db.Users.Add(other);
+        await _db.SaveChangesAsync();
+
+        var result = await Handler().Handle(new AddFamilyMemberCommand("kid@example.com", "Kid", "family", "+14155552671"), default);
+
+        result.Error!.Code.Should().Be("PHONE.TAKEN");
+        (await _db.Users.CountAsync()).Should().Be(1);
+    }
+
+    [Fact]
     public async Task AddFamilyMember_InvalidEmail_Fails()
     {
         var result = await Handler().Handle(new AddFamilyMemberCommand("nope", "Kid", "family"), default);

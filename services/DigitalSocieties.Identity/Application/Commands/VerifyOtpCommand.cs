@@ -1,4 +1,5 @@
 using MediatR;
+using Microsoft.EntityFrameworkCore;
 using FluentValidation;
 using DigitalSocieties.Shared.Results;
 using DigitalSocieties.Shared.Contracts;
@@ -86,6 +87,16 @@ public sealed class VerifyOtpCommandHandler : IRequestHandler<VerifyOtpCommand, 
         _uow        = uow;
     }
 
+    private static void RecordSignIn(User user, VerifyOtpCommand request)
+    {
+        user.MarkVerified();
+        user.RecordLogin();
+
+        // Register device if provided (security binding)
+        if (!string.IsNullOrEmpty(request.DeviceId) && !user.HasDevice(request.DeviceId))
+            user.RegisterDevice(request.DeviceId, request.DeviceName ?? "Unknown", request.Platform ?? "unknown");
+    }
+
     public async Task<Result<AuthTokenResponse>> Handle(
         VerifyOtpCommand request, CancellationToken ct)
     {
@@ -108,20 +119,31 @@ public sealed class VerifyOtpCommandHandler : IRequestHandler<VerifyOtpCommand, 
             user = User.Create(email, "New User");
         }
 
-        user!.MarkVerified();
-        user.RecordLogin();
-
-        // Register device if provided (security binding)
-        if (!string.IsNullOrEmpty(request.DeviceId) && !user.HasDevice(request.DeviceId))
-            user.RegisterDevice(request.DeviceId, request.DeviceName ?? "Unknown", request.Platform ?? "unknown");
+        RecordSignIn(user!, request);
 
         if (isNew)
-            _users.Add(user);
+            _users.Add(user!);
         else
-            _users.Update(user);
+            _users.Update(user!);
 
-        // OtpVerifiedEvent raised internally by user.MarkVerified() domain method
-        await _uow.CommitAsync(ct);
+        try
+        {
+            // OtpVerifiedEvent raised internally by user.MarkVerified() domain method
+            await _uow.CommitAsync(ct);
+        }
+        catch (DbUpdateException) when (isNew)
+        {
+            // Two sign-ins for the same brand-new email raced and the other one inserted first
+            // (unique index on email). The code is already consumed, so continue as that user
+            // rather than failing the person who just proved they own the mailbox.
+            _users.ClearPendingChanges();
+            user = await _users.FindByEmailAsync(email.Value, ct);
+            if (user is null) throw;
+            isNew = false;
+            RecordSignIn(user, request);
+            _users.Update(user);
+            await _uow.CommitAsync(ct);
+        }
 
         var memberships = user.Memberships
             .Where(m => m.IsActive)

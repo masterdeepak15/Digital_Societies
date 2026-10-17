@@ -1,4 +1,5 @@
 using Xunit;
+using System.Linq.Expressions;
 using FluentAssertions;
 using NSubstitute;
 using DigitalSocieties.Identity.Application.Commands;
@@ -56,6 +57,18 @@ public class ProfileCommandTests
         var result = await PhoneHandler().Handle(new SetPhoneCommand("+1234"), default);
 
         result.Error!.Code.Should().Be("PHONE.INVALID");
+        await _uow.DidNotReceiveWithAnyArgs().CommitAsync(default);
+    }
+
+    [Fact]
+    public async Task SetPhone_TakenByAnotherUser_FailsPhoneTakenWithoutCommit()
+    {
+        _users.ExistsAsync(Arg.Any<Expression<Func<User, bool>>>(), Arg.Any<CancellationToken>()).Returns(true);
+
+        var result = await PhoneHandler().Handle(new SetPhoneCommand("+14155552671"), default);
+
+        result.Error!.Code.Should().Be("PHONE.TAKEN");
+        _user.Phone.Should().BeNull();
         await _uow.DidNotReceiveWithAnyArgs().CommitAsync(default);
     }
 

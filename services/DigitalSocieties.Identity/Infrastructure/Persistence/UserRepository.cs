@@ -30,6 +30,8 @@ public sealed class UserRepository : IUserRepository
         => await _db.Users.AnyAsync(predicate, ct);
 
     // ── Domain-specific queries ───────────────────────────────────────────────
+    public void ClearPendingChanges() => _db.ChangeTracker.Clear();
+
     public async Task<User?> FindByEmailAsync(string email, CancellationToken ct = default)
         => await _db.Users
             .Include(u => u.Devices)

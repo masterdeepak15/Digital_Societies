@@ -52,7 +52,15 @@ public sealed class OtpService : IOtpService
             return Result.Fail("OTP.MAXED_OUT", "Too many failed attempts. Please request a new code.");
 
         bool match = request.Verify(candidateOtp);
-        await _db.SaveChangesAsync(ct);
+        try
+        {
+            await _db.SaveChangesAsync(ct);
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            // Another request redeemed (or guessed against) this code at the same moment.
+            return Result.Fail("OTP.NOT_FOUND", "No active code found. Please request a new one.");
+        }
 
         if (!match)
         {

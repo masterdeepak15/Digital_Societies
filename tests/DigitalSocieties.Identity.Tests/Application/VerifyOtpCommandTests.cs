@@ -1,4 +1,5 @@
 using Xunit;
+using Microsoft.EntityFrameworkCore;
 using FluentAssertions;
 using NSubstitute;
 using DigitalSocieties.Identity.Application.Commands;
@@ -60,6 +61,23 @@ public class VerifyOtpCommandTests
         result.Value.RefreshToken.Should().Be("refresh");
         result.Value.IsNewUser.Should().BeFalse();
         _users.Received(1).Update(user);
+    }
+
+    [Fact]
+    public async Task Verify_FirstLoginRace_UniqueViolation_ReloadsExistingUserAndSucceeds()
+    {
+        // A concurrent request created the same new user first: our insert hits the unique index.
+        var winner = User.Create(Email.Create("ann@example.com").Value!, "New User");
+        _users.FindByEmailAsync("ann@example.com", Arg.Any<CancellationToken>())
+              .Returns((User?)null, winner);
+        _uow.CommitAsync(Arg.Any<CancellationToken>())
+            .Returns(_ => Task.FromException<int>(new DbUpdateException("duplicate key")), _ => Task.FromResult(1));
+
+        var result = await Handler().Handle(Cmd(), default);
+
+        result.IsSuccess.Should().BeTrue();
+        result.Value!.AccessToken.Should().Be("access");
+        _users.Received().ClearPendingChanges();
     }
 
     [Fact]

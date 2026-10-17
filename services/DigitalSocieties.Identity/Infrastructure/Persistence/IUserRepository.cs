@@ -12,5 +12,8 @@ public interface IUserRepository :
     IQueryRepository<User>
 {
     Task<User?> FindByEmailAsync(string email, CancellationToken ct = default);
+
+    /// <summary>Discards tracked, unsaved changes (e.g. after a failed insert) so the context can be reused.</summary>
+    void ClearPendingChanges();
     Task<User?> FindWithMembershipsAsync(Guid userId, CancellationToken ct = default);
 }

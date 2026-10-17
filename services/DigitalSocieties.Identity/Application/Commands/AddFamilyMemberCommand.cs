@@ -69,6 +69,10 @@ public sealed class AddFamilyMemberHandler : IRequestHandler<AddFamilyMemberComm
 
         if (user is null)
         {
+            if (phone is not null &&
+                await _db.Users.AnyAsync(u => u.Phone == phone.Value, ct))
+                return Result<Guid>.Fail("PHONE.TAKEN", "That phone number is already registered to another account.");
+
             user = User.Create(email, cmd.Name, phone);
             _db.Users.Add(user);
             await _db.SaveChangesAsync(ct);

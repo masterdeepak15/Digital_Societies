@@ -1,4 +1,5 @@
 using MediatR;
+using Microsoft.EntityFrameworkCore;
 using FluentValidation;
 using DigitalSocieties.Shared.Results;
 using DigitalSocieties.Shared.Contracts;
@@ -40,11 +41,22 @@ public sealed class SetPhoneCommandHandler : IRequestHandler<SetPhoneCommand, Re
             var phone = PhoneNumber.Create(request.Phone);
             if (phone.IsFailure)
                 return Result.Fail(phone.Error!);
+            var number = phone.Value!.Value;
+            if (await _users.ExistsAsync(u => u.Phone == number && u.Id != user.Id, ct))
+                return Result.Fail("PHONE.TAKEN", "That phone number is already registered to another account.");
             user.SetPhone(phone.Value!);
         }
 
         _users.Update(user);
-        await _uow.CommitAsync(ct);
+        try
+        {
+            await _uow.CommitAsync(ct);
+        }
+        catch (DbUpdateException)
+        {
+            // Lost a race against another account claiming the same number.
+            return Result.Fail("PHONE.TAKEN", "That phone number is already registered to another account.");
+        }
         return Result.Ok();
     }
 }
