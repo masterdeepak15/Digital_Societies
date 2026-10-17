@@ -64,18 +64,18 @@ public sealed class DataSeeder
     ];
 
     // ── Resident display data ─────────────────────────────────────────────────
-    private static readonly (string Phone, string Name)[] Residents =
+    private static readonly (string Email, string Phone, string Name)[] Residents =
     [
-        ("+919800000001", "Amit Desai"),
-        ("+919800000002", "Sunita Joshi"),
-        ("+919800000003", "Vikram Nair"),
-        ("+919800000004", "Kavya Reddy"),
-        ("+919800000005", "Arjun Singh"),
-        ("+919800000006", "Meena Iyer"),
-        ("+919800000007", "Rohit Gupta"),
-        ("+919800000008", "Pooja Kulkarni"),
-        ("+919800000009", "Sanjay Shah"),
-        ("+919800000010", "Divya Menon"),
+        ("resident01@demo.society", "+919800000001", "Amit Desai"),
+        ("resident02@demo.society", "+919800000002", "Sunita Joshi"),
+        ("resident03@demo.society", "+919800000003", "Vikram Nair"),
+        ("resident04@demo.society", "+919800000004", "Kavya Reddy"),
+        ("resident05@demo.society", "+919800000005", "Arjun Singh"),
+        ("resident06@demo.society", "+919800000006", "Meena Iyer"),
+        ("resident07@demo.society", "+919800000007", "Rohit Gupta"),
+        ("resident08@demo.society", "+919800000008", "Pooja Kulkarni"),
+        ("resident09@demo.society", "+919800000009", "Sanjay Shah"),
+        ("resident10@demo.society", "+919800000010", "Divya Menon"),
     ];
 
     private static readonly (string Number, string Wing, int Floor)[] Flats =
@@ -184,17 +184,17 @@ public sealed class DataSeeder
         db.Societies.Add(society);
 
         // Staff users (admin, guard, accountant, maintenance staff)
-        var adminUser = CreateUser(AdminUserId,   "+919999999999", "Rajesh Sharma (Admin)");
-        var guardUser = CreateUser(GuardUserId,   "+919999999998", "Suresh Patil (Guard)");
-        var accUser   = CreateUser(AccountantId,  "+919999999997", "Priya Mehta (Accountant)");
-        var staffUser = CreateUser(StaffUserId,   "+919999999996", "Mohan Das (Staff)");
+        var adminUser = CreateUser(AdminUserId,   "admin@demo.society", "+919999999999", "Rajesh Sharma (Admin)");
+        var guardUser = CreateUser(GuardUserId,   "guard@demo.society", "+919999999998", "Suresh Patil (Guard)");
+        var accUser   = CreateUser(AccountantId,  "accountant@demo.society", "+919999999997", "Priya Mehta (Accountant)");
+        var staffUser = CreateUser(StaffUserId,   "staff@demo.society", "+919999999996", "Mohan Das (Staff)");
 
         db.Users.AddRange(adminUser, guardUser, accUser, staffUser);
 
         // Resident users + flats
         for (int i = 0; i < 10; i++)
         {
-            var resident = CreateUser(ResidentIds[i], Residents[i].Phone, Residents[i].Name);
+            var resident = CreateUser(ResidentIds[i], Residents[i].Email, Residents[i].Phone, Residents[i].Name);
             db.Users.Add(resident);
 
             var flat = CreateFlat(FlatIds[i], SocietyId, Flats[i].Number, Flats[i].Wing, Flats[i].Floor);
@@ -446,13 +446,17 @@ public sealed class DataSeeder
         return s;
     }
 
-    private static User CreateUser(Guid id, string phone, string name)
+    private static User CreateUser(Guid id, string email, string phone, string name)
     {
+        var emailResult = Email.Create(email);
+        if (emailResult.IsFailure)
+            throw new InvalidOperationException($"Invalid seed email {email}: {emailResult.Error!.Message}");
+
         var phoneResult = PhoneNumber.Create(phone);
         if (phoneResult.IsFailure)
             throw new InvalidOperationException($"Invalid seed phone {phone}: {phoneResult.Error!.Message}");
 
-        var user = User.Create(phoneResult.Value!, name);
+        var user = User.Create(emailResult.Value!, name, phoneResult.Value!);
         SetId(user, id);
         user.MarkVerified();   // skip OTP for seed users
         return user;

@@ -146,7 +146,7 @@ public sealed class InitializeSocietyCommandHandler
         User adminUser;
         if (existing is null)
         {
-            adminUser = User.Create(phone.Value!, request.Admin.Name);
+            throw new NotImplementedException("TASK-6-BRIDGE: setup admin moves to email identity");
             adminUser.MarkVerified();
             _db.Users.Add(adminUser);
         }

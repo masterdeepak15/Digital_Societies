@@ -53,11 +53,11 @@ public sealed class AddFamilyMemberHandler : IRequestHandler<AddFamilyMemberComm
 
         // Find or create the user by phone
         var user = await _db.Users
-            .FirstOrDefaultAsync(u => u.Phone == phoneResult.Value!.Value, ct);
+            .FirstOrDefaultAsync(u => u.Phone == phoneResult.Value!.Value, ct); // TASK-6-BRIDGE
 
         if (user is null)
         {
-            user = User.Create(phoneResult.Value!, cmd.Name);
+            throw new NotImplementedException("TASK-6-BRIDGE: family members move to email identity");
             _db.Users.Add(user);
             await _db.SaveChangesAsync(ct);
         }

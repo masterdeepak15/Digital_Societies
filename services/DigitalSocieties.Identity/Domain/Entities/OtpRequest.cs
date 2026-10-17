@@ -8,15 +8,15 @@ namespace DigitalSocieties.Identity.Domain.Entities;
 /// </summary>
 public sealed class OtpRequest : Entity
 {
-    private const int MaxAttempts  = 3;
+    public const int MaxAttempts  = 3;
     private const int TtlMinutes   = 10;
 
     private OtpRequest() { }
 
-    private OtpRequest(Guid id, string phone, string hashedOtp, string purpose)
+    private OtpRequest(Guid id, string email, string hashedOtp, string purpose)
         : base(id)
     {
-        Phone      = phone;
+        Email      = email;
         HashedOtp  = hashedOtp;
         Purpose    = purpose;
         ExpiresAt  = DateTimeOffset.UtcNow.AddMinutes(TtlMinutes);
@@ -25,7 +25,7 @@ public sealed class OtpRequest : Entity
         CreatedAt  = DateTimeOffset.UtcNow;
     }
 
-    public string Phone      { get; private set; } = default!;
+    public string Email      { get; private set; } = default!;
     public string HashedOtp  { get; private set; } = default!;  // BCrypt hash
     public string Purpose    { get; private set; } = default!;  // "login" | "register" | "step_up"
     public bool   IsUsed     { get; private set; }
@@ -37,8 +37,8 @@ public sealed class OtpRequest : Entity
     public bool IsMaxedOut       => Attempts >= MaxAttempts;
     public bool CanAttempt       => !IsUsed && !IsExpired && !IsMaxedOut;
 
-    public static OtpRequest Create(string phone, string hashedOtp, string purpose)
-        => new(Guid.NewGuid(), phone, hashedOtp, purpose);
+    public static OtpRequest Create(string email, string hashedOtp, string purpose)
+        => new(Guid.NewGuid(), email, hashedOtp, purpose);
 
     /// <summary>Returns true if OTP matches AND request is usable.</summary>
     public bool Verify(string candidateOtp)

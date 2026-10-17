@@ -11,6 +11,6 @@ public interface IUserRepository :
     ICommandRepository<User>,
     IQueryRepository<User>
 {
-    Task<User?> FindByPhoneAsync(string phone, CancellationToken ct = default);
+    Task<User?> FindByEmailAsync(string email, CancellationToken ct = default);
     Task<User?> FindWithMembershipsAsync(Guid userId, CancellationToken ct = default);
 }

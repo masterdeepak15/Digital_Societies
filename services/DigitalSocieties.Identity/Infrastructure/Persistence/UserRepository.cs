@@ -30,10 +30,10 @@ public sealed class UserRepository : IUserRepository
         => await _db.Users.AnyAsync(predicate, ct);
 
     // ── Domain-specific queries ───────────────────────────────────────────────
-    public async Task<User?> FindByPhoneAsync(string phone, CancellationToken ct = default)
+    public async Task<User?> FindByEmailAsync(string email, CancellationToken ct = default)
         => await _db.Users
             .Include(u => u.Devices)
-            .FirstOrDefaultAsync(u => u.Phone == phone, ct);
+            .FirstOrDefaultAsync(u => u.Email == email, ct);
 
     public async Task<User?> FindWithMembershipsAsync(Guid userId, CancellationToken ct = default)
         => await _db.Users

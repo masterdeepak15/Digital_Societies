@@ -51,7 +51,7 @@ public sealed class Enroll2FaHandler : IRequestHandler<Enroll2FaCommand, Result<
 
         // Build standard otpauth URI so any authenticator app (Google, Authy, etc.) can scan it
         var issuer    = "DigitalSocieties";
-        var label     = Uri.EscapeDataString($"{issuer}:{user.Phone}");
+        var label     = Uri.EscapeDataString($"{issuer}:{user.Email}");
         var qrUri     = $"otpauth://totp/{label}?secret={secretBase32}&issuer={Uri.EscapeDataString(issuer)}&algorithm=SHA1&digits=6&period=30";
 
         return Result<Enroll2FaResponse>.Ok(new Enroll2FaResponse(secretBase32, qrUri));
@@ -204,6 +204,6 @@ public sealed class Verify2FaHandler : IRequestHandler<Verify2FaCommand, Result<
         return Result<AuthTokenResponse>.Ok(new AuthTokenResponse(
             accessToken, refreshToken, expiresIn,
             IsNewUser: false,
-            Profile: new UserProfile(user.Id, user.Name, user.Phone, memberships)));
+            Profile: new UserProfile(user.Id, user.Name, user.Email, user.Phone, memberships)));
     }
 }

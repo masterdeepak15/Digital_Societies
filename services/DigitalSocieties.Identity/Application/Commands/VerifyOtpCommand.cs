@@ -34,7 +34,8 @@ public sealed record AuthTokenResponse(
 public sealed record UserProfile(
     Guid   UserId,
     string Name,
-    string Phone,
+    string Email,
+    string? Phone,
     IReadOnlyList<MembershipInfo> Memberships);
 
 public sealed record MembershipInfo(
@@ -84,13 +85,13 @@ public sealed class VerifyOtpCommandHandler : IRequestHandler<VerifyOtpCommand, 
             return Result<AuthTokenResponse>.Fail(verifyResult.Error!);
 
         // Get or create user
-        var user = await _users.FindByPhoneAsync(request.Phone, ct);
+        var user = await _users.FindByEmailAsync(request.Phone, ct); // TASK-4-BRIDGE: command field becomes Email
         bool isNew = user is null;
 
         if (isNew)
         {
             user = User.Create(
-                DigitalSocieties.Shared.Domain.ValueObjects.PhoneNumber.Create(request.Phone).Value!,
+                DigitalSocieties.Shared.Domain.ValueObjects.Email.Create(request.Phone).Value!, // TASK-4-BRIDGE
                 "New User");
         }
 
@@ -129,7 +130,7 @@ public sealed class VerifyOtpCommandHandler : IRequestHandler<VerifyOtpCommand, 
                 RefreshToken: string.Empty,
                 ExpiresIn: 0,
                 IsNewUser: isNew,
-                Profile: new UserProfile(user.Id, user.Name, user.Phone, memberships),
+                Profile: new UserProfile(user.Id, user.Name, user.Email, user.Phone, memberships),
                 RequiresTwoFactor: true,
                 PendingUserId: user.Id));
         }
@@ -140,6 +141,6 @@ public sealed class VerifyOtpCommandHandler : IRequestHandler<VerifyOtpCommand, 
 
         return Result<AuthTokenResponse>.Ok(new AuthTokenResponse(
             accessToken, refreshToken, expiresIn, isNew,
-            new UserProfile(user.Id, user.Name, user.Phone, memberships)));
+            new UserProfile(user.Id, user.Name, user.Email, user.Phone, memberships)));
     }
 }

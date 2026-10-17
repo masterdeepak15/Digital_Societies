@@ -10,11 +10,12 @@ public sealed class UserConfiguration : IEntityTypeConfiguration<User>
     {
         b.ToTable("users");
         b.HasKey(e => e.Id);
-        b.Property(e => e.Phone).HasMaxLength(20).IsRequired();
+        b.Property(e => e.Email).HasMaxLength(250).IsRequired();
+        b.Property(e => e.Phone).HasMaxLength(20);
         b.Property(e => e.Name).HasMaxLength(200).IsRequired();
-        b.Property(e => e.Email).HasMaxLength(250);
         b.Property(e => e.AvatarUrl).HasMaxLength(500);
-        b.HasIndex(e => e.Phone).IsUnique();
+        b.HasIndex(e => e.Email).IsUnique();
+        b.HasIndex(e => e.Phone).IsUnique().HasFilter("\"Phone\" IS NOT NULL");
         b.HasMany(e => e.Devices).WithOne().HasForeignKey(d => d.UserId);
         b.HasMany(e => e.Memberships).WithOne(m => m.User).HasForeignKey(m => m.UserId);
         b.HasQueryFilter(e => !e.IsDeleted);

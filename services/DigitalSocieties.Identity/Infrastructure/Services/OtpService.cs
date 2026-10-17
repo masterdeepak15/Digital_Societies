@@ -15,28 +15,28 @@ public sealed class OtpService : IOtpService
 
     public OtpService(IdentityDbContext db) => _db = db;
 
-    public async Task<OtpCreateResult> CreateAsync(string phone, string purpose, CancellationToken ct)
+    public async Task<OtpCreateResult> CreateAsync(string email, string purpose, CancellationToken ct)
     {
         // Invalidate any previous pending OTPs for same phone+purpose
         var old = await _db.OtpRequests
-            .Where(o => o.Phone == phone && o.Purpose == purpose && !o.IsUsed && o.ExpiresAt > DateTimeOffset.UtcNow)
+            .Where(o => o.Email == email && o.Purpose == purpose && !o.IsUsed && o.ExpiresAt > DateTimeOffset.UtcNow)
             .ToListAsync(ct);
         _db.OtpRequests.RemoveRange(old);
 
         string plain  = GenerateOtp();
         string hashed = BCrypt.Net.BCrypt.HashPassword(plain, workFactor: 10);
 
-        var otp = OtpRequest.Create(phone, hashed, purpose);
+        var otp = OtpRequest.Create(email, hashed, purpose);
         _db.OtpRequests.Add(otp);
         await _db.SaveChangesAsync(ct);
 
         return new OtpCreateResult(plain, otp.ExpiresAt);
     }
 
-    public async Task<Result> VerifyAsync(string phone, string candidateOtp, string purpose, CancellationToken ct)
+    public async Task<Result> VerifyAsync(string email, string candidateOtp, string purpose, CancellationToken ct)
     {
         var request = await _db.OtpRequests
-            .Where(o => o.Phone == phone && o.Purpose == purpose)
+            .Where(o => o.Email == email && o.Purpose == purpose)
             .OrderByDescending(o => o.CreatedAt)
             .FirstOrDefaultAsync(ct);
 
