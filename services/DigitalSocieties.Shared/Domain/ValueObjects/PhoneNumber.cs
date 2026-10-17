@@ -10,6 +10,7 @@ namespace DigitalSocieties.Shared.Domain.ValueObjects;
 public sealed record PhoneNumber
 {
     private static readonly Regex IndiaPattern = new(@"^\+91[6-9]\d{9}$", RegexOptions.Compiled);
+    private static readonly Regex E164Pattern  = new(@"^\+[1-9]\d{7,14}$", RegexOptions.Compiled);
 
     private PhoneNumber(string value) => Value = value;
     public string Value { get; }
@@ -20,9 +21,16 @@ public sealed record PhoneNumber
             return Result<PhoneNumber>.Fail("PHONE.REQUIRED", "Phone number is required.");
 
         var normalized = raw.Trim().Replace(" ", "").Replace("-", "");
-        if (!normalized.StartsWith('+'))
-            normalized = "+91" + normalized.TrimStart('0');
+        if (normalized.StartsWith('+'))
+        {
+            if (!E164Pattern.IsMatch(normalized))
+                return Result<PhoneNumber>.Fail("PHONE.INVALID",
+                    $"'{raw}' is not a valid international phone number.");
+            return Result<PhoneNumber>.Ok(new PhoneNumber(normalized));
+        }
 
+        // No country code: default to India (+91).
+        normalized = "+91" + normalized.TrimStart('0');
         if (!IndiaPattern.IsMatch(normalized))
             return Result<PhoneNumber>.Fail("PHONE.INVALID",
                 $"'{raw}' is not a valid Indian mobile number.");
