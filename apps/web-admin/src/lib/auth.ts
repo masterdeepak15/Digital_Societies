@@ -7,7 +7,8 @@ const USER_KEY  = 'ds_user'
 export interface AdminUser {
   userId:    string
   name:      string
-  phone:     string
+  email:     string
+  phone?:    string | null
   roles:     string[]
   societyId: string
 }

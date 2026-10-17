@@ -6,9 +6,9 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { toast } from 'sonner'
 import { useRouter } from 'next/navigation'
-import { Building2, Phone, Mail, CreditCard, Server, CheckCircle2, Loader2, ArrowRight, ArrowLeft, Sparkles, Settings2 } from 'lucide-react'
+import { Building2, UserRound, Mail, CreditCard, Server, CheckCircle2, Loader2, ArrowRight, ArrowLeft, Sparkles, Settings2 } from 'lucide-react'
 import { api } from '@/lib/api'
-import { saveSession } from '@/lib/auth'
+import { saveSession, type AdminUser } from '@/lib/auth'
 
 // ── Schemas ───────────────────────────────────────────────────────────────────
 const step1Schema = z.object({
@@ -18,7 +18,8 @@ const step1Schema = z.object({
   totalFlats:     z.coerce.number().int().min(1),
 })
 const step2Schema = z.object({
-  adminPhone: z.string().regex(/^\+91[6-9]\d{9}$/, 'Valid Indian number required (+91…)'),
+  adminEmail: z.string().trim().toLowerCase().max(250).email('Valid email address required'),
+  adminPhone: z.string().regex(/^\+[1-9]\d{7,14}$/, 'Use international format, e.g. +919999999999').optional().or(z.literal('')),
   adminName:  z.string().min(2),
 })
 const step3Schema = z.object({
@@ -48,7 +49,7 @@ type Step5 = z.infer<typeof step5Schema>
 
 const STEPS = [
   { label: 'Society',    icon: Building2  },
-  { label: 'Admin',      icon: Phone      },
+  { label: 'Admin',      icon: UserRound  },
   { label: 'Email',      icon: Mail       },
   { label: 'Payments',   icon: CreditCard },
   { label: 'Storage',    icon: Server     },
@@ -67,7 +68,7 @@ export default function SetupPage() {
   async function activateDemoMode() {
     setDemoLoading(true)
     try {
-      const resp = await api.post<{ accessToken: string; user: { userId: string; name: string; phone: string; roles: string[]; societyId: string } }>(
+      const resp = await api.post<{ accessToken: string; user: AdminUser }>(
         '/setup/demo', {}
       )
       saveSession(resp.accessToken, resp.user)
@@ -87,12 +88,12 @@ export default function SetupPage() {
   const s5 = useForm<Step5>({ resolver: zodResolver(step5Schema) })
 
   async function sendAdminOtp() {
-    const phone = s2.getValues('adminPhone')
-    if (!phone) { toast.error('Enter phone first'); return }
+    const email = s2.getValues('adminEmail')
+    if (!email) { toast.error('Enter the admin email first'); return }
     try {
-      await api.post('/auth/otp/send', { phone, purpose: 'register' })
+      await api.post('/auth/otp/send', { email, purpose: 'register' })
       setOtpSent(true)
-      toast.success('OTP sent to admin phone!')
+      toast.success('Code sent to the admin email!')
     } catch (e: unknown) {
       toast.error(e instanceof Error ? e.message : 'Error')
     }
@@ -103,7 +104,7 @@ export default function SetupPage() {
     const merged = { ...data, ...s5Data }
     try {
       // 1. Create society + admin via setup endpoint
-      const resp = await api.post<{ accessToken: string; user: { userId: string; name: string; phone: string; roles: string[]; societyId: string } }>(
+      const resp = await api.post<{ accessToken: string; user: AdminUser }>(
         '/setup/initialize',
         {
           society: {
@@ -112,7 +113,7 @@ export default function SetupPage() {
             registrationNumber: merged.registrationNo,
             totalFlats: merged.totalFlats,
           },
-          admin: { phone: merged.adminPhone, name: merged.adminName, otp },
+          admin: { email: merged.adminEmail, name: merged.adminName, otp, phone: merged.adminPhone || null },
           smtp: { host: merged.smtpHost, port: merged.smtpPort, user: merged.smtpUser, password: merged.smtpPassword, from: merged.smtpFrom },
           razorpay: { keyId: merged.razorpayKeyId, keySecret: merged.razorpayKeySecret },
           msg91: { apiKey: merged.msg91ApiKey },
@@ -253,20 +254,27 @@ export default function SetupPage() {
                 {s2.formState.errors.adminName && <p className="text-xs text-red-500 mt-1">{s2.formState.errors.adminName.message}</p>}
               </div>
               <div>
-                <label className="block text-sm font-medium mb-1">Admin mobile number</label>
+                <label className="block text-sm font-medium mb-1">Admin email</label>
                 <div className="flex gap-2">
-                  <input {...s2.register('adminPhone')} placeholder="+919999999999"
+                  <input {...s2.register('adminEmail')} type="email" autoCapitalize="none" placeholder="admin@society.com"
                     className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" />
                   <button type="button" onClick={sendAdminOtp}
                     className="bg-gray-100 hover:bg-gray-200 px-3 py-2 rounded-lg text-sm font-medium">
-                    Send OTP
+                    Send code
                   </button>
                 </div>
+                {s2.formState.errors.adminEmail && <p className="text-xs text-red-500 mt-1">{s2.formState.errors.adminEmail.message}</p>}
+                <p className="text-xs text-gray-400 mt-1">The code is sent using the SMTP_* environment settings of the server.</p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Admin mobile <span className="text-gray-400 font-normal">— optional</span></label>
+                <input {...s2.register('adminPhone')} placeholder="+919999999999"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" />
                 {s2.formState.errors.adminPhone && <p className="text-xs text-red-500 mt-1">{s2.formState.errors.adminPhone.message}</p>}
               </div>
               {otpSent && (
                 <div>
-                  <label className="block text-sm font-medium mb-1">OTP</label>
+                  <label className="block text-sm font-medium mb-1">Email code</label>
                   <input value={otp} onChange={e => setOtp(e.target.value)} maxLength={6} placeholder="123456"
                     className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 tracking-widest" />
                 </div>
@@ -279,7 +287,7 @@ export default function SetupPage() {
           {step === 2 && (
             <form onSubmit={s3.handleSubmit(next)} className="space-y-4">
               <h2 className="font-semibold text-lg">Email (SMTP) <span className="text-gray-400 font-normal text-sm">— optional</span></h2>
-              <p className="text-sm text-gray-500">Used for bill receipts and notices. Skip if using OTP-only notifications.</p>
+              <p className="text-sm text-gray-500">Used for bill receipts and notices. Sign-in codes use the SMTP environment settings of the server.</p>
               {([
                 ['smtpHost',     'SMTP host',     'smtp.gmail.com'],
                 ['smtpPort',     'SMTP port',     '587'],
@@ -301,7 +309,7 @@ export default function SetupPage() {
           {step === 3 && (
             <form onSubmit={s4.handleSubmit(next)} className="space-y-4">
               <h2 className="font-semibold text-lg">Payment & SMS <span className="text-gray-400 font-normal text-sm">— optional</span></h2>
-              <p className="text-sm text-gray-500">Razorpay enables online maintenance payments. MSG91 enables OTP SMS delivery.</p>
+              <p className="text-sm text-gray-500">Razorpay enables online maintenance payments. MSG91 is optional and only enables SMS alerts (sign-in never needs SMS).</p>
               {([
                 ['razorpayKeyId',     'Razorpay Key ID',     'rzp_live_…'],
                 ['razorpayKeySecret', 'Razorpay Key Secret', 'your_secret'],
