@@ -1,36 +1,34 @@
 import React, { Suspense } from 'react';
-import { ActivityIndicator, View } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { Colors } from '../theme/colors';
+import { useTheme } from '../theme/ThemeProvider';
+import { TabFallback, tabIcon, useTabScreenOptions } from './tabBar';
 
 const Tab = createBottomTabNavigator();
-
-const TabFallback = () => (
-  <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-    <ActivityIndicator color={Colors.error} size="large" />
-  </View>
-);
 
 // Guard screens: LARGE buttons, minimal cognitive load, offline-first
 const GateScreen     = React.lazy(() => import('../screens/guard/GateScreen'));
 const LogScreen      = React.lazy(() => import('../screens/guard/LogScreen'));
 const DeliveryScreen = React.lazy(() => import('../screens/guard/DeliveryScreen'));
 const SOSScreen      = React.lazy(() => import('../screens/guard/SOSScreen'));
+const MeScreen       = React.lazy(() => import('../screens/resident/ProfileScreen'));
 
 export default function GuardTabs() {
+  const options = useTabScreenOptions();
+  const { colors, fonts } = useTheme();
   return (
     <Suspense fallback={<TabFallback />}>
       <Tab.Navigator
         screenOptions={{
-          tabBarActiveTintColor: Colors.error,   // Red — urgency awareness
-          headerShown:           false,
-          tabBarStyle:           { height: 70, paddingBottom: 8 },
-          tabBarLabelStyle:      { fontSize: 14, fontWeight: '700' },
+          ...options,
+          tabBarStyle: { ...(options.tabBarStyle as object), height: 76 },
+          tabBarLabelStyle: { fontFamily: fonts.bold, fontSize: 13 },
         }}>
-        <Tab.Screen name="Gate"     component={GateScreen}     options={{ title: '🚪 Gate' }}     />
-        <Tab.Screen name="Log"      component={LogScreen}      options={{ title: '📋 Log' }}      />
-        <Tab.Screen name="Delivery" component={DeliveryScreen} options={{ title: '📦 Delivery' }} />
-        <Tab.Screen name="SOS"      component={SOSScreen}      options={{ title: '🚨 SOS' }}      />
+        <Tab.Screen name="Gate" component={GateScreen} options={{ title: 'Gate', tabBarIcon: tabIcon('log-in') }} />
+        <Tab.Screen name="Log"  component={LogScreen}  options={{ title: 'Log',  tabBarIcon: tabIcon('list') }} />
+        <Tab.Screen name="Sos"  component={SOSScreen}  options={{ title: 'SOS',  tabBarIcon: tabIcon('alert-triangle'), tabBarActiveTintColor: colors.danger }} />
+        <Tab.Screen name="Me"   component={MeScreen}   options={{ title: 'Me',   tabBarIcon: tabIcon('user') }} />
+        {/* Delivery stays registered so existing links keep working; it is opened from the Gate screen. */}
+        <Tab.Screen name="Delivery" component={DeliveryScreen} options={{ title: 'Delivery', tabBarButton: () => null }} />
       </Tab.Navigator>
     </Suspense>
   );
