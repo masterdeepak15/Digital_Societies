@@ -54,14 +54,20 @@ function guessCategory(t: WalletTransaction): string {
   return 'other'
 }
 
-const MONTH_DATA = [
-  { month: 'Nov', credits: 185000, debits: 62000 },
-  { month: 'Dec', credits: 190000, debits: 78000 },
-  { month: 'Jan', credits: 178000, debits: 55000 },
-  { month: 'Feb', credits: 195000, debits: 68000 },
-  { month: 'Mar', credits: 210000, debits: 71000 },
-  { month: 'Apr', credits: 202000, debits: 58000 },
-]
+/** Credits and debits per month for the last six months, from the transactions we have. */
+function monthlyFlow(txs: WalletTransaction[]) {
+  const now = new Date()
+  const months = Array.from({ length: 6 }, (_, i) => {
+    const d = new Date(now.getFullYear(), now.getMonth() - (5 - i), 1)
+    return { key: `${d.getFullYear()}-${d.getMonth()}`, month: d.toLocaleString('en-IN', { month: 'short' }), credits: 0, debits: 0 }
+  })
+  for (const t of txs) {
+    const d = new Date(t.timestamp)
+    const m = months.find(x => x.key === `${d.getFullYear()}-${d.getMonth()}`)
+    if (m) { if (t.type === 'Credit') m.credits += t.amount; else m.debits += t.amount }
+  }
+  return months
+}
 
 export default function WalletPage() {
   const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>('all')
@@ -80,6 +86,9 @@ export default function WalletPage() {
     queryFn:  () => api.get<WalletTxPage>('/wallet/transactions?page=1&pageSize=50'),
   })
   const transactions: WalletTransaction[] = txPage?.items ?? demo(DEMO_TRANSACTIONS)
+
+  const flow = monthlyFlow(transactions)
+  const hasFlow = flow.some(m => m.credits > 0 || m.debits > 0)
 
   const filtered = transactions.filter(t => {
     const category = guessCategory(t)
@@ -135,6 +144,7 @@ export default function WalletPage() {
       </div>
 
       {/* 6-month chart */}
+      {hasFlow && (
       <div className="bg-white border border-gray-100 rounded-xl shadow-sm p-4">
         <div className="flex items-center gap-2 mb-4">
           <TrendingUp className="w-4 h-4 text-brand-600" />
@@ -145,7 +155,7 @@ export default function WalletPage() {
           </div>
         </div>
         <ResponsiveContainer width="100%" height={180}>
-          <BarChart data={MONTH_DATA} barGap={4}>
+          <BarChart data={flow} barGap={4}>
             <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
             <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#6b7280' }} axisLine={false} tickLine={false} />
             <YAxis tick={{ fontSize: 11, fill: '#6b7280' }} axisLine={false} tickLine={false}
@@ -156,6 +166,7 @@ export default function WalletPage() {
           </BarChart>
         </ResponsiveContainer>
       </div>
+      )}
 
       {/* Filters */}
       <div className="bg-white border border-gray-100 rounded-xl p-3 shadow-sm flex gap-3 flex-wrap">
