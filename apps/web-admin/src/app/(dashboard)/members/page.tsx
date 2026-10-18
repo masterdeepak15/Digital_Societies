@@ -66,14 +66,7 @@ export default function MembersPage() {
       <PageHeader
         title="Members"
         description="Residents, staff, and all society members"
-        action={
-          <button
-            onClick={() => setShowAdd(true)}
-            className="flex items-center gap-1.5 bg-brand-600 hover:bg-brand-700 text-white px-4 py-2 rounded-lg text-sm font-medium"
-          >
-            <Plus className="w-4 h-4" /> Add Member
-          </button>
-        }
+        // Family members are added by residents from the mobile app; the API attaches them to the caller's own flat.
       />
 
       {/* Filters */}

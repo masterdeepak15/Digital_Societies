@@ -45,7 +45,8 @@ internal sealed class GetSocietyComplaintsQueryHandler(ComplaintDbContext db)
             c.Priority.ToString(),
             c.Status.ToString(),
             c.CreatedAt,
-            c.ResolvedAt
+            c.ResolvedAt,
+            c.FlatId
         )).ToList();
 
         return Result<ComplaintPagedResult>.Ok(

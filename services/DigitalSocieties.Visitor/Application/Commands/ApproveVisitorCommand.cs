@@ -24,6 +24,9 @@ public sealed class ApproveVisitorCommandHandler
         ISocietyHubNotifier hub, IQrTokenService qr)
     { _db = db; _currentUser = currentUser; _hub = hub; _qr = qr; }
 
+    private bool CanActFor(Domain.Entities.Visitor v) =>
+        _currentUser.FlatId == v.FlatId
+        || (_currentUser.IsInRole("admin") && _currentUser.SocietyId == v.SocietyId);
     public async Task<Result<ApproveVisitorResponse>> Handle(
         ApproveVisitorCommand cmd, CancellationToken ct)
     {
@@ -32,7 +35,7 @@ public sealed class ApproveVisitorCommandHandler
             return Result<ApproveVisitorResponse>.Fail(Error.NotFound("Visitor", cmd.VisitorId));
 
         // Authorization: only resident of the target flat can approve
-        if (_currentUser.FlatId != visitor.FlatId)
+        if (!CanActFor(visitor))
             return Result<ApproveVisitorResponse>.Fail(
                 Error.Unauthorized("You can only approve visitors for your own flat."));
 

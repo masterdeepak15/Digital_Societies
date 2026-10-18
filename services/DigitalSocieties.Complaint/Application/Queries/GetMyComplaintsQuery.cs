@@ -20,7 +20,8 @@ public record ComplaintSummaryDto(
     string Priority,
     string Status,
     DateTimeOffset CreatedAt,
-    DateTimeOffset? ResolvedAt);
+    DateTimeOffset? ResolvedAt,
+    Guid FlatId = default);
 
 public record ComplaintPagedResult(
     IReadOnlyList<ComplaintSummaryDto> Items,
@@ -59,7 +60,8 @@ internal sealed class GetMyComplaintsQueryHandler(ComplaintDbContext db)
             c.Priority.ToString(),
             c.Status.ToString(),
             c.CreatedAt,
-            c.ResolvedAt
+            c.ResolvedAt,
+            c.FlatId
         )).ToList();
 
         return Result<ComplaintPagedResult>.Ok(

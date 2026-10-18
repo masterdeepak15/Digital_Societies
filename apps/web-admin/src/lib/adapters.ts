@@ -53,6 +53,7 @@ export function adaptResponse(path: string, data: unknown): unknown {
         name: v.name ?? v.visitorName,
         phone: v.phone ?? v.visitorPhone,
         purposeOfVisit: v.purposeOfVisit ?? v.purpose,
+        expectedAt: v.expectedAt ?? v.createdAt,
       }))
 
     case p === '/accounting/report': {
@@ -124,7 +125,7 @@ export function adaptResponse(path: string, data: unknown): unknown {
 /** Paths whose rows only carry a flat id; the api client fetches the id -> label map for these. */
 export const needsFlatLabels = (path: string): boolean => {
   const p = pathOf(path)
-  return p === '/facilities/bookings' || p === '/social/posts'
+  return p === '/facilities/bookings' || p === '/social/posts' || p === '/complaints'
 }
 
 /** Replace flat ids with their labels ("A-101") on bookings and social posts. */
@@ -134,6 +135,10 @@ export function applyFlatLabels(path: string, data: unknown, labels: Record<stri
   const label = (id: unknown) => (typeof id === 'string' ? labels[id] : undefined)
   const items = data.items.map(row => {
     if (!isRec(row)) return row
+    if (p === '/complaints') {
+      const flat = label(row.flatId)
+      return flat ? { ...row, flatDisplay: row.flatDisplay ?? flat } : row
+    }
     if (p === '/facilities/bookings') {
       const flat = label(row.flatId)
       // bookedBy is a user id; the console would print it raw, so drop it once the flat is named.
