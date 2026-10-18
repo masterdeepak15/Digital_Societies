@@ -92,6 +92,17 @@ docker build -f infra/docker/allinone/Dockerfile -t digital-societies .
 - It is one container: if you stop it, everything stops. Use `restart: unless-stopped` (already in the Compose file) so it comes back after a reboot.
 - The image is for one society on one server. It is not a high-availability setup.
 
+## Windows helper scripts
+
+`infra\selfhost\` has small PowerShell scripts for a Windows PC. They read your private settings from `<data folder>llinone.env` (outside the repo; copy `infra\dockerllinone\.env.example` there and set `DS_DATA_DIR` to the folder that should hold your data).
+
+| Script | What it does |
+|---|---|
+| `start.ps1` | pulls the newest image and starts (or updates) the server |
+| `stop.ps1` | stops everything; data stays |
+| `tunnel.ps1` / `tunnel.ps1 -Stop` | opens / closes a free public HTTPS address and prints it |
+| `backup.ps1` | saves a database copy into `<data folder>ackups` |
+
 ## Older multi-container setup
 
-`infra/docker/docker-compose.yml`, `docker-compose.prod.yml` and `infra/selfhost/*.ps1` run the parts as separate containers and build them from this repo (the separate `digital-societies-api` and `digital-societies-web-admin` images are no longer published).
+`infra/docker/docker-compose.yml` and `docker-compose.prod.yml` run the parts as separate containers and build them from this repo. The separate `digital-societies-api` and `digital-societies-web-admin` images are no longer published.

@@ -16,9 +16,9 @@ services:
       dockerfile: infra/docker/allinone/Dockerfile
     restart: unless-stopped
     ports:
-      - "${DS_PORT:-8080}:8080"
+      - "${DS_BIND:-0.0.0.0}:${DS_PORT:-8080}:8080"
     env_file:
-      - path: .env
+      - path: ${DS_ENV_FILE:-.env}
         required: false
     volumes:
       - ${DS_DATA_DIR:-./data}:/data
