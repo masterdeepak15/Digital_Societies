@@ -76,14 +76,15 @@ public sealed class CreateSosCallHandler
 
     public async Task<Result<CallRoomDto>> Handle(CreateSosCallCommand _, CancellationToken ct)
     {
-        if (_cu.SocietyId is null || _cu.FlatId is null || _cu.UserId is null)
+        // A guard at the gate has no flat, so the flat is optional for an SOS.
+        if (_cu.SocietyId is null || _cu.UserId is null)
             return Result<CallRoomDto>.Fail("AUTH.REQUIRED", "Authentication context required.");
 
         var room = CallRoom.Create(
             societyId:       _cu.SocietyId.Value,
             type:            CallRoomType.Sos,
             ttl:             TimeSpan.FromMinutes(30),
-            initiatorFlatId: _cu.FlatId.Value);
+            initiatorFlatId: _cu.FlatId ?? Guid.Empty);
 
         // SOS rooms are one-way: resident publishes, guards/neighbors observe.
         await _provider.CreateRoomAsync(room.RoomName, emptyTimeout: TimeSpan.FromMinutes(5), ct);

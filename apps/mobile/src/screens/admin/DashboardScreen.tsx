@@ -1,31 +1,18 @@
 import React, { useState } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity,
-  StyleSheet, ActivityIndicator, RefreshControl,
+  StyleSheet, ActivityIndicator, RefreshControl, Alert,
 } from 'react-native';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '../../services/api/apiClient';
 import { useAuthStore } from '../../store/authStore';
 import { Colors } from '../../theme/colors';
 import { Spacing } from '../../theme/spacing';
+import { apiFetch } from '../../utils/api';
+import { errorMessage } from '../../utils/errorMessage';
+import { toBillSummary, toGenerateBody, type BillSummary } from './summaryModel';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
-
-interface BillSummary {
-  paidCount: number;
-  pendingCount: number;
-  overdueCount: number;
-  totalFlats: number;
-  totalDuePaise: number;
-  collectedPaise: number;
-  collectionPercentage: number;
-  defaulters: Array<{
-    flatId: string;
-    flatDisplay: string;
-    ownerName: string;
-    amountDuePaise: number;
-  }>;
-}
 
 interface RecentComplaint {
   id: string;
@@ -51,11 +38,13 @@ const currentMonth = new Date().getMonth() + 1;
 
 // ── API ────────────────────────────────────────────────────────────────────────
 
-const fetchBillSummary = async (societyId: string): Promise<BillSummary> => {
-  const { data } = await apiClient.get<BillSummary>(
-    `/billing/summary?societyId=${societyId}&year=${currentYear}&month=${currentMonth}`
-  );
-  return data;
+const fetchBillSummary = async (_societyId: string): Promise<BillSummary> => {
+  // The server uses the signed-in society; the flat-label map turns defaulter flat ids into "A-101".
+  const [raw, labels] = await Promise.all([
+    apiFetch<any>(`/billing/summary?year=${currentYear}&month=${currentMonth}`),
+    apiFetch<Record<string, string>>('/billing/flat-labels').catch(() => ({} as Record<string, string>)),
+  ]);
+  return toBillSummary(raw, labels);
 };
 
 const fetchRecentComplaints = async (_societyId: string): Promise<RecentComplaint[]> => {
@@ -78,7 +67,7 @@ const generateBills = async (payload: {
   periodMonth: number;
   amountPaise: number;
 }) => {
-  const { data } = await apiClient.post('/billing/generate', payload);
+  const { data } = await apiClient.post('/billing/generate', toGenerateBody(payload.periodYear, payload.periodMonth, payload.amountPaise));
   return data;
 };
 
@@ -127,10 +116,25 @@ export default function AdminDashboardScreen() {
     mutationFn: generateBills,
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['admin-billing-summary'] });
-      alert(`✓ Generated ${data.generated} bills for ${new Date().toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })}`);
+      const g = data?.generated ?? {};
+      Alert.alert('Bills generated', `${g.billsCreated ?? 0} created, ${g.billsSkipped ?? 0} already existed for ${g.period ?? 'this month'}.`);
     },
-    onError: () => alert('Could not generate bills. They may already exist for this period.'),
+    onError: (e: any) => Alert.alert('Could not generate bills', errorMessage(e, 'Please try again.')),
   });
+
+  // Same amount as the current bills (or Rs 1,500 for a society with none yet), confirmed before anything is created.
+  const confirmGenerate = () => {
+    const perFlat = billing && billing.totalFlats > 0 ? Math.round(billing.totalDuePaise / billing.totalFlats) : 150000;
+    const month = new Date().toLocaleDateString('en-IN', { month: 'long', year: 'numeric' });
+    Alert.alert(
+      'Generate bills',
+      `Create ${month} bills of ${formatINR(perFlat)} for every flat? Flats that already have one are skipped.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Generate', onPress: () => generateMutation.mutate({ societyId: societyId ?? '', periodYear: currentYear, periodMonth: currentMonth, amountPaise: perFlat }) },
+      ],
+    );
+  };
 
   const onRefresh = () => {
     refetchBilling();
@@ -170,12 +174,7 @@ export default function AdminDashboardScreen() {
         </View>
         <TouchableOpacity
           style={[styles.generateBtn, generateMutation.isPending && styles.generateBtnDisabled]}
-          onPress={() => generateMutation.mutate({
-            societyId,
-            periodYear: currentYear,
-            periodMonth: currentMonth,
-            amountPaise: 150000, // ₹1,500 — configurable in Settings
-          })}
+          onPress={confirmGenerate}
           disabled={generateMutation.isPending}>
           <Text style={styles.generateBtnText}>
             {generateMutation.isPending ? '...' : '+ Gen Bills'}

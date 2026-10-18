@@ -97,7 +97,7 @@ public sealed class GetSocietyMembersHandler
                      && m.IsActive
                      && !m.IsDeleted);
 
-        if (q.Role is not null)   query = query.Where(m => m.Role == q.Role);
+        if (!string.IsNullOrWhiteSpace(q.Role)) query = query.Where(m => m.Role == q.Role);
         if (q.Wing is not null)   query = query.Where(m => m.Flat!.Wing == q.Wing);
 
         var members = await query

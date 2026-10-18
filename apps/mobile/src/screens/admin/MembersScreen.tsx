@@ -61,7 +61,7 @@ export default function MembersScreen() {
     try {
       // The API answers with a bare array; accept the wrapped form too.
       const result = await apiFetch<Member[] | { items: Member[] }>(
-        `/members?pageSize=200&role=${roleFilter === 'all' ? '' : roleFilter}`
+        `/members?pageSize=200${roleFilter === 'all' ? '' : `&role=${roleFilter}`}`
       );
       setMembers(Array.isArray(result) ? result : result.items);
     } catch {
