@@ -3,6 +3,7 @@ import {
   View, Text, ScrollView, TouchableOpacity,
   StyleSheet, ActivityIndicator, RefreshControl, Alert,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '../../services/api/apiClient';
 import { useAuthStore } from '../../store/authStore';
@@ -76,6 +77,7 @@ const generateBills = async (payload: {
 export default function AdminDashboardScreen() {
   const { activeSocietyId, societyName } = useAuthStore();
   const queryClient = useQueryClient();
+  const insets = useSafeAreaInsets();
 
   const societyId = activeSocietyId ?? '';
 
@@ -165,7 +167,7 @@ export default function AdminDashboardScreen() {
       showsVerticalScrollIndicator={false}>
 
       {/* Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: insets.top + Spacing.sm }]}>
         <View>
           <Text style={styles.societyName}>{societyName ?? 'Society'}</Text>
           <Text style={styles.periodLabel}>
