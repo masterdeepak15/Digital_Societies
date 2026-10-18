@@ -165,7 +165,7 @@ public static class BillingEndpoints
             if (currentUser.FlatId is null)
                 return Results.BadRequest("No flat associated with your account.");
 
-            var query = new GetFlatBillsQuery(currentUser.FlatId.Value, page, pageSize);
+            var query = new GetFlatBillsQuery(currentUser.FlatId.Value, PageSize: pageSize, Page: page);
             var result = await mediator.Send(query, ct);
             return result.IsSuccess
                 ? Results.Ok(result.Value)

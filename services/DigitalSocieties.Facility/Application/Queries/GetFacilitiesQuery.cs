@@ -91,13 +91,20 @@ public sealed class GetAvailableSlotsHandler
             .ToListAsync(ct);
 
         var slots = new List<SlotDto>();
-        var current = facility.OpenTime;
-        while (current.Add(TimeSpan.FromMinutes(facility.SlotDurationMinutes)) <= facility.CloseTime)
+        // Work in minutes since midnight: TimeOnly.Add wraps past 24:00, which made a facility that
+        // closes at the end of the day loop forever, and a zero slot length would never advance.
+        var step = facility.SlotDurationMinutes;
+        if (step <= 0) return Result<List<SlotDto>>.Ok(slots);
+        var openMin  = facility.OpenTime.Hour * 60 + facility.OpenTime.Minute;
+        var closeMin = facility.CloseTime.Hour * 60 + facility.CloseTime.Minute;
+        if (closeMin <= openMin) closeMin = 24 * 60;
+        for (var start = openMin; start + step <= closeMin; start += step)
         {
-            var next = current.Add(TimeSpan.FromMinutes(facility.SlotDurationMinutes));
-            var isBooked = booked.Any(b => b.StartTime < next && b.EndTime > current);
-            slots.Add(new SlotDto(current.ToString("HH:mm"), next.ToString("HH:mm"), !isBooked));
-            current = next;
+            var end = start + step;
+            var from = new TimeOnly(start / 60, start % 60);
+            var to   = end >= 24 * 60 ? new TimeOnly(23, 59) : new TimeOnly(end / 60, end % 60);
+            var isBooked = booked.Any(b => b.StartTime < to && b.EndTime > from);
+            slots.Add(new SlotDto(from.ToString("HH:mm"), to.ToString("HH:mm"), !isBooked));
         }
 
         return Result<List<SlotDto>>.Ok(slots);

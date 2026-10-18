@@ -160,8 +160,16 @@ public static class ComplaintEndpoints
         group.MapGet("/{complaintId:guid}", async (
             Guid complaintId,
             IMediator mediator,
+            ICurrentUser currentUser,
+            DigitalSocieties.Complaint.Infrastructure.Persistence.ComplaintDbContext db,
             CancellationToken ct) =>
         {
+            // Admins and staff see every complaint in their society; a resident only their own flat's.
+            var row = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.FirstOrDefaultAsync(
+                db.Complaints.Where(c => c.Id == complaintId && c.SocietyId == currentUser.SocietyId), ct);
+            var staff = currentUser.IsInRole("admin") || currentUser.IsInRole("staff");
+            if (row is null || (!staff && row.FlatId != currentUser.FlatId && row.RaisedBy != currentUser.UserId)) return Results.NotFound();
+
             var query = new GetComplaintDetailQuery(complaintId);
             var result = await mediator.Send(query, ct);
             return result.IsSuccess ? Results.Ok(result.Value) : Results.NotFound(result.Error);
