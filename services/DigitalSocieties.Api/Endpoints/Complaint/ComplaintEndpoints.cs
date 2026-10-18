@@ -1,4 +1,4 @@
-﻿using MediatR;
+using MediatR;
 using DigitalSocieties.Complaint.Application.Commands;
 using DigitalSocieties.Complaint.Application.Queries;
 using DigitalSocieties.Shared.Contracts;
@@ -83,8 +83,20 @@ public static class ComplaintEndpoints
             [FromBody] UpdateComplaintStatusRequest body,
             IMediator mediator,
             ICurrentUser currentUser,
+            DigitalSocieties.Complaint.Infrastructure.Persistence.ComplaintDbContext db,
             CancellationToken ct) =>
         {
+            // Same society only; admins and staff may move a complaint anywhere, the resident who raised it
+            // may only reopen or close it.
+            var owner = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.FirstOrDefaultAsync(
+                db.Complaints.Where(c => c.Id == complaintId && c.SocietyId == currentUser.SocietyId), ct);
+            if (owner is null) return Results.NotFound();
+            var staff = currentUser.IsInRole("admin") || currentUser.IsInRole("staff");
+            var ownerMayDo = owner.RaisedBy == currentUser.UserId
+                && (string.Equals(body.Status, "Reopened", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(body.Status, "Closed", StringComparison.OrdinalIgnoreCase));
+            if (!staff && !ownerMayDo) return Results.Forbid();
+
             var cmd = new UpdateComplaintStatusCommand(
                 complaintId, body.Status, body.Note, currentUser.UserId!.Value);
             var result = await mediator.Send(cmd, ct);

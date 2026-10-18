@@ -126,7 +126,11 @@ public static class VisitorEndpoints
             [FromQuery] int page = 1,
             [FromQuery] int pageSize = 20) =>
         {
-            var effectiveFlatId = flatId ?? currentUser.FlatId;
+            // Only gate staff and admins may look at another flat's visitors; everyone else sees their own flat.
+            var seesAllFlats = currentUser.IsInRole("admin") || currentUser.IsInRole("guard");
+            if (!seesAllFlats && currentUser.FlatId is null)
+                return Results.Json(new { items = Array.Empty<object>(), totalCount = 0, page, pageSize });
+            var effectiveFlatId = seesAllFlats ? (flatId ?? currentUser.FlatId) : currentUser.FlatId;
             var query = new GetVisitorsQuery(
                 currentUser.SocietyId!.Value,
                 effectiveFlatId,
