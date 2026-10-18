@@ -1,7 +1,6 @@
 import axios, { AxiosInstance, InternalAxiosRequestConfig } from 'axios';
 import * as SecureStore from 'expo-secure-store';
-
-const BASE_URL = process.env.EXPO_PUBLIC_API_URL ?? 'https://societies.athomes.space/api/v1';
+import { getApiBase } from '../../config/serverConfig';
 
 const KEYS = {
   ACCESS_TOKEN:  'ds_access_token',
@@ -18,13 +17,14 @@ const KEYS = {
  */
 function createApiClient(): AxiosInstance {
   const client = axios.create({
-    baseURL: BASE_URL,
     timeout: 15_000,
     headers: { 'Content-Type': 'application/json' },
   });
 
   // Request interceptor: attach JWT + active society
   client.interceptors.request.use(async (config: InternalAxiosRequestConfig) => {
+    // The server is user-configurable, so resolve it per request.
+    config.baseURL = await getApiBase();
     const [token, societyId] = await Promise.all([
       SecureStore.getItemAsync(KEYS.ACCESS_TOKEN),
       SecureStore.getItemAsync(KEYS.SOCIETY_ID),
@@ -63,7 +63,7 @@ function createApiClient(): AxiosInstance {
         const refreshToken = await SecureStore.getItemAsync(KEYS.REFRESH_TOKEN);
         if (!refreshToken) throw new Error('No refresh token');
 
-        const { data } = await axios.post(`${BASE_URL}/auth/refresh`, { refreshToken });
+        const { data } = await axios.post(`${await getApiBase()}/auth/refresh`, { refreshToken });
         await Promise.all([
           SecureStore.setItemAsync(KEYS.ACCESS_TOKEN,  data.accessToken),
           SecureStore.setItemAsync(KEYS.REFRESH_TOKEN, data.refreshToken),

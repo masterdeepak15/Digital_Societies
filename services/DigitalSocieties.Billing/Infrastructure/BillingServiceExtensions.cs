@@ -52,8 +52,18 @@ internal sealed class PostgresFlatQueryService : IFlatQueryService
     {
         // Cross-schema raw query — Postgres allows querying identity schema from billing context
         var ids = await _db.Database.SqlQueryRaw<Guid>(
-            "SELECT id FROM identity.flats WHERE society_id = {0} AND is_deleted = FALSE",
+            "SELECT \"Id\" AS \"Value\" FROM identity.\"Flats\" WHERE \"SocietyId\" = {0} AND \"IsDeleted\" = FALSE",
             societyId).ToListAsync(ct);
         return ids;
     }
+
+    public async Task<Dictionary<Guid, string>> GetFlatLabelsAsync(Guid societyId, CancellationToken ct)
+    {
+        var rows = await _db.Database.SqlQueryRaw<FlatLabelRow>(
+            "SELECT \"Id\" AS \"Id\", \"Wing\" AS \"Wing\", \"Number\" AS \"Number\" FROM identity.\"Flats\" WHERE \"SocietyId\" = {0} AND \"IsDeleted\" = FALSE",
+            societyId).ToListAsync(ct);
+        return rows.ToDictionary(r => r.Id, r => $"{r.Wing}-{r.Number}");
+    }
+
+    private sealed record FlatLabelRow(Guid Id, string Wing, string Number);
 }

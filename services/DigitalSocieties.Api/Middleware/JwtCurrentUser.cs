@@ -1,4 +1,4 @@
-using System.Security.Claims;
+﻿using System.Security.Claims;
 using DigitalSocieties.Shared.Contracts;
 using DigitalSocieties.Shared.Domain.Enums;
 
@@ -26,10 +26,10 @@ public sealed class JwtCurrentUser : ICurrentUser
     {
         get
         {
-            // Active society selected via X-Society-Id header or first membership
+            if (!IsAuthenticated) return null;
+            // X-Society-Id may pick one of the user's memberships; without it the first one is used.
             var header = _accessor.HttpContext?.Request.Headers["X-Society-Id"].FirstOrDefault();
-            if (Guid.TryParse(header, out var sid)) return sid;
-            return null;
+            return ActiveSocietyResolver.Resolve(Principal!.FindAll("membership").Select(c => c.Value), header);
         }
     }
 

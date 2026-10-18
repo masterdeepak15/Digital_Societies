@@ -1,4 +1,5 @@
 import Cookies from 'js-cookie'
+import { adaptResponse, applyFlatLabels, needsFlatLabels } from './adapters'
 
 // Single source of truth for the backend prefix.
 //
@@ -109,7 +110,23 @@ async function request<T>(
   }
 
   if (res.status === 204) return undefined as T
-  return res.json() as Promise<T>
+  const json = await res.json()
+  // GET list responses are normalised once here (see adapters.ts); writes pass through untouched.
+  const method = (fetchOptions.method ?? 'GET').toUpperCase()
+  if (method !== 'GET') return json as T
+  const adapted = adaptResponse(path, json)
+  if (!needsFlatLabels(path)) return adapted as T
+  return applyFlatLabels(path, adapted, await flatLabels()) as T
+}
+
+// flat id -> "A-101", fetched once per page load; a failure just leaves ids unlabelled.
+let flatLabelsPromise: Promise<Record<string, string>> | null = null
+function flatLabels(): Promise<Record<string, string>> {
+  flatLabelsPromise ??= request<Record<string, string>>('/billing/flat-labels').catch(() => {
+    flatLabelsPromise = null
+    return {}
+  })
+  return flatLabelsPromise
 }
 
 export const api = {

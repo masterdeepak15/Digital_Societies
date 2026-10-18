@@ -172,17 +172,19 @@ export default function MembersPage() {
 
 // ── Add Member Modal ──────────────────────────────────────────────────────────
 // API: POST /members/family — { email, name, memberType, phone? }
-// The member is added to the caller's own flat (taken from the JWT).
+// An admin names the flat (wing + number); the API ignores those fields for residents.
 interface AddMemberForm {
   name:         string
   email:        string
   phone:        string
+  wing:         string
+  flatNumber:   string
   relationship: 'Owner' | 'Tenant' | 'Family'
 }
 
 function AddMemberModal({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
   const [form, setForm] = useState<AddMemberForm>({
-    name: '', email: '', phone: '', relationship: 'Owner',
+    name: '', email: '', phone: '', wing: '', flatNumber: '', relationship: 'Owner',
   })
   const set = <K extends keyof AddMemberForm>(k: K, v: AddMemberForm[K]) =>
     setForm(prev => ({ ...prev, [k]: v }))
@@ -193,13 +195,15 @@ function AddMemberModal({ onClose, onCreated }: { onClose: () => void; onCreated
       name:       form.name.trim(),
       memberType: form.relationship.toLowerCase(),
       phone:      form.phone.trim() || null,
+      wing:       form.wing.trim() || null,
+      flatNumber: form.flatNumber.trim(),
     }),
     onSuccess:  () => { toast.success('Member added successfully'); onCreated() },
     onError:    (e: Error) => toast.error(e.message),
   })
 
   const inputClass = 'w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500'
-  const isValid = form.name.trim().length >= 2 && /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(form.email.trim())
+  const isValid = form.name.trim().length >= 2 && form.flatNumber.trim().length > 0 && /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(form.email.trim())
 
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
@@ -216,7 +220,18 @@ function AddMemberModal({ onClose, onCreated }: { onClose: () => void; onCreated
           <label className="block text-sm font-medium mb-1">Email</label>
           <input value={form.email} onChange={e => set('email', e.target.value)}
             placeholder="name@example.com" type="email" autoCapitalize="none" className={inputClass} />
-          <p className="text-xs text-gray-400 mt-0.5">They sign in with this address. Added to your own flat.</p>
+          <p className="text-xs text-gray-400 mt-0.5">They sign in with this address.</p>
+        </div>
+
+        <div className="flex gap-3">
+          <div className="w-24">
+            <label className="block text-sm font-medium mb-1">Wing</label>
+            <input value={form.wing} onChange={e => set('wing', e.target.value)} placeholder="A" className={inputClass} />
+          </div>
+          <div className="flex-1">
+            <label className="block text-sm font-medium mb-1">Flat number</label>
+            <input value={form.flatNumber} onChange={e => set('flatNumber', e.target.value)} placeholder="101" className={inputClass} />
+          </div>
         </div>
 
         <div>

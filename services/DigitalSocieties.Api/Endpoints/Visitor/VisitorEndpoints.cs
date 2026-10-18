@@ -3,6 +3,9 @@ using DigitalSocieties.Visitor.Application.Commands;
 using DigitalSocieties.Visitor.Application.Queries;
 using DigitalSocieties.Shared.Contracts;
 using Microsoft.AspNetCore.Mvc;
+using System.Text.Json;
+using System.Text.Json.Nodes;
+using DigitalSocieties.Billing.Application.Commands;
 
 namespace DigitalSocieties.Api.Endpoints.Visitor;
 
@@ -21,13 +24,20 @@ public static class VisitorEndpoints
         // Body: { "societyId":"...", "flatId":"...", "visitorName":"...",
         //         "visitorPhone":"...", "purpose":"Guest", "vehicleNumber":"MH12AB1234" }
         group.MapPost("/", async (
-            AddVisitorCommand cmd,
+            AddVisitorCommand body,
             IMediator mediator,
+            ICurrentUser currentUser,
+            IFlatQueryService flats,
             CancellationToken ct) =>
         {
+            if (currentUser.SocietyId is null) return Results.BadRequest("Society context required.");
+            // The society comes from the session, and the flat must belong to it.
+            var labels = await flats.GetFlatLabelsAsync(currentUser.SocietyId.Value, ct);
+            if (!labels.ContainsKey(body.FlatId)) return Results.BadRequest("Unknown flat for this society.");
+            var cmd = body with { SocietyId = currentUser.SocietyId.Value };
             var result = await mediator.Send(cmd, ct);
             return result.IsSuccess
-                ? Results.Created($"/api/v1/visitors/{result.Value}", new { visitorId = result.Value })
+                ? Results.Created($"/api/v1/visitors/{result.Value!.VisitorId}", new { visitorId = result.Value.VisitorId })
                 : Results.BadRequest(result.Error);
         })
         .RequireAuthorization("GuardOrAdmin")
@@ -116,13 +126,18 @@ public static class VisitorEndpoints
         group.MapGet("/", async (
             [FromQuery] Guid? flatId,
             [FromQuery] string? status,
-            [FromQuery] int page,
-            [FromQuery] int pageSize,
             IMediator mediator,
             ICurrentUser currentUser,
-            CancellationToken ct) =>
+            IFlatQueryService flats,
+            CancellationToken ct,
+            [FromQuery] int page = 1,
+            [FromQuery] int pageSize = 20) =>
         {
-            var effectiveFlatId = flatId ?? currentUser.FlatId;
+            // Only gate staff and admins may look at another flat's visitors; everyone else sees their own flat.
+            var seesAllFlats = currentUser.IsInRole("admin") || currentUser.IsInRole("guard");
+            if (!seesAllFlats && currentUser.FlatId is null)
+                return Results.Json(new { items = Array.Empty<object>(), totalCount = 0, page, pageSize });
+            var effectiveFlatId = seesAllFlats ? (flatId ?? currentUser.FlatId) : currentUser.FlatId;
             var query = new GetVisitorsQuery(
                 currentUser.SocietyId!.Value,
                 effectiveFlatId,
@@ -130,9 +145,18 @@ public static class VisitorEndpoints
                 page <= 0 ? 1 : page,
                 pageSize is <= 0 or > 100 ? 20 : pageSize);
             var result = await mediator.Send(query, ct);
-            return result.IsSuccess
-                ? Results.Ok(result.Value)
-                : Results.BadRequest(result.Error);
+            if (!result.IsSuccess) return Results.BadRequest(result.Error);
+
+            // Add the host flat label ("A-101") so the console can show where the visitor is going.
+            var node = JsonSerializer.SerializeToNode(result.Value, new JsonSerializerOptions(JsonSerializerDefaults.Web));
+            if (node?["items"] is JsonArray items)
+            {
+                var labels = await flats.GetFlatLabelsAsync(currentUser.SocietyId!.Value, ct);
+                foreach (var item in items.OfType<JsonObject>())
+                    if (Guid.TryParse(item["flatId"]?.GetValue<string>(), out var fid) && labels.TryGetValue(fid, out var label))
+                        item["hostFlatDisplay"] = label;
+            }
+            return Results.Json(node);
         })
         .RequireAuthorization()
         .WithName("GetVisitors")

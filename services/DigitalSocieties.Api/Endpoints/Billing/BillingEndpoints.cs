@@ -17,6 +17,18 @@ public static class BillingEndpoints
 {
     public static RouteGroupBuilder MapBillingEndpoints(this RouteGroupBuilder group)
     {
+        // ── Any signed-in member: flat id -> "A-101" labels, used by the console to name flats ──
+        // GET /api/v1/billing/flat-labels
+        group.MapGet("/flat-labels", async (
+            IFlatQueryService flats,
+            ICurrentUser      cu,
+            CancellationToken ct) =>
+        {
+            if (cu.SocietyId is null) return Results.BadRequest("Society context required.");
+            return Results.Ok(await flats.GetFlatLabelsAsync(cu.SocietyId.Value, ct));
+        })
+        .RequireAuthorization();
+
         // ── Admin: list all bills for the society (paginated + filtered) ────────
         // GET /api/v1/billing/bills?status=all&search=&page=1&limit=20
         group.MapGet("/bills", async (
@@ -25,6 +37,7 @@ public static class BillingEndpoints
             [FromQuery] int      page    = 1,
             [FromQuery] int      limit   = 20,
             BillingDbContext     db      = default!,
+            IFlatQueryService    flats   = default!,
             ICurrentUser         cu      = default!,
             CancellationToken    ct      = default) =>
         {
@@ -51,9 +64,16 @@ public static class BillingEndpoints
                 })
                 .ToListAsync(ct);
 
-            return Results.Ok(new { total, page, limit, items });
+            var labels = await flats.GetFlatLabelsAsync(cu.SocietyId.Value, ct);
+            var rows = items.Select(b => new {
+                b.Id, b.FlatId,
+                FlatLabel = labels.GetValueOrDefault(b.FlatId),
+                b.Period, b.AmountRupees, b.DueDate, b.Status
+            });
+
+            return Results.Ok(new { total, page, limit, items = rows });
         })
-        .RequireAuthorization("AdminOnly")
+        .RequireAuthorization("FinanceStaff")
         .WithName("AdminListBills")
         .WithSummary("List all bills for the society with status/search filters")
         .WithTags("Billing");
@@ -82,7 +102,7 @@ public static class BillingEndpoints
                 PendingRupees       = bills.Where(b => b.Status != BillStatus.Paid).Sum(b => b.Amount.Paise) / 100m,
             });
         })
-        .RequireAuthorization("AdminOnly")
+        .RequireAuthorization("FinanceStaff")
         .WithName("BillingDashboard")
         .WithSummary("Current-month billing dashboard stats for the society")
         .WithTags("Billing");
@@ -93,14 +113,17 @@ public static class BillingEndpoints
         group.MapPost("/generate", async (
             GenerateMonthlyBillsCommand cmd,
             IMediator mediator,
+            ICurrentUser currentUser,
             CancellationToken ct) =>
         {
-            var result = await mediator.Send(cmd, ct);
+            // Never trust a client-supplied society: bills are always generated for the caller's own.
+            if (currentUser.SocietyId is null) return Results.BadRequest("Society context required.");
+            var result = await mediator.Send(cmd with { SocietyId = currentUser.SocietyId.Value }, ct);
             return result.IsSuccess
                 ? Results.Ok(new { generated = result.Value })
                 : Results.BadRequest(result.Error);
         })
-        .RequireAuthorization("AdminOnly")
+        .RequireAuthorization("FinanceStaff")
         .WithName("GenerateMonthlyBills")
         .WithSummary("Generate monthly maintenance bills for all flats in a society")
         .WithTags("Billing");
@@ -108,19 +131,24 @@ public static class BillingEndpoints
         // ── Admin: get society-wide billing summary ────────────────────────────
         // GET /api/v1/billing/summary?societyId=...&year=2026&month=4
         group.MapGet("/summary", async (
-            [FromQuery] Guid societyId,
-            [FromQuery] int year,
-            [FromQuery] int month,
             IMediator mediator,
-            CancellationToken ct) =>
+            ICurrentUser currentUser,
+            CancellationToken ct,
+            [FromQuery] int year = 0,
+            [FromQuery] int month = 0) =>
         {
-            var query = new GetSocietyBillSummaryQuery(societyId, $"{year}-{month:D2}");
+            // The society comes from the caller's token, never from the query string.
+            if (currentUser.SocietyId is null) return Results.BadRequest("Society context required.");
+            var now = DateTime.UtcNow;
+            if (year <= 0) year = now.Year;
+            if (month <= 0) month = now.Month;
+            var query = new GetSocietyBillSummaryQuery(currentUser.SocietyId.Value, $"{year}-{month:D2}");
             var result = await mediator.Send(query, ct);
             return result.IsSuccess
                 ? Results.Ok(result.Value)
                 : Results.NotFound(result.Error);
         })
-        .RequireAuthorization("AdminOnly")
+        .RequireAuthorization("FinanceStaff")
         .WithName("GetSocietyBillSummary")
         .WithSummary("Get paid/pending/overdue summary + defaulters list for a billing period")
         .WithTags("Billing");
@@ -128,16 +156,16 @@ public static class BillingEndpoints
         // ── Resident: list my flat's bills (paginated) ────────────────────────
         // GET /api/v1/billing/my?page=1&pageSize=20
         group.MapGet("/my", async (
-            [FromQuery] int page,
-            [FromQuery] int pageSize,
             IMediator mediator,
             ICurrentUser currentUser,
-            CancellationToken ct) =>
+            CancellationToken ct,
+            [FromQuery] int page = 1,
+            [FromQuery] int pageSize = 20) =>
         {
             if (currentUser.FlatId is null)
                 return Results.BadRequest("No flat associated with your account.");
 
-            var query = new GetFlatBillsQuery(currentUser.FlatId.Value, page, pageSize);
+            var query = new GetFlatBillsQuery(currentUser.FlatId.Value, PageSize: pageSize, Page: page);
             var result = await mediator.Send(query, ct);
             return result.IsSuccess
                 ? Results.Ok(result.Value)

@@ -7,6 +7,7 @@ import { Colors } from '../../theme/colors';
 import { Spacing } from '../../theme/spacing';
 import { Typography } from '../../theme/typography';
 import { apiClient } from '../../services/api/apiClient';
+import { apiFetch } from '../../utils/api';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 interface Member {
@@ -58,10 +59,11 @@ export default function MembersScreen() {
 
   const load = useCallback(async () => {
     try {
-      const result = await apiClient.get<{ items: Member[] }>(
+      // The API answers with a bare array; accept the wrapped form too.
+      const result = await apiFetch<Member[] | { items: Member[] }>(
         `/members?pageSize=200&role=${roleFilter === 'all' ? '' : roleFilter}`
       );
-      setMembers(result.items);
+      setMembers(Array.isArray(result) ? result : result.items);
     } catch {
       Alert.alert('Error', 'Failed to load members.');
     } finally {
@@ -104,7 +106,7 @@ export default function MembersScreen() {
         text: 'Remove', style: 'destructive',
         onPress: async () => {
           try {
-            await apiClient.post(`/members/${userId}/remove`, {});
+            await apiClient.delete(`/members/family/${userId}`);
             load();
           } catch {
             Alert.alert('Error', 'Failed to remove member.');
@@ -381,5 +383,5 @@ const styles = StyleSheet.create({
   cancelBtnText:      { ...Typography.body1 },
   submitBtn:          { flex: 1, padding: Spacing.md, borderRadius: 8,
                         backgroundColor: Colors.primary, alignItems: 'center' },
-  submitBtnText:      { color: '#fff', fontWeight: '600', ...Typography.body1 },
+  submitBtnText:      { ...Typography.body1, color: '#fff', fontWeight: '600' },
 });

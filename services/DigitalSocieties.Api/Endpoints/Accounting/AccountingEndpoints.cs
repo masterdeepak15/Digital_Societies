@@ -1,4 +1,4 @@
-using MediatR;
+﻿using MediatR;
 using DigitalSocieties.Accounting.Application.Commands;
 using DigitalSocieties.Accounting.Application.Queries;
 
@@ -19,34 +19,34 @@ public static class AccountingEndpoints
             var result = await mediator.Send(new GetLedgerEntriesQuery(
                 type, category, month, year, page, pageSize, pendingOnly));
             return result.IsSuccess ? Results.Ok(result.Value) : Results.BadRequest(result.Error);
-        }).RequireAuthorization("ResidentOrAdmin");
+        }).RequireAuthorization("ResidentOrFinance");
 
         g.MapPost("/entries", async (IMediator mediator, PostLedgerEntryCommand cmd) =>
         {
             var result = await mediator.Send(cmd);
             return result.IsSuccess ? Results.Created($"/api/v1/accounting/entries/{result.Value}", result.Value)
                                     : Results.BadRequest(result.Error);
-        }).RequireAuthorization("AdminOnly");
+        }).RequireAuthorization("FinanceStaff");
 
         g.MapPost("/entries/{id:guid}/approve", async (IMediator mediator, Guid id) =>
         {
             var result = await mediator.Send(new ApproveLedgerEntryCommand(id));
             return result.IsSuccess ? Results.Ok() : Results.BadRequest(result.Error);
-        }).RequireAuthorization("AdminOnly");
+        }).RequireAuthorization("FinanceStaff");
 
         g.MapPost("/entries/{id:guid}/reject", async (
             IMediator mediator, Guid id, RejectLedgerEntryCommand cmd) =>
         {
             var result = await mediator.Send(cmd with { EntryId = id });
             return result.IsSuccess ? Results.Ok() : Results.BadRequest(result.Error);
-        }).RequireAuthorization("AdminOnly");
+        }).RequireAuthorization("FinanceStaff");
 
         // ── Monthly report ─────────────────────────────────────────────────
         g.MapGet("/report", async (IMediator mediator, int month = 0, int year = 0) =>
         {
             var result = await mediator.Send(new GetMonthlyReportQuery(month, year));
             return result.IsSuccess ? Results.Ok(result.Value) : Results.BadRequest(result.Error);
-        }).RequireAuthorization("AdminOnly");
+        }).RequireAuthorization("FinanceStaff");
 
         return g;
     }

@@ -1,15 +1,13 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import {
-  View, Text, TextInput, TouchableOpacity,
-  StyleSheet, Alert, Vibration, ScrollView, AppState,
-} from 'react-native';
+import { View, Text, Pressable, Alert, Vibration, ScrollView, AppState } from 'react-native';
 import NetInfo from '@react-native-community/netinfo';
+import { useQuery } from '@tanstack/react-query';
 import { database }             from '../../database/database';
 import VisitorModel             from '../../database/models/VisitorModel';
 import { OfflineQueueService }  from '../../services/offline/OfflineQueueService';
-import { Colors }     from '../../theme/colors';
-import { Typography } from '../../theme/typography';
-import { Spacing, Radius } from '../../theme/spacing';
+import { apiClient }            from '../../services/api/apiClient';
+import { useTheme }             from '../../theme/ThemeProvider';
+import { Button, Card, Icon, ScreenHeader, TextField } from '../../ui';
 
 /**
  * Guard Gate Screen — primary workflow:
@@ -18,9 +16,19 @@ import { Spacing, Radius } from '../../theme/spacing';
  * 3. Send approval request to resident via push notification (online only)
  * 4. Show pending / approved / rejected status
  *
- * Design: large touch targets (min 56px), high contrast, single-handed use.
+ * Design (Control Room theme): large touch targets (min 56px), high contrast, single-handed use.
  */
+const PURPOSES = ['Guest', 'Delivery', 'Service', 'Cab', 'Other'];
+
+async function countVisitors(status: 'Pending' | 'Entered'): Promise<number> {
+  const { data } = await apiClient.get<{ total?: number; totalCount?: number; items?: unknown[] }>(
+    `/visitors?status=${status}&page=1&pageSize=1`,
+  );
+  return data.total ?? data.totalCount ?? data.items?.length ?? 0;
+}
+
 export default function GateScreen() {
+  const { colors, fonts, radius } = useTheme();
   const [name,         setName]         = useState('');
   const [phone,        setPhone]        = useState('');
   const [flat,         setFlat]         = useState('');
@@ -47,12 +55,14 @@ export default function GateScreen() {
     return () => { unsub(); appSub.remove(); };
   }, [refreshStatus]);
 
-  const PURPOSES = ['Guest', 'Delivery', 'Service', 'Cab', 'Other'];
+  // Live counts for the header; hidden (not faked) when offline or the server says no.
+  const waiting = useQuery({ queryKey: ['gate', 'Pending'], queryFn: () => countVisitors('Pending'), enabled: isOnline, refetchInterval: 30_000, retry: false });
+  const inside  = useQuery({ queryKey: ['gate', 'Entered'], queryFn: () => countVisitors('Entered'), enabled: isOnline, refetchInterval: 30_000, retry: false });
 
   const handleAddVisitor = async () => {
     if (!name.trim() || !flat.trim() || !purpose) {
       Vibration.vibrate(300);
-      Alert.alert('Missing Info', 'Fill visitor name, flat number and purpose.');
+      Alert.alert('Missing info', 'Fill visitor name, flat number and purpose.');
       return;
     }
 
@@ -75,7 +85,7 @@ export default function GateScreen() {
       const msg = isOnline
         ? `Notifying resident in flat ${flat.toUpperCase()}…`
         : `Saved locally. Will notify when internet is restored.`;
-      Alert.alert('✅ Visitor Added', msg);
+      Alert.alert('Visitor added', msg);
       setName(''); setPhone(''); setFlat(''); setPurpose('');
       // If online, try to flush the queue immediately
       if (isOnline) OfflineQueueService.flushNow().catch(console.warn);
@@ -87,107 +97,72 @@ export default function GateScreen() {
     }
   };
 
+  const showCounts = isOnline && waiting.data !== undefined && inside.data !== undefined;
+
   return (
-    <ScrollView style={styles.container} keyboardShouldPersistTaps="handled">
-      {/* Connectivity status bar */}
-      <View style={[styles.statusBar, isOnline ? styles.statusOnline : styles.statusOffline]}>
-        <Text style={styles.statusText}>
-          {isOnline ? '● Online' : '⚠ Offline — entries save locally'}
-          {pendingCount > 0 ? `  ·  ${pendingCount} pending sync` : ''}
-        </Text>
-        {!isOnline && pendingCount === 0 && (
-          <Text style={styles.statusSubtext}>Connect to sync {pendingCount} entries</Text>
-        )}
-      </View>
-
-      <Text style={styles.header}>🚪 Gate Entry</Text>
-
-      <Text style={styles.label}>Visitor Name *</Text>
-      <TextInput
-        style={styles.input}
-        placeholder="Ramesh Kumar"
-        value={name} onChangeText={setName}
-        returnKeyType="next"
+    <ScrollView style={{ flex: 1, backgroundColor: colors.ground }} contentContainerStyle={{ padding: 20, paddingTop: 56, gap: 16 }} keyboardShouldPersistTaps="handled">
+      <ScreenHeader
+        subtitle="Main gate"
+        title="Gate entry"
+        right={
+          <View
+            accessibilityLiveRegion="polite"
+            style={{ flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.line, borderRadius: radius.pill, paddingHorizontal: 14, paddingVertical: 8 }}>
+            <View style={{ width: 9, height: 9, borderRadius: 5, backgroundColor: isOnline ? colors.success : colors.warning }} />
+            <Text style={{ color: colors.text, fontFamily: fonts.bold, fontSize: 13 }}>
+              {isOnline ? 'Online' : 'Offline'}{pendingCount > 0 ? ` · ${pendingCount} to sync` : ''}
+            </Text>
+          </View>
+        }
       />
 
-      <Text style={styles.label}>Phone (optional)</Text>
-      <TextInput
-        style={styles.input}
-        placeholder="98765 43210"
-        keyboardType="number-pad"
-        value={phone} onChangeText={setPhone}
-      />
+      {showCounts && (
+        <View style={{ flexDirection: 'row', gap: 12 }}>
+          <Card style={{ flex: 1, borderTopWidth: 3, borderTopColor: colors.accent }}>
+            <Text style={{ color: colors.muted, fontFamily: fonts.semibold, fontSize: 13 }}>Waiting</Text>
+            <Text style={{ color: colors.warning, fontFamily: fonts.extrabold, fontSize: 40, lineHeight: 46 }}>{waiting.data}</Text>
+          </Card>
+          <Card style={{ flex: 1 }}>
+            <Text style={{ color: colors.muted, fontFamily: fonts.semibold, fontSize: 13 }}>Inside now</Text>
+            <Text style={{ color: colors.text, fontFamily: fonts.extrabold, fontSize: 40, lineHeight: 46 }}>{inside.data}</Text>
+          </Card>
+        </View>
+      )}
 
-      <Text style={styles.label}>Flat Number *</Text>
-      <TextInput
-        style={styles.input}
-        placeholder="A-204"
-        autoCapitalize="characters"
-        value={flat} onChangeText={setFlat}
-      />
+      <Card style={{ gap: 14 }}>
+        <TextField label="Visitor name" value={name} onChangeText={setName} placeholder="Ramesh Kumar" returnKeyType="next" />
+        <TextField label="Phone (optional)" value={phone} onChangeText={setPhone} placeholder="98765 43210" keyboardType="number-pad" />
+        <TextField label="Flat number" value={flat} onChangeText={setFlat} placeholder="A-204" autoCapitalize="characters" />
 
-      <Text style={styles.label}>Purpose *</Text>
-      <View style={styles.purposeRow}>
-        {PURPOSES.map((p) => (
-          <TouchableOpacity
-            key={p}
-            style={[styles.chip, purpose === p && styles.chipActive]}
-            onPress={() => setPurpose(p)}>
-            <Text style={[styles.chipText, purpose === p && styles.chipTextActive]}>{p}</Text>
-          </TouchableOpacity>
-        ))}
-      </View>
+        <View style={{ gap: 8 }}>
+          <Text style={{ color: colors.text, fontFamily: fonts.semibold, fontSize: 14 }}>Purpose</Text>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }} accessibilityRole="radiogroup">
+            {PURPOSES.map((p) => {
+              const selected = purpose === p;
+              return (
+                <Pressable
+                  key={p}
+                  accessibilityRole="radio"
+                  accessibilityState={{ selected }}
+                  onPress={() => setPurpose(p)}
+                  style={{ minHeight: 48, paddingHorizontal: 18, justifyContent: 'center', borderRadius: radius.pill, borderWidth: 1.5,
+                    borderColor: selected ? colors.primary : colors.line, backgroundColor: selected ? colors.primary : 'transparent' }}>
+                  <Text style={{ color: selected ? colors.onPrimary : colors.text, fontFamily: fonts.bold, fontSize: 15 }}>{p}</Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        </View>
+      </Card>
 
-      <TouchableOpacity
-        style={[styles.addBtn, saving && styles.addBtnDisabled]}
-        onPress={handleAddVisitor}
-        disabled={saving}
-        activeOpacity={0.8}>
-        <Text style={styles.addBtnText}>{saving ? 'Saving…' : '+ ADD VISITOR'}</Text>
-      </TouchableOpacity>
+      <Button title={saving ? 'Saving…' : 'Add visitor'} icon="plus" onPress={handleAddVisitor} loading={saving} />
 
-      <View style={styles.offlineBanner}>
-        <Text style={styles.offlineText}>
-          📶 Works offline — entries sync automatically when internet is available
-        </Text>
-        <Text style={styles.offlineText}>
-          🔒 Visitor data auto-deleted after 7 days
+      <View style={{ flexDirection: 'row', gap: 10, alignItems: 'flex-start', paddingHorizontal: 4 }}>
+        <Icon name="wifi-off" size={16} color={colors.muted} />
+        <Text style={{ flex: 1, color: colors.muted, fontFamily: fonts.regular, fontSize: 13, lineHeight: 19 }}>
+          Works offline. Entries sync automatically when the internet is back. Visitor data is deleted after 7 days.
         </Text>
       </View>
     </ScrollView>
   );
 }
-
-const styles = StyleSheet.create({
-  container:      { flex: 1, backgroundColor: Colors.background, padding: Spacing.md },
-  header:         { ...Typography.h2, color: Colors.primary, marginBottom: Spacing.lg, marginTop: Spacing.md },
-  label:          { ...Typography.guardLabel, color: Colors.textPrimary, marginBottom: Spacing.xs, marginTop: Spacing.md },
-  input:          {
-    borderWidth: 2, borderColor: Colors.border, borderRadius: Radius.md,
-    padding: Spacing.md, ...Typography.guardAction,
-    backgroundColor: Colors.surface, minHeight: 56,
-  },
-  purposeRow:     { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.xs, marginTop: Spacing.xs },
-  chip:           {
-    paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm,
-    borderRadius: Radius.full, borderWidth: 2, borderColor: Colors.primary,
-    backgroundColor: Colors.surface, minHeight: 44, justifyContent: 'center',
-  },
-  chipActive:     { backgroundColor: Colors.primary },
-  chipText:       { ...Typography.guardLabel, color: Colors.primary },
-  chipTextActive: { color: Colors.textOnPrimary },
-  addBtn:         {
-    backgroundColor: Colors.secondary, borderRadius: Radius.md,
-    padding: Spacing.lg, alignItems: 'center', marginTop: Spacing.xl,
-    minHeight: 64, justifyContent: 'center',
-  },
-  addBtnDisabled: { opacity: 0.6 },
-  addBtnText:     { ...Typography.guardAction, color: Colors.textOnPrimary, letterSpacing: 1 },
-  offlineBanner:  { backgroundColor: Colors.info + '22', borderRadius: Radius.md, padding: Spacing.sm, marginTop: Spacing.lg },
-  offlineText:    { ...Typography.caption, color: Colors.info, textAlign: 'center', marginBottom: 2 },
-  statusBar:      { borderRadius: Radius.sm, paddingHorizontal: Spacing.md, paddingVertical: Spacing.xs, marginBottom: Spacing.sm },
-  statusOnline:   { backgroundColor: '#d1fae5' },
-  statusOffline:  { backgroundColor: '#fef3c7' },
-  statusText:     { ...Typography.caption, color: Colors.textPrimary, fontWeight: '600' },
-  statusSubtext:  { ...Typography.caption, color: Colors.textSecondary },
-});

@@ -1,9 +1,6 @@
-import { cn, statusColor } from '@/lib/utils'
+import { StatusPill } from './StatusPill'
 
+// Kept for existing pages; new code should use StatusPill directly.
 export function Badge({ label, className }: { label: string; className?: string }) {
-  return (
-    <span className={cn('inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium', statusColor(label), className)}>
-      {label}
-    </span>
-  )
+  return <StatusPill label={label} className={className} />
 }

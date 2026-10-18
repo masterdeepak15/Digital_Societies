@@ -9,6 +9,7 @@ import { apiClient } from '../../services/api/apiClient';
 import { useAuthStore } from '../../store/authStore';
 import { Colors } from '../../theme/colors';
 import { Spacing } from '../../theme/spacing';
+import { useHubUrl } from '../../config/useHubUrl';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -48,6 +49,7 @@ const fetchMyVisitors = async (status?: string): Promise<PagedResult<Visitor>> =
 
 export default function VisitorsScreen() {
   const { accessToken, activeSocietyId } = useAuthStore();
+  const hubUrl = useHubUrl();
   const queryClient = useQueryClient();
   const [filter, setFilter] = useState<string | undefined>('Pending');
 
@@ -82,12 +84,11 @@ export default function VisitorsScreen() {
 
   // ── SignalR — real-time visitor arrival push ────────────────────────────────
   useEffect(() => {
-    if (!accessToken || !activeSocietyId) return;
+    if (!accessToken || !activeSocietyId || !hubUrl) return;
 
-    const apiUrl = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:5000';
 
     const connection = new HubConnectionBuilder()
-      .withUrl(`${apiUrl}/hubs/society?access_token=${accessToken}`, {
+      .withUrl(`${hubUrl}?access_token=${accessToken}`, {
         headers: { 'X-Society-Id': activeSocietyId },
       })
       .withAutomaticReconnect([0, 2000, 5000, 10000])
@@ -104,7 +105,7 @@ export default function VisitorsScreen() {
     );
 
     return () => { connection.stop(); };
-  }, [accessToken, activeSocietyId, queryClient]);
+  }, [accessToken, activeSocietyId, hubUrl, queryClient]);
 
   // ── Handlers ─────────────────────────────────────────────────────────────────
   const onApprove = useCallback((v: Visitor) => {

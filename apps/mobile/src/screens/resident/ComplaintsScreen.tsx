@@ -31,8 +31,8 @@ interface PagedResult<T> {
   pageSize: number;
 }
 
-const CATEGORIES = ['Plumbing', 'Electrical', 'Lift', 'Security', 'Cleanliness', 'Parking', 'Noise', 'Other'];
-const PRIORITIES = ['Low', 'Medium', 'High', 'Critical'];
+const CATEGORIES = ['Plumbing', 'Electrical', 'Lift', 'Security', 'Housekeeping', 'Parking', 'Noise', 'Other'];
+const PRIORITIES = ['Low', 'Medium', 'High', 'Urgent'];
 
 // ── API ────────────────────────────────────────────────────────────────────────
 
@@ -183,7 +183,7 @@ export default function ComplaintsScreen() {
     Low:      Colors.textSecondary,
     Medium:   Colors.info,
     High:     Colors.warning,
-    Critical: Colors.error,
+    Urgent: Colors.error,
   };
 
   // ── Render item ──────────────────────────────────────────────────────────────

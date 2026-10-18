@@ -56,12 +56,12 @@ public static class SettingsEndpoints
             // Use raw SQL update to avoid exposing a public setter on the domain entity
             if (body.Name is not null)
                 await db.Database.ExecuteSqlRawAsync(
-                    "UPDATE identity.societies SET name = {0}, updated_at = {1} WHERE id = {2}",
+                    "UPDATE identity.societies SET \"Name\" = {0}, \"UpdatedAt\" = {1} WHERE \"Id\" = {2}",
                     body.Name, DateTimeOffset.UtcNow, cu.SocietyId);
 
             if (body.Address is not null)
                 await db.Database.ExecuteSqlRawAsync(
-                    "UPDATE identity.societies SET address = {0}, updated_at = {1} WHERE id = {2}",
+                    "UPDATE identity.societies SET \"Address\" = {0}, \"UpdatedAt\" = {1} WHERE \"Id\" = {2}",
                     body.Address, DateTimeOffset.UtcNow, cu.SocietyId);
 
             return Results.Ok(new { updated = true });

@@ -12,6 +12,7 @@ const colors  = { ...Colors, successLight: '#d4edda', warningLight: '#fff3cd', e
 const spacing = Spacing;
 const typography = { ...Typography, body: Typography.body1 };
 import { apiClient } from '../../services/api/apiClient';
+import { apiFetch } from '../../utils/api';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 interface LedgerEntry {
@@ -70,8 +71,8 @@ export default function AccountingScreen() {
   const load = useCallback(async () => {
     try {
       const [rep, ent] = await Promise.all([
-        apiClient.get<MonthlyReport>('/accounting/report'),
-        apiClient.get<{ items: LedgerEntry[] }>('/accounting/entries?pageSize=100'),
+        apiFetch<MonthlyReport>('/accounting/report'),
+        apiFetch<{ items: LedgerEntry[] }>('/accounting/entries?pageSize=100'),
       ]);
       setReport(rep);
       setEntries(ent.items);
@@ -349,8 +350,5 @@ const styles = StyleSheet.create({
   cancelBtnText: { ...typography.body },
   submitBtn:     { flex: 1, padding: spacing.md, borderRadius: 8,
                    backgroundColor: colors.primary, alignItems: 'center' },
-  submitBtnText: { color: '#fff', fontWeight: '600', ...typography.body },
-  successLight:  colors.successLight,
-  warningLight:  colors.warningLight,
-  errorLight:    colors.errorLight,
+  submitBtnText: { ...typography.body, color: '#fff', fontWeight: '600' },
 });

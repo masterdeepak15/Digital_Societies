@@ -37,6 +37,7 @@ using DigitalSocieties.Wallet.Infrastructure;
 using DigitalSocieties.Api.Endpoints.Wallet;
 using DigitalSocieties.Api.Endpoints.Setup;
 using DigitalSocieties.Api.Endpoints.Settings;
+using DigitalSocieties.Api.Endpoints.Sync;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
 using OpenTelemetry.Metrics;
@@ -107,6 +108,8 @@ try
     builder.Services.AddAuthorization(opts =>
     {
         opts.AddPolicy("AdminOnly",       p => p.RequireClaim("role", "admin"));
+        opts.AddPolicy("FinanceStaff",    p => p.RequireClaim("role", "admin", "accountant"));
+        opts.AddPolicy("ResidentOrFinance", p => p.RequireClaim("role", "resident", "admin", "accountant"));
         opts.AddPolicy("ResidentOrAdmin", p => p.RequireClaim("role", "resident", "admin"));
         opts.AddPolicy("GuardOnly",       p => p.RequireClaim("role", "guard"));
         opts.AddPolicy("GuardOrAdmin",    p => p.RequireClaim("role", "guard", "admin"));
@@ -180,6 +183,24 @@ try
         cfg.AddOpenBehavior(typeof(DigitalSocieties.Identity.Application.Behaviors.ValidationBehavior<,>));
     });
 
+    // Command validators live in each module; without this registration the validation behavior has nothing to run.
+    RegisterValidators(builder.Services, new[]
+    {
+        typeof(Program).Assembly,
+        typeof(DigitalSocieties.Accounting.Infrastructure.AccountingServiceExtensions).Assembly,
+        typeof(DigitalSocieties.Billing.Infrastructure.BillingServiceExtensions).Assembly,
+        typeof(DigitalSocieties.Calling.Infrastructure.CallingServiceExtensions).Assembly,
+        typeof(DigitalSocieties.Communication.Infrastructure.CommunicationServiceExtensions).Assembly,
+        typeof(DigitalSocieties.Complaint.Infrastructure.ComplaintServiceExtensions).Assembly,
+        typeof(DigitalSocieties.Facility.Infrastructure.FacilityServiceExtensions).Assembly,
+        typeof(DigitalSocieties.Identity.Infrastructure.IdentityServiceExtensions).Assembly,
+        typeof(DigitalSocieties.Marketplace.Infrastructure.MarketplaceServiceExtensions).Assembly,
+        typeof(DigitalSocieties.Parking.Infrastructure.ParkingServiceExtensions).Assembly,
+        typeof(DigitalSocieties.Social.Infrastructure.SocialServiceExtensions).Assembly,
+        typeof(DigitalSocieties.Visitor.Infrastructure.VisitorServiceExtensions).Assembly,
+        typeof(DigitalSocieties.Wallet.Infrastructure.WalletServiceExtensions).Assembly,
+    });
+
     builder.Services.AddFluentValidationAutoValidation();
 
     // ── OpenTelemetry (tracing + metrics → OTLP collector; /metrics for Prometheus) ──
@@ -249,6 +270,7 @@ try
     app.MapGroup("/api/v1/marketplace").MapMarketplaceEndpoints();
     app.MapGroup("/api/v1/wallet").MapWalletEndpoints();
     app.MapGroup("/api/v1/settings").MapSettingsEndpoints();
+    app.MapGroup("/api/v1/sync").MapSyncEndpoints();
 
     // MCP server tools registered via AddMcpModule() in services above.
     // HTTP SSE transport (MapMcp) requires ModelContextProtocol >= 0.2.0 — upgrade in P6.
@@ -271,4 +293,16 @@ catch (Exception ex) when (ex is not HostAbortedException)
 finally
 {
     Log.CloseAndFlush();
+}
+
+// Registers every FluentValidation validator found in the given assemblies as IValidator<T>.
+static void RegisterValidators(IServiceCollection services, IEnumerable<System.Reflection.Assembly> assemblies)
+{
+    foreach (var type in assemblies.SelectMany(a => a.GetTypes()))
+    {
+        if (type.IsAbstract || type.IsInterface) continue;
+        foreach (var contract in type.GetInterfaces()
+                     .Where(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(FluentValidation.IValidator<>)))
+            services.AddScoped(contract, type);
+    }
 }

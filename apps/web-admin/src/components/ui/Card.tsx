@@ -2,7 +2,7 @@ import { cn } from '@/lib/utils'
 
 export function Card({ className, children }: { className?: string; children: React.ReactNode }) {
   return (
-    <div className={cn('bg-white rounded-xl shadow-sm border border-gray-100 p-5', className)}>
+    <div className={cn('rounded-xl border border-line bg-surface p-5', className)}>
       {children}
     </div>
   )
@@ -21,14 +21,14 @@ export function StatCard({
   return (
     <Card>
       <div className="flex items-start justify-between">
-        <div className="flex-1 min-w-0">
-          <p className="text-sm text-gray-500">{label}</p>
-          <p className="text-2xl font-bold mt-0.5">{value}</p>
-          {sub   && <p className="text-xs text-gray-400 mt-0.5">{sub}</p>}
-          {delta && <p className={cn('text-xs mt-1', deltaClass ?? 'text-green-600')}>{delta}</p>}
+        <div className="min-w-0 flex-1">
+          <p className="text-sm text-mute">{label}</p>
+          <p className="mt-0.5 text-2xl font-bold text-ink">{value}</p>
+          {sub   && <p className="mt-0.5 text-xs text-mute">{sub}</p>}
+          {delta && <p className={cn('mt-1 text-xs', deltaClass ?? 'text-good')}>{delta}</p>}
         </div>
         {icon && (
-          <div className="p-2.5 rounded-lg bg-gray-50 shrink-0 ml-3">
+          <div className="ml-3 shrink-0 rounded-lg bg-surface-alt p-2.5">
             {icon}
           </div>
         )}

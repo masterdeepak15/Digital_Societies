@@ -78,10 +78,11 @@ public sealed class GenerateMonthlyBillsCommandHandler
         if (amountResult.IsFailure)
             return Result<GenerateMonthlyBillsResponse>.Fail(amountResult.Error!);
 
-        // Create bills in batch
+        // Create bills in batch. Each bill needs its own Money instance: EF tracks an owned
+        // value object per owner, so one shared instance would leave all but one bill with a null amount.
         var bills = toCreate.Select(flatId =>
             Bill.Create(cmd.SocietyId, flatId, cmd.Period,
-                        amountResult.Value!, cmd.DueDate, cmd.Description)).ToList();
+                        Money.CreateInr(cmd.AmountPerFlat).Value!, cmd.DueDate, cmd.Description)).ToList();
 
         _db.Bills.AddRange(bills);
         await _db.SaveChangesAsync(ct);
@@ -95,4 +96,7 @@ public sealed class GenerateMonthlyBillsCommandHandler
 public interface IFlatQueryService
 {
     Task<List<Guid>> GetActiveFlatIdsAsync(Guid societyId, CancellationToken ct);
+
+    /// <summary>Display labels ("A-101") keyed by flat id, for every non-deleted flat of the society.</summary>
+    Task<Dictionary<Guid, string>> GetFlatLabelsAsync(Guid societyId, CancellationToken ct);
 }

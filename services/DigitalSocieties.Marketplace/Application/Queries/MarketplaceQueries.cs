@@ -1,4 +1,4 @@
-using MediatR;
+﻿using MediatR;
 using Microsoft.EntityFrameworkCore;
 using DigitalSocieties.Shared.Contracts;
 using DigitalSocieties.Shared.Results;
@@ -53,7 +53,7 @@ public sealed class GetListingsHandler
             return Result<List<ListingDto>>.Fail("AUTH.REQUIRED", "Society context required.");
 
         var query = _db.ServiceListings
-            .Where(l => l.SocietyId == _cu.SocietyId.Value && l.IsActive && !l.IsDeleted);
+            .AsNoTracking().Where(l => l.SocietyId == _cu.SocietyId.Value && l.IsActive && !l.IsDeleted);
 
         if (!string.IsNullOrWhiteSpace(q.Category) &&
             Enum.TryParse<ServiceCategory>(q.Category, true, out var cat))
@@ -92,7 +92,7 @@ public sealed class GetMyBookingsHandler
             return Result<List<BookingDto>>.Fail("AUTH.REQUIRED", "Authentication context required.");
 
         var query = _db.ServiceBookings
-            .Include(b => b.Listing)
+            .AsNoTracking().Include(b => b.Listing)
             .Where(b => b.ResidentId == _cu.UserId.Value
                      && b.SocietyId  == _cu.SocietyId.Value
                      && !b.IsDeleted);
@@ -142,12 +142,12 @@ public sealed class GetProviderBookingsHandler
             return Result<List<BookingDto>>.Fail("AUTH.REQUIRED", "Authentication context required.");
 
         var myListingIds = await _db.ServiceListings
-            .Where(l => l.ProviderId == _cu.UserId.Value && l.SocietyId == _cu.SocietyId.Value)
+            .AsNoTracking().Where(l => l.ProviderId == _cu.UserId.Value && l.SocietyId == _cu.SocietyId.Value)
             .Select(l => l.Id)
             .ToListAsync(ct);
 
         var query = _db.ServiceBookings
-            .Include(b => b.Listing)
+            .AsNoTracking().Include(b => b.Listing)
             .Where(b => myListingIds.Contains(b.ListingId) && !b.IsDeleted);
 
         if (!string.IsNullOrWhiteSpace(q.Status) &&

@@ -64,6 +64,21 @@ Users sign in with their **email address** and a 6-digit code. Delivery uses pla
 
 If SMTP is not configured in production, `POST /auth/otp/send` returns `503 EMAIL.NOT_CONFIGURED`. Phone numbers are optional profile data; SMS is only used when `MSG91_API_KEY` is set.
 
+## Mobile app: server address and APK
+
+**Pointing the app at your server.** On the sign-in screen tap the globe button (or the "Server" row), enter the address your committee gave you and tap **Save**. It must start with `https://` and can be a domain (`https://society.example.com`) or an IP with a port (`https://192.168.1.20:8443`). **Test connection** checks `/health` first. Switching to a different server signs you out of the old one.
+
+- Plain `http://` is rejected on purpose: sign-in codes and tokens would travel unencrypted.
+- An `https://IP:port` address only works if the phone trusts the server's certificate. Public certificate authorities do not issue certificates for private IPs, so such servers normally use a self-signed or private-CA certificate; install that certificate on each Android phone (Settings, Security, Encryption and credentials, Install a certificate, CA certificate) or use a domain with a normal certificate (a free Let's Encrypt one works).
+- The app can ship with a default server by setting `EXPO_PUBLIC_API_URL` at build time; users can still change it.
+
+**Appearance.** Light, Dark or System can be chosen on the sign-in server sheet and under Me.
+
+**Build the APK (free).**
+
+1. EAS cloud build (free tier, queued): `npm i -g eas-cli`, `eas login`, then in `apps/mobile`: `eas build -p android --profile preview` and download the `.apk` link it prints.
+2. Local build (no account): install Android Studio / the Android SDK and a JDK 17, then in `apps/mobile`: `npx expo prebuild -p android` followed by `cd android && ./gradlew assembleRelease`. The APK is written to `android/app/build/outputs/apk/release/`.
+
 ## Local Development
 
 ```bash

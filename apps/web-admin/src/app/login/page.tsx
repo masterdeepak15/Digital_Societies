@@ -6,7 +6,9 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { toast } from 'sonner'
-import { Building2, Mail, ShieldCheck, Loader2, KeyRound } from 'lucide-react'
+import { Building2 } from 'lucide-react'
+import { Button } from '@/components/ui/Button'
+import { Input } from '@/components/ui/Input'
 import { api } from '@/lib/api'
 import { saveSession, profileToAdminUser, type ApiProfile } from '@/lib/auth'
 
@@ -116,153 +118,124 @@ export default function LoginPage() {
     }
   }
 
-  return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-brand-700 to-brand-900 p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-8">
-        {/* Logo */}
-        <div className="flex items-center gap-3 mb-8">
-          <div className="bg-brand-600 rounded-xl p-2.5">
-            <Building2 className="w-7 h-7 text-white" />
-          </div>
-          <div>
-            <p className="font-bold text-lg leading-tight">Digital Societies</p>
-            <p className="text-xs text-gray-500">Admin Console</p>
-          </div>
-        </div>
+  const labelClass = 'mb-1 block text-sm font-semibold text-ink'
+  const errorClass = 'mt-1 text-xs text-bad'
 
-        {step === 'email' && (
-          <form onSubmit={emailForm.handleSubmit(onSendOtp)} className="space-y-4">
-            <div>
-              <h1 className="text-xl font-semibold">Sign in</h1>
-              <p className="text-sm text-gray-500 mt-1">Enter your registered email address</p>
+  return (
+    <div className="grid min-h-screen lg:grid-cols-[minmax(0,5fr)_minmax(0,6fr)]">
+      <aside className="hidden flex-col justify-between bg-nav p-12 text-nav-text lg:flex">
+        <div className="flex items-center gap-3">
+          <div className="rounded-xl bg-saffron p-2.5">
+            <Building2 className="h-6 w-6 text-[#12203B]" aria-hidden="true" />
+          </div>
+          <span className="text-lg font-bold text-white">Digital Societies</span>
+        </div>
+        <div className="max-w-md">
+          <h2 className="text-3xl font-extrabold leading-tight tracking-tight text-white">Run your society from one place.</h2>
+          <p className="mt-3 text-[15px] leading-relaxed">Bills, visitors, complaints and notices for the managing committee, with every resident one tap away on the mobile app.</p>
+        </div>
+        <p className="text-xs">Admin console</p>
+      </aside>
+
+      <main className="flex items-center justify-center bg-paper p-6">
+        <div className="w-full max-w-sm">
+          <div className="mb-8 flex items-center gap-3 lg:hidden">
+            <div className="rounded-xl bg-saffron p-2.5">
+              <Building2 className="h-6 w-6 text-[#12203B]" aria-hidden="true" />
             </div>
             <div>
-              <label className="block text-sm font-medium mb-1">Email</label>
-              <div className="relative">
-                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                <input
-                  {...emailForm.register('email')}
+              <p className="text-lg font-bold leading-tight text-ink">Digital Societies</p>
+              <p className="text-xs text-mute">Admin console</p>
+            </div>
+          </div>
+
+          {step === 'email' && (
+            <form onSubmit={emailForm.handleSubmit(onSendOtp)} className="space-y-5" noValidate>
+              <div>
+                <h1 className="text-2xl font-extrabold tracking-tight text-ink">Sign in</h1>
+                <p className="mt-1 text-sm text-mute">Enter your registered email address. We will send you a 6-digit code.</p>
+              </div>
+              <div>
+                <label htmlFor="email" className={labelClass}>Email</label>
+                <Input
+                  id="email"
                   type="email"
                   autoComplete="email"
                   autoCapitalize="none"
                   placeholder="admin@society.com"
-                  className="w-full pl-9 pr-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+                  invalid={!!emailForm.formState.errors.email}
+                  {...emailForm.register('email')}
                 />
+                {emailForm.formState.errors.email && (
+                  <p role="alert" className={errorClass}>{emailForm.formState.errors.email.message}</p>
+                )}
               </div>
-              {emailForm.formState.errors.email && (
-                <p className="text-xs text-red-500 mt-1">{emailForm.formState.errors.email.message}</p>
-              )}
-            </div>
-            <button
-              type="submit"
-              disabled={emailForm.formState.isSubmitting}
-              className="w-full bg-brand-600 hover:bg-brand-700 text-white py-2.5 rounded-lg font-medium text-sm transition disabled:opacity-60 flex items-center justify-center gap-2"
-            >
-              {emailForm.formState.isSubmitting && <Loader2 className="w-4 h-4 animate-spin" />}
-              Send code
-            </button>
-          </form>
-        )}
+              <Button type="submit" loading={emailForm.formState.isSubmitting} className="w-full">Send code</Button>
+            </form>
+          )}
 
-        {step === 'otp' && (
-          <form onSubmit={otpForm.handleSubmit(onVerifyOtp)} className="space-y-4">
-            <div>
-              <h1 className="text-xl font-semibold">Enter code</h1>
-              <p className="text-sm text-gray-500 mt-1">Sent to <strong>{email}</strong></p>
-            </div>
-            <div>
-              <label className="block text-sm font-medium mb-1">6-digit code</label>
-              <div className="relative">
-                <ShieldCheck className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                <input
-                  {...otpForm.register('otp')}
-                  placeholder="123456"
-                  maxLength={6}
-                  inputMode="numeric"
-                  className="w-full pl-9 pr-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 tracking-widest"
-                />
-              </div>
-              {otpForm.formState.errors.otp && (
-                <p className="text-xs text-red-500 mt-1">{otpForm.formState.errors.otp.message}</p>
-              )}
-            </div>
-            <button
-              type="submit"
-              disabled={otpForm.formState.isSubmitting}
-              className="w-full bg-brand-600 hover:bg-brand-700 text-white py-2.5 rounded-lg font-medium text-sm transition disabled:opacity-60 flex items-center justify-center gap-2"
-            >
-              {otpForm.formState.isSubmitting && <Loader2 className="w-4 h-4 animate-spin" />}
-              Verify & Sign in
-            </button>
-            <button
-              type="button"
-              disabled={cooldown > 0}
-              onClick={() => sendCode(email)}
-              className="w-full text-sm text-brand-600 hover:text-brand-700 disabled:text-gray-400"
-            >
-              {cooldown > 0 ? `Resend code in ${cooldown}s` : 'Resend code'}
-            </button>
-            <button
-              type="button"
-              onClick={() => setStep('email')}
-              className="w-full text-sm text-gray-500 hover:text-gray-700"
-            >
-              ← Change email
-            </button>
-          </form>
-        )}
-
-        {/* ── 2FA step — shown only when account has TOTP enabled ────────── */}
-        {step === 'totp' && (
-          <form onSubmit={totpForm.handleSubmit(onVerifyTotp)} className="space-y-4">
-            <div className="flex items-center gap-2">
-              <div className="bg-brand-50 border border-brand-200 rounded-lg p-2">
-                <KeyRound className="w-5 h-5 text-brand-600" />
+          {step === 'otp' && (
+            <form onSubmit={otpForm.handleSubmit(onVerifyOtp)} className="space-y-5" noValidate>
+              <div>
+                <h1 className="text-2xl font-extrabold tracking-tight text-ink">Enter your code</h1>
+                <p className="mt-1 text-sm text-mute">Sent to <strong className="text-ink">{email}</strong></p>
               </div>
               <div>
-                <h1 className="text-xl font-semibold">Two-factor auth</h1>
-                <p className="text-xs text-gray-500">Open your authenticator app</p>
-              </div>
-            </div>
-            <div className="bg-gray-50 rounded-xl p-4 text-sm text-gray-600 space-y-1">
-              <p className="font-medium text-gray-800">Enter the 6-digit code from your authenticator app</p>
-              <p className="text-xs text-gray-400">Google Authenticator, Authy, or any TOTP app. Codes refresh every 30 seconds.</p>
-            </div>
-            <div>
-              <label className="block text-sm font-medium mb-1">Authenticator code</label>
-              <div className="relative">
-                <ShieldCheck className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                <input
-                  {...totpForm.register('totp')}
-                  placeholder="000000"
-                  maxLength={6}
+                <label htmlFor="otp" className={labelClass}>6-digit code</label>
+                <Input
+                  id="otp"
                   inputMode="numeric"
+                  autoComplete="one-time-code"
+                  maxLength={6}
+                  placeholder="123456"
                   autoFocus
-                  className="w-full pl-9 pr-3 py-2.5 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 tracking-widest font-mono"
+                  invalid={!!otpForm.formState.errors.otp}
+                  className="tracking-[0.3em]"
+                  {...otpForm.register('otp')}
                 />
+                {otpForm.formState.errors.otp && (
+                  <p role="alert" className={errorClass}>{otpForm.formState.errors.otp.message}</p>
+                )}
               </div>
-              {totpForm.formState.errors.totp && (
-                <p className="text-xs text-red-500 mt-1">{totpForm.formState.errors.totp.message}</p>
-              )}
-            </div>
-            <button
-              type="submit"
-              disabled={totpForm.formState.isSubmitting}
-              className="w-full bg-brand-600 hover:bg-brand-700 text-white py-2.5 rounded-lg font-medium text-sm transition disabled:opacity-60 flex items-center justify-center gap-2"
-            >
-              {totpForm.formState.isSubmitting && <Loader2 className="w-4 h-4 animate-spin" />}
-              Verify Code
-            </button>
-            <button
-              type="button"
-              onClick={() => { setStep('email'); setPendingUserId(null) }}
-              className="w-full text-sm text-gray-500 hover:text-gray-700"
-            >
-              ← Start over
-            </button>
-          </form>
-        )}
-      </div>
+              <Button type="submit" loading={otpForm.formState.isSubmitting} className="w-full">Verify and sign in</Button>
+              <div className="flex gap-3">
+                <Button variant="secondary" disabled={cooldown > 0} onClick={() => sendCode(email)} className="flex-1">
+                  {cooldown > 0 ? `Resend in ${cooldown}s` : 'Resend code'}
+                </Button>
+                <Button variant="ghost" onClick={() => setStep('email')} className="flex-1">Change email</Button>
+              </div>
+            </form>
+          )}
+
+          {step === 'totp' && (
+            <form onSubmit={totpForm.handleSubmit(onVerifyTotp)} className="space-y-5" noValidate>
+              <div>
+                <h1 className="text-2xl font-extrabold tracking-tight text-ink">Two-step verification</h1>
+                <p className="mt-1 text-sm text-mute">Open your authenticator app (Google Authenticator, Authy or similar) and enter the current 6-digit code.</p>
+              </div>
+              <div>
+                <label htmlFor="totp" className={labelClass}>Authenticator code</label>
+                <Input
+                  id="totp"
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  maxLength={6}
+                  placeholder="000000"
+                  autoFocus
+                  invalid={!!totpForm.formState.errors.totp}
+                  className="tracking-[0.3em]"
+                  {...totpForm.register('totp')}
+                />
+                {totpForm.formState.errors.totp && (
+                  <p role="alert" className={errorClass}>{totpForm.formState.errors.totp.message}</p>
+                )}
+              </div>
+              <Button type="submit" loading={totpForm.formState.isSubmitting} className="w-full">Verify code</Button>
+              <Button variant="ghost" onClick={() => { setStep('email'); setPendingUserId(null) }} className="w-full">Start over</Button>
+            </form>
+          )}
+        </div>
+      </main>
     </div>
   )
 }

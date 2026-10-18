@@ -10,7 +10,7 @@ import { Typography } from '../../theme/typography';
 const colors  = { ...Colors, backgroundSecondary: Colors.divider };
 const spacing = Spacing;
 const typography = { ...Typography, body: Typography.body1 };
-import { apiClient } from '../../services/api/apiClient';
+import { apiFetch } from '../../utils/api';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 interface Facility {
@@ -65,11 +65,14 @@ export default function FacilityBookingScreen() {
   const load = useCallback(async () => {
     try {
       const [fac, bk] = await Promise.all([
-        apiClient.get<{ items: Facility[] }>('/facilities'),
-        apiClient.get<{ items: Booking[] }>('/facilities/my-bookings'),
+        apiFetch<Facility[] | { items: Facility[] }>('/facilities'),
+        apiFetch<Booking[] | { items: Booking[] }>('/facilities/bookings/mine'),
       ]);
-      setFacilities(fac.items.filter(f => f.isActive));
-      setMyBookings(bk.items);
+      // The API answers with bare arrays; accept the wrapped form too.
+      const facilityList = Array.isArray(fac) ? fac : fac.items;
+      const bookingList  = Array.isArray(bk)  ? bk  : bk.items;
+      setFacilities(facilityList.filter(f => f.isActive));
+      setMyBookings(bookingList);
     } catch {
       Alert.alert('Error', 'Failed to load facilities.');
     } finally {
@@ -95,11 +98,15 @@ export default function FacilityBookingScreen() {
       return;
     }
     try {
-      await apiClient.post('/facilities/bookings', {
-        facilityId: selected.id,
-        bookingDate: form.bookingDate,
-        startTime: form.startTime,
-        endTime: form.endTime,
+      // The API parses times as TimeOnly, which needs seconds ("09:00:00").
+      await apiFetch(`/facilities/${selected.id}/book`, {
+        method: 'POST',
+        body: JSON.stringify({
+          facilityId: selected.id,
+          bookingDate: form.bookingDate,
+          startTime: `${form.startTime}:00`,
+          endTime: `${form.endTime}:00`,
+        }),
       });
       setShowBook(false);
       load();
@@ -116,7 +123,7 @@ export default function FacilityBookingScreen() {
         text: 'Yes, Cancel', style: 'destructive',
         onPress: async () => {
           try {
-            await apiClient.post(`/facilities/bookings/${id}/cancel`, {});
+            await apiFetch(`/facilities/bookings/${id}/cancel`, { method: 'POST', body: JSON.stringify({ reason: 'Cancelled by resident' }) });
             load();
           } catch {
             Alert.alert('Error', 'Failed to cancel booking.');
@@ -342,5 +349,5 @@ const styles = StyleSheet.create({
   modalCancelText:{ ...typography.body },
   modalConfirm:   { flex: 1, padding: spacing.md, borderRadius: 8,
                     backgroundColor: colors.primary, alignItems: 'center' },
-  modalConfirmText:{ color: '#fff', fontWeight: '600', ...typography.body },
+  modalConfirmText:{ ...typography.body, color: '#fff', fontWeight: '600' },
 });

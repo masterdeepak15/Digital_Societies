@@ -20,10 +20,17 @@ public static class ComplaintEndpoints
         // Body: { "societyId":"...", "flatId":"...", "title":"...",
         //         "description":"...", "category":"Plumbing", "priority":"Medium" }
         group.MapPost("/", async (
-            RaiseComplaintCommand cmd,
+            RaiseComplaintCommand body,
             IMediator mediator,
+            ICurrentUser currentUser,
             CancellationToken ct) =>
         {
+            if (currentUser.SocietyId is null) return Results.BadRequest("Society context required.");
+            // The society always comes from the session; a resident's flat does too. Only an admin
+            // (who has no flat) may name the flat in the body, (not verified against the society).
+            var flatId = currentUser.IsInRole("admin") && body.FlatId != Guid.Empty ? body.FlatId : currentUser.FlatId;
+            if (flatId is null) return Results.BadRequest("A flat is required to raise a complaint.");
+            var cmd = body with { SocietyId = currentUser.SocietyId.Value, FlatId = flatId.Value };
             var result = await mediator.Send(cmd, ct);
             return result.IsSuccess
                 ? Results.Created($"/api/v1/complaints/{result.Value.ComplaintId}",
@@ -83,8 +90,20 @@ public static class ComplaintEndpoints
             [FromBody] UpdateComplaintStatusRequest body,
             IMediator mediator,
             ICurrentUser currentUser,
+            DigitalSocieties.Complaint.Infrastructure.Persistence.ComplaintDbContext db,
             CancellationToken ct) =>
         {
+            // Same society only; admins and staff may move a complaint anywhere, the resident who raised it
+            // may only reopen or close it.
+            var owner = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.FirstOrDefaultAsync(
+                db.Complaints.Where(c => c.Id == complaintId && c.SocietyId == currentUser.SocietyId), ct);
+            if (owner is null) return Results.NotFound();
+            var staff = currentUser.IsInRole("admin") || currentUser.IsInRole("staff");
+            var ownerMayDo = owner.RaisedBy == currentUser.UserId
+                && (string.Equals(body.Status, "Reopened", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(body.Status, "Closed", StringComparison.OrdinalIgnoreCase));
+            if (!staff && !ownerMayDo) return Results.Forbid();
+
             var cmd = new UpdateComplaintStatusCommand(
                 complaintId, body.Status, body.Note, currentUser.UserId!.Value);
             var result = await mediator.Send(cmd, ct);
@@ -99,11 +118,11 @@ public static class ComplaintEndpoints
         // GET /api/v1/complaints/my?status=Open&page=1&pageSize=20
         group.MapGet("/my", async (
             [FromQuery] string? status,
-            [FromQuery] int page,
-            [FromQuery] int pageSize,
             IMediator mediator,
             ICurrentUser currentUser,
-            CancellationToken ct) =>
+            CancellationToken ct,
+            [FromQuery] int page = 1,
+            [FromQuery] int pageSize = 20) =>
         {
             var query = new GetMyComplaintsQuery(
                 currentUser.UserId!.Value,
@@ -123,11 +142,11 @@ public static class ComplaintEndpoints
         group.MapGet("/", async (
             [FromQuery] string? status,
             [FromQuery] string? category,
-            [FromQuery] int page,
-            [FromQuery] int pageSize,
             IMediator mediator,
             ICurrentUser currentUser,
-            CancellationToken ct) =>
+            CancellationToken ct,
+            [FromQuery] int page = 1,
+            [FromQuery] int pageSize = 20) =>
         {
             var query = new GetSocietyComplaintsQuery(
                 currentUser.SocietyId!.Value,
@@ -148,8 +167,16 @@ public static class ComplaintEndpoints
         group.MapGet("/{complaintId:guid}", async (
             Guid complaintId,
             IMediator mediator,
+            ICurrentUser currentUser,
+            DigitalSocieties.Complaint.Infrastructure.Persistence.ComplaintDbContext db,
             CancellationToken ct) =>
         {
+            // Admins and staff see every complaint in their society; a resident only their own flat's.
+            var row = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.FirstOrDefaultAsync(
+                db.Complaints.Where(c => c.Id == complaintId && c.SocietyId == currentUser.SocietyId), ct);
+            var staff = currentUser.IsInRole("admin") || currentUser.IsInRole("staff");
+            if (row is null || (!staff && row.FlatId != currentUser.FlatId && row.RaisedBy != currentUser.UserId)) return Results.NotFound();
+
             var query = new GetComplaintDetailQuery(complaintId);
             var result = await mediator.Send(query, ct);
             return result.IsSuccess ? Results.Ok(result.Value) : Results.NotFound(result.Error);

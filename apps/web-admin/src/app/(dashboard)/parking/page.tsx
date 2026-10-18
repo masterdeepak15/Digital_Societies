@@ -98,12 +98,13 @@ export default function ParkingPage() {
 
   const activeLevel = selectedLevel ?? (levels[0]?.id ?? null)
 
-  // API: GET /parking/levels/{id}/slots → { slots: ApiSlot[] }
+  // API: GET /parking/levels/{id}/slots → ParkingSlot[]
   const { data: slots = demo(DEMO_SLOTS) } = useQuery<ParkingSlot[]>({
     queryKey: ['parking-slots', activeLevel],
     queryFn:  async () => {
-      const res = await api.get<{ slots: ApiSlot[] }>(`/parking/levels/${activeLevel}/slots`)
-      return (res.slots ?? []).map(toUiSlot)
+      // The API already answers with UI-shaped slots (slotNumber, type, status, vehicleNumber...).
+      const res = await api.get<ParkingSlot[]>(`/parking/levels/${activeLevel}/slots`)
+      return (Array.isArray(res) ? res : []).map(s => ({ ...s, type: String(s.type).toLowerCase() as ParkingSlot['type'] }))
     },
     enabled:  !!activeLevel,
   })

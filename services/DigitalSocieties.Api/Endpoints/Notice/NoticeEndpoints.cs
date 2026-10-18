@@ -24,11 +24,14 @@ public static class NoticeEndpoints
         group.MapPost("/", async (
             PostNoticeCommand cmd,
             IMediator mediator,
+            DigitalSocieties.Shared.Contracts.ICurrentUser cu,
             CancellationToken ct) =>
         {
-            var result = await mediator.Send(cmd, ct);
+            if (cu.SocietyId is null) return Results.BadRequest("Society context required.");
+            // A notice always goes to the caller's own society, whatever the body says.
+            var result = await mediator.Send(cmd with { SocietyId = cu.SocietyId.Value }, ct);
             return result.IsSuccess
-                ? Results.Created($"/api/v1/notices/{result.Value}", new { noticeId = result.Value })
+                ? Results.Created($"/api/v1/notices/{result.Value!.NoticeId}", new { noticeId = result.Value.NoticeId })
                 : Results.BadRequest(result.Error);
         })
         .RequireAuthorization("AdminOnly")
@@ -73,11 +76,11 @@ public static class NoticeEndpoints
         // GET /api/v1/notices?page=1&pageSize=20&type=Emergency
         group.MapGet("/", async (
             [FromQuery] string? type,
-            [FromQuery] int page,
-            [FromQuery] int pageSize,
             IMediator mediator,
             ICurrentUser currentUser,
-            CancellationToken ct) =>
+            CancellationToken ct,
+            [FromQuery] int page = 1,
+            [FromQuery] int pageSize = 20) =>
         {
             var query = new GetSocietyNoticesQuery(
                 currentUser.SocietyId!.Value,

@@ -21,6 +21,7 @@ services:
       Jwt__Issuer:                  ${JWT_ISSUER}
       Jwt__Audience:                ${JWT_AUDIENCE}
       Jwt__SecretKey:               ${JWT_SECRET_KEY}
+      QrToken__SecretKey:             ${QR_TOKEN_SECRET_KEY}
       Notification__Email__Host:        ${SMTP_HOST:-}
       Notification__Email__Port:        ${SMTP_PORT:-587}
       Notification__Email__Security:    ${SMTP_SECURITY:-StartTls}
