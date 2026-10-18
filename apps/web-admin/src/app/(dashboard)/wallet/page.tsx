@@ -8,6 +8,7 @@ import { formatDate, cn } from '@/lib/utils'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
+import { demo } from '@/lib/demo'
 
 // ── Types — aligned with API WalletDto ────────────────────────────────────────
 // NOTE: The backend /wallet/* endpoints are a per-user pre-paid wallet used for
@@ -71,14 +72,14 @@ export default function WalletPage() {
     queryKey: ['wallet-balance'],
     queryFn:  () => api.get<WalletBalance>('/wallet/balance'),
   })
-  const wallet = walletRaw ?? DEMO_WALLET
+  const wallet = walletRaw ?? demo(DEMO_WALLET)
 
   // API: GET /wallet/transactions → { items: WalletTransactionDto[], total }
   const { data: txPage } = useQuery<WalletTxPage>({
     queryKey: ['wallet-transactions'],
     queryFn:  () => api.get<WalletTxPage>('/wallet/transactions?page=1&pageSize=50'),
   })
-  const transactions: WalletTransaction[] = txPage?.items ?? DEMO_TRANSACTIONS
+  const transactions: WalletTransaction[] = txPage?.items ?? demo(DEMO_TRANSACTIONS)
 
   const filtered = transactions.filter(t => {
     const category = guessCategory(t)

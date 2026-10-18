@@ -11,6 +11,9 @@ public sealed class Msg91Settings
     public string ApiKey   { get; init; } = default!;
     public string SenderId { get; init; } = "DGSOC";
     public bool   Enabled  { get; init; } = true;
+
+    /// <summary>SMS is optional: only active when a real API key is supplied.</summary>
+    public bool IsConfigured => ConfigValue.IsSet(ApiKey);
 }
 
 /// <summary>

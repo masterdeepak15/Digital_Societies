@@ -13,7 +13,23 @@ services:
     environment:
       ASPNETCORE_ENVIRONMENT: Development
       DOTNET_WATCH_SUPPRESS_EMOJIS: 1
+      # Sign-in codes land in Mailpit (http://localhost:8025) — no SMTP account needed.
+      Notification__Email__Host:        mailpit
+      Notification__Email__Port:        "1025"
+      Notification__Email__Security:    None
+      Notification__Email__FromAddress: no-reply@digitalsocieties.local
+    depends_on:
+      - mailpit
     command: dotnet watch run --project DigitalSocieties.Api/DigitalSocieties.Api.csproj
+
+  # Local mail catcher: SMTP on 1025, web UI on 8025
+  mailpit:
+    image: axllent/mailpit:latest
+    restart: unless-stopped
+    ports:
+      - "8025:8025"
+      - "1025:1025"
+    networks: [ds-net]
 
   postgres:
     ports: ["5432:5432"]

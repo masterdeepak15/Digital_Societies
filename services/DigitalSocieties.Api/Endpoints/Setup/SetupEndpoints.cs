@@ -72,7 +72,8 @@ public static class SetupEndpoints
             {
                 userId    = seeded.Value.AdminUserId,
                 name      = "Demo Admin",
-                phone     = "+919999900001",
+                email     = "admin@demo.society",
+                phone     = "+919999999999",
                 roles     = new[] { "Admin" },
                 societyId = seeded.Value.SocietyId,
             }

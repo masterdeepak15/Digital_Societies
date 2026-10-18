@@ -5,7 +5,7 @@ using DigitalSocieties.Identity.Domain.Events;
 namespace DigitalSocieties.Identity.Domain.Entities;
 
 /// <summary>
-/// Global user — identified by phone number (OTP verified).
+/// Global user — identified by email address (OTP verified). Phone is an optional profile field.
 /// A user exists once globally; linked to societies via Membership.
 /// (SRP — user knows about itself, not about societies)
 /// </summary>
@@ -13,20 +13,21 @@ public sealed class User : AuditableEntity
 {
     private User() { }
 
-    private User(Guid id, string phone, string name)
+    private User(Guid id, string email, string name, string? phone)
         : base(id)
     {
+        Email      = email;
         Phone      = phone;
         Name       = name;
         IsVerified = false;
         IsActive   = true;
     }
 
-    public string  Phone       { get; private set; } = default!;
+    public string  Email       { get; private set; } = default!;
+    public string? Phone       { get; private set; }
     public string  Name        { get; private set; } = default!;
-    public string? Email       { get; private set; }
     public string? AvatarUrl   { get; private set; }
-    public bool    IsVerified  { get; private set; }  // phone OTP verified
+    public bool    IsVerified  { get; private set; }  // email OTP verified
     public bool    IsActive    { get; private set; }
     public DateTimeOffset? LastLoginAt { get; private set; }
 
@@ -44,11 +45,22 @@ public sealed class User : AuditableEntity
     private readonly List<Membership> _memberships = [];
     public IReadOnlyList<Membership>  Memberships  => _memberships.AsReadOnly();
 
-    public static User Create(PhoneNumber phone, string name)
+    public static User Create(Email email, string name, PhoneNumber? phone = null)
     {
-        var user = new User(Guid.NewGuid(), phone.Value, name);
-        user.Raise(new UserCreatedEvent(user.Id, phone.Value));
+        var user = new User(Guid.NewGuid(), email.Value, name, phone?.Value);
+        user.Raise(new UserCreatedEvent(user.Id, email.Value));
         return user;
+    }
+
+    public void SetPhone(PhoneNumber phone) => Phone = phone.Value;
+
+    public void ClearPhone() => Phone = null;
+
+    public void Rename(string name)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+            throw new ArgumentException("Name is required.", nameof(name));
+        Name = name.Trim();
     }
 
     public void MarkVerified()

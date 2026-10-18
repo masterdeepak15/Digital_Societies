@@ -10,6 +10,7 @@ import { PageHeader } from '@/components/ui/PageHeader'
 import { Badge } from '@/components/ui/Badge'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { cn } from '@/lib/utils'
+import { demo } from '@/lib/demo'
 
 // ── Types — aligned with API PostDto ─────────────────────────────────────────
 // API: { id, authorUserId, authorName, body, category, createdAt, isPinned, isLocked, imageCount, commentCount, reactionsCount }
@@ -46,7 +47,7 @@ export default function SocialFeedPage() {
     queryKey: ['social', tab],
     queryFn:  () => api.get('/social/posts?page=1&pageSize=50'),
   })
-  const posts: ReportedPost[] = data?.items ?? DEMO_POSTS
+  const posts: ReportedPost[] = data?.items ?? demo(DEMO_POSTS)
 
   const removeMutation = useMutation({
     mutationFn: (id: string) => api.delete(`/social/posts/${id}`),

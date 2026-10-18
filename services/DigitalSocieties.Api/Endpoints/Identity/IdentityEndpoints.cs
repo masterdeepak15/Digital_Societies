@@ -16,6 +16,9 @@ public static class IdentityEndpoints
         group.MapPost("/refresh",    Refresh)  .WithName("Refresh")  .AllowAnonymous();
         group.MapPost("/logout",     Logout)   .WithName("Logout")   .RequireAuthorization();
         group.MapGet ("/me",         Me)       .WithName("GetMe")    .RequireAuthorization();
+        group.MapPut ("/me/phone",   SetPhone) .WithName("SetPhone") .RequireAuthorization()
+             .WithSummary("Set or clear the optional phone number (null/blank clears).");
+        group.MapPut ("/me/name",    SetName)  .WithName("SetName")  .RequireAuthorization();
 
         // ── 2FA endpoints ─────────────────────────────────────────────────────
         // Enroll: authenticated user generates TOTP secret + QR URI
@@ -41,7 +44,13 @@ public static class IdentityEndpoints
         var result = await mediator.Send(cmd, ct);
         return result.IsSuccess
             ? Results.Ok(result.Value)
-            : Results.Problem(result.Error!.Message, statusCode: 400, title: result.Error.Code);
+            : Results.Problem(result.Error!.Message, title: result.Error.Code,
+                statusCode: result.Error.Code switch
+                {
+                    "EMAIL.NOT_CONFIGURED" or "EMAIL.SEND_FAILED" => 503,
+                    "OTP.RATE_LIMITED"                            => 429,
+                    _                                             => 400,
+                });
     }
 
     // ── POST /api/v1/auth/otp/verify ──────────────────────────────────────────
@@ -86,7 +95,27 @@ public static class IdentityEndpoints
             return Results.Unauthorized();
 
         var user = await users.FindWithMembershipsAsync(currentUser.UserId.Value, ct);
-        return user is null ? Results.NotFound() : Results.Ok(user);
+        return user is null ? Results.NotFound() : Results.Ok(UserProfile.FromUser(user));
+    }
+
+    // ── PUT /api/v1/auth/me/phone ─────────────────────────────────────────────
+    private static async Task<IResult> SetPhone(
+        SetPhoneRequest req, IMediator mediator, CancellationToken ct)
+    {
+        var result = await mediator.Send(new SetPhoneCommand(req.Phone), ct);
+        return result.IsSuccess
+            ? Results.NoContent()
+            : Results.Problem(result.Error!.Message, statusCode: 400, title: result.Error.Code);
+    }
+
+    // ── PUT /api/v1/auth/me/name ──────────────────────────────────────────────
+    private static async Task<IResult> SetName(
+        SetNameRequest req, IMediator mediator, CancellationToken ct)
+    {
+        var result = await mediator.Send(new SetNameCommand(req.Name), ct);
+        return result.IsSuccess
+            ? Results.NoContent()
+            : Results.Problem(result.Error!.Message, statusCode: 400, title: result.Error.Code);
     }
 
     // ── POST /api/v1/auth/2fa/enroll ─────────────────────────────────────────
@@ -130,6 +159,8 @@ public static class IdentityEndpoints
 
     private sealed record RefreshTokenRequest(string RefreshToken);
     private sealed record LogoutRequest(string RefreshToken);
+    private sealed record SetPhoneRequest(string? Phone);
+    private sealed record SetNameRequest(string Name);
     private sealed record Confirm2FaRequest(string TotpCode);
     private sealed record Verify2FaRequest(Guid PendingUserId, string TotpCode);
     private sealed record Disable2FaRequest(string TotpCode);

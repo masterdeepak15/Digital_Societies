@@ -17,6 +17,7 @@ export const API_BASE = rawApiUrl.endsWith('/api/v1')
 export const API_HOST = API_BASE.replace(/\/api\/v1$/, '')
 
 const TOKEN_KEY = 'ds_token'
+const REFRESH_KEY = 'ds_refresh'
 
 export class ApiError extends Error {
   constructor(public status: number, message: string) {
@@ -35,24 +36,36 @@ function resolveUrl(path: string): string {
 let _refreshPromise: Promise<string | null> | null = null
 
 async function doRefresh(): Promise<string | null> {
-  const token = Cookies.get(TOKEN_KEY)
-  if (!token) return null
+  // POST /auth/refresh takes the refresh token in the body (not the access token).
+  const refreshToken = Cookies.get(REFRESH_KEY)
+  if (!refreshToken) return null
   try {
     const res = await fetch(resolveUrl('/auth/refresh'), {
       method:  'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ refreshToken }),
     })
     if (!res.ok) return null
-    const { accessToken } = (await res.json()) as { accessToken?: string }
-    if (accessToken) Cookies.set(TOKEN_KEY, accessToken, { expires: 7, sameSite: 'Lax' })
+    const { accessToken, refreshToken: rotated } =
+      (await res.json()) as { accessToken?: string; refreshToken?: string }
+    if (accessToken) Cookies.set(TOKEN_KEY, accessToken, { expires: 7, sameSite: 'Lax', secure: secureCookie() })
+    if (rotated)     Cookies.set(REFRESH_KEY, rotated, { expires: 30, sameSite: 'Lax', secure: secureCookie() })
     return accessToken ?? null
   } catch {
     return null
   }
 }
 
+// Sign-in endpoints answer 401 for a wrong/expired code. That is a normal validation failure,
+// not an expired session: it must surface the server message, not refresh-and-redirect.
+const isAuthEndpoint = (path: string) => /^\/auth\/(otp|2fa|refresh)(\/|$)/.test(path)
+
+// Cookies carry bearer tokens: mark them Secure whenever the page is served over HTTPS.
+const secureCookie = () => typeof location !== 'undefined' && location.protocol === 'https:'
+
 function clearSessionAndRedirect() {
   Cookies.remove(TOKEN_KEY)
+  Cookies.remove(REFRESH_KEY)
   if (typeof localStorage !== 'undefined') localStorage.removeItem('ds_user')
   if (typeof window !== 'undefined') window.location.href = '/login'
 }
@@ -74,7 +87,7 @@ async function request<T>(
   const res = await fetch(resolveUrl(path), { ...fetchOptions, headers })
 
   // ── 401 → attempt token refresh, retry once ────────────────────────────────
-  if (res.status === 401 && !_retry) {
+  if (res.status === 401 && !_retry && !isAuthEndpoint(path)) {
     if (!_refreshPromise) {
       _refreshPromise = doRefresh().finally(() => { _refreshPromise = null })
     }
@@ -90,7 +103,8 @@ async function request<T>(
 
   if (!res.ok) {
     let msg = `HTTP ${res.status}`
-    try { const j = await res.json(); msg = j.title ?? j.message ?? msg } catch {}
+    // ProblemDetails: `detail` is the human message, `title` is the machine code.
+    try { const j = await res.json(); msg = j.detail ?? j.message ?? j.title ?? msg } catch {}
     throw new ApiError(res.status, msg)
   }
 

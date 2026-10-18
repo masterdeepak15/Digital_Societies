@@ -8,6 +8,7 @@ import { formatDate, cn } from '@/lib/utils'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { Badge } from '@/components/ui/Badge'
 import { EmptyState } from '@/components/ui/EmptyState'
+import { demo } from '@/lib/demo'
 
 // ── Types — aligned with API ListingDto ───────────────────────────────────────
 // API: { id, providerName, title, category, price, rating, isActive }
@@ -64,7 +65,7 @@ export default function MarketplacePage() {
     queryKey: ['marketplace-listings', tab],
     queryFn:  () => api.get('/marketplace/listings'),
   })
-  const listings: Listing[] = data?.items ?? DEMO_LISTINGS
+  const listings: Listing[] = data?.items ?? demo(DEMO_LISTINGS)
 
   // NOTE: backend has no admin moderation endpoints for listings yet.
   // Approve / reject / delete buttons removed until PATCH/DELETE /marketplace/listings/{id}

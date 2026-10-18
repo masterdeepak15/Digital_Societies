@@ -11,9 +11,10 @@ namespace DigitalSocieties.Identity.Application.Commands;
 
 // ── Add family member ──────────────────────────────────────────────────────
 public sealed record AddFamilyMemberCommand(
-    string Phone,
-    string Name,
-    string MemberType   // "owner" | "tenant" | "family"
+    string  Email,
+    string  Name,
+    string  MemberType,   // "owner" | "tenant" | "family"
+    string? Phone = null  // optional profile field
 ) : IRequest<Result<Guid>>;
 
 public sealed class AddFamilyMemberValidator : AbstractValidator<AddFamilyMemberCommand>
@@ -23,7 +24,8 @@ public sealed class AddFamilyMemberValidator : AbstractValidator<AddFamilyMember
 
     public AddFamilyMemberValidator()
     {
-        RuleFor(x => x.Phone).NotEmpty().MaximumLength(20);
+        RuleFor(x => x.Email).NotEmpty().MaximumLength(DigitalSocieties.Shared.Domain.ValueObjects.Email.MaxLength);
+        RuleFor(x => x.Phone).MaximumLength(20);
         RuleFor(x => x.Name).NotEmpty().MaximumLength(200);
         RuleFor(x => x.MemberType)
             .Must(t => ValidTypes.Contains(t))
@@ -46,18 +48,32 @@ public sealed class AddFamilyMemberHandler : IRequestHandler<AddFamilyMemberComm
         if (_currentUser.SocietyId is null)
             return Result<Guid>.Fail("SOCIETY.REQUIRED", "Society context is required.");
 
-        // Validate and normalize phone number
-        var phoneResult = PhoneNumber.Create(cmd.Phone);
-        if (phoneResult.IsFailure)
-            return Result<Guid>.Fail(phoneResult.Error!);
+        // Validate and normalize email (identity) and optional phone
+        var emailResult = Shared.Domain.ValueObjects.Email.Create(cmd.Email);
+        if (emailResult.IsFailure)
+            return Result<Guid>.Fail(emailResult.Error!);
 
-        // Find or create the user by phone
+        PhoneNumber? phone = null;
+        if (!string.IsNullOrWhiteSpace(cmd.Phone))
+        {
+            var phoneResult = PhoneNumber.Create(cmd.Phone);
+            if (phoneResult.IsFailure)
+                return Result<Guid>.Fail(phoneResult.Error!);
+            phone = phoneResult.Value!;
+        }
+
+        // Find or create the user by email
+        var email = emailResult.Value!;
         var user = await _db.Users
-            .FirstOrDefaultAsync(u => u.Phone == phoneResult.Value!.Value, ct);
+            .FirstOrDefaultAsync(u => u.Email == email.Value, ct);
 
         if (user is null)
         {
-            user = User.Create(phoneResult.Value!, cmd.Name);
+            if (phone is not null &&
+                await _db.Users.AnyAsync(u => u.Phone == phone.Value, ct))
+                return Result<Guid>.Fail("PHONE.TAKEN", "That phone number is already registered to another account.");
+
+            user = User.Create(email, cmd.Name, phone);
             _db.Users.Add(user);
             await _db.SaveChangesAsync(ct);
         }

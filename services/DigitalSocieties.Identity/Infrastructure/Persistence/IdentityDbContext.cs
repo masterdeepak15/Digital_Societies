@@ -96,7 +96,7 @@ internal sealed class AnonymousCurrentUser : ICurrentUser
     public Guid?   UserId    => null;
     public Guid?   SocietyId => null;
     public Guid?   FlatId    => null;
-    public string? Phone     => null;
+    public string? Email     => null;
     public IReadOnlyList<string> Roles => [];
     public bool IsInRole(string role)  => false;
     public bool IsAuthenticated        => false;

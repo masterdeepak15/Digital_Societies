@@ -42,7 +42,10 @@ function createApiClient(): AxiosInstance {
     (response) => response,
     async (error) => {
       const original = error.config;
-      if (error.response?.status !== 401 || original._retry) throw error;
+      // Sign-in endpoints use 401 for a wrong/expired code: surface the server message instead of
+      // trying to refresh a session (which would also wipe stored tokens).
+      const isAuthEndpoint = /\/auth\/(otp|2fa|refresh)(\/|$)/.test(original?.url ?? '');
+      if (error.response?.status !== 401 || original._retry || isAuthEndpoint) throw error;
 
       if (isRefreshing) {
         return new Promise((resolve, reject) => {

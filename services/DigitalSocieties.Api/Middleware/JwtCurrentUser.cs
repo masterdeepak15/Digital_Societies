@@ -43,7 +43,7 @@ public sealed class JwtCurrentUser : ICurrentUser
         }
     }
 
-    public string? Phone => Principal?.FindFirstValue("phone");
+    public string? Email => Principal?.FindFirstValue("email");
 
     public IReadOnlyList<string> Roles
     {

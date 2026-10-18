@@ -5,6 +5,7 @@ interface AuthState {
   isAuthenticated:  boolean;
   userId:           string | null;
   name:             string | null;
+  email:            string | null;
   phone:            string | null;
   memberships:      MembershipInfo[];
   activeSocietyId:  string | null;
@@ -15,10 +16,11 @@ interface AuthState {
 
   // Actions
   login:            (
-    profile: { userId: string; name: string; phone: string; memberships: MembershipInfo[] },
+    profile: { userId: string; name: string; email: string; phone?: string | null; memberships: MembershipInfo[] },
     accessToken: string,
   ) => void;
   setActiveSociety: (societyId: string) => void;
+  setProfileFields: (fields: { name?: string; phone?: string | null }) => void;
   logout:           () => void;
 }
 
@@ -26,6 +28,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   isAuthenticated: false,
   userId:          null,
   name:            null,
+  email:           null,
   phone:           null,
   memberships:     [],
   activeSocietyId: null,
@@ -40,7 +43,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       isAuthenticated: true,
       userId:          profile.userId,
       name:            profile.name,
-      phone:           profile.phone,
+      email:           profile.email,
+      phone:           profile.phone ?? null,
       memberships:     profile.memberships,
       activeSocietyId: first?.societyId    ?? null,
       activeRole:      first?.role         ?? null,
@@ -60,11 +64,18 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     });
   },
 
+  setProfileFields: (fields) =>
+    set((s) => ({
+      name:  fields.name !== undefined ? fields.name : s.name,
+      phone: fields.phone !== undefined ? fields.phone : s.phone,
+    })),
+
   logout: () =>
     set({
       isAuthenticated: false,
       userId:          null,
       name:            null,
+      email:           null,
       phone:           null,
       memberships:     [],
       activeSocietyId: null,

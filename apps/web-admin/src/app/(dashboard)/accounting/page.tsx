@@ -14,6 +14,7 @@ import { cn } from '@/lib/utils'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
 } from 'recharts'
+import { demo } from '@/lib/demo'
 
 // ── Types — aligned with API (LedgerEntryDto + MonthlyReportDto) ─────────────
 // API entry: { id, entryDate, type:'Income'|'Expense', category, description, amountPaise, status }
@@ -100,7 +101,7 @@ export default function AccountingPage() {
   })
   const ledger: LedgerEntry[] = ledgerPage?.items
     ? toLedgerRows(ledgerPage.items)
-    : DEMO_LEDGER
+    : demo(DEMO_LEDGER)
 
   const { data: pendingPage } = useQuery<LedgerEntriesPage>({
     queryKey: ['accounting', 'expenses'],
@@ -109,7 +110,7 @@ export default function AccountingPage() {
   })
 
   // P&L tab: API returns ONE month at a time. Fetch the last 6 months in parallel.
-  const { data: pnl = DEMO_PNL } = useQuery<PnL[]>({
+  const { data: pnl = demo(DEMO_PNL) } = useQuery<PnL[]>({
     queryKey: ['accounting', 'pnl'],
     queryFn: async () => {
       const today = new Date()
@@ -245,7 +246,7 @@ export default function AccountingPage() {
       {tab === 'expenses' && (
         <div className="space-y-3">
           {(() => {
-            const pending = pendingPage?.items ?? DEMO_PENDING
+            const pending = pendingPage?.items ?? demo(DEMO_PENDING)
             if (pending.length === 0) return (
               <div className="bg-white border border-gray-100 rounded-xl shadow-sm">
                 <EmptyState icon={Plus} title="No expense requests" />

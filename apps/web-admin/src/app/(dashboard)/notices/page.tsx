@@ -12,6 +12,7 @@ import { PageHeader } from '@/components/ui/PageHeader'
 import { Badge } from '@/components/ui/Badge'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { cn } from '@/lib/utils'
+import { demo } from '@/lib/demo'
 
 // ── Types — aligned with API: { id, title, body, type, isPinned, createdAt, expiresAt? } ─
 type NoticeType = 'Notice' | 'Emergency' | 'Event' | 'Circular'
@@ -49,7 +50,7 @@ export default function NoticesPage() {
     queryKey: ['notices'],
     queryFn:  () => api.get('/notices'),
   })
-  const notices: Notice[] = data?.items ?? DEMO_NOTICES
+  const notices: Notice[] = data?.items ?? demo(DEMO_NOTICES)
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => api.delete(`/notices/${id}`),

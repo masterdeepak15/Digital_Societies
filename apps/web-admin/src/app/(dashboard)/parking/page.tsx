@@ -9,6 +9,7 @@ import { cn } from '@/lib/utils'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { Badge } from '@/components/ui/Badge'
 import { EmptyState } from '@/components/ui/EmptyState'
+import { demo } from '@/lib/demo'
 
 // ── Types — aligned with API ParkingLevelDto / ParkingSlotDto ────────────────
 // GET /parking/levels → { levels: ParkingLevelDto[] }
@@ -78,7 +79,7 @@ export default function ParkingPage() {
   const [showAddSlot,  setShowAddSlot]   = useState(false)
 
   // API: GET /parking/levels → { levels: ParkingLevelDto[] }
-  const { data: levels = DEMO_LEVELS } = useQuery<ParkingLevel[]>({
+  const { data: levels = demo(DEMO_LEVELS) } = useQuery<ParkingLevel[]>({
     queryKey: ['parking-levels'],
     queryFn:  async () => {
       const res = await api.get<{ levels: ParkingLevel[] }>('/parking/levels')
@@ -98,7 +99,7 @@ export default function ParkingPage() {
   const activeLevel = selectedLevel ?? (levels[0]?.id ?? null)
 
   // API: GET /parking/levels/{id}/slots → { slots: ApiSlot[] }
-  const { data: slots = DEMO_SLOTS } = useQuery<ParkingSlot[]>({
+  const { data: slots = demo(DEMO_SLOTS) } = useQuery<ParkingSlot[]>({
     queryKey: ['parking-slots', activeLevel],
     queryFn:  async () => {
       const res = await api.get<{ slots: ApiSlot[] }>(`/parking/levels/${activeLevel}/slots`)

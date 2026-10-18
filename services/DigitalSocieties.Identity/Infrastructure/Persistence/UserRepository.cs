@@ -30,10 +30,18 @@ public sealed class UserRepository : IUserRepository
         => await _db.Users.AnyAsync(predicate, ct);
 
     // ── Domain-specific queries ───────────────────────────────────────────────
-    public async Task<User?> FindByPhoneAsync(string phone, CancellationToken ct = default)
+    public void ClearPendingChanges() => _db.ChangeTracker.Clear();
+
+    public async Task<User?> FindByEmailAsync(string email, CancellationToken ct = default)
         => await _db.Users
             .Include(u => u.Devices)
-            .FirstOrDefaultAsync(u => u.Phone == phone, ct);
+            // Login tokens and the login response are built from these; without them a
+            // successful sign-in carries no roles.
+            .Include(u => u.Memberships.Where(m => m.IsActive))
+                .ThenInclude(m => m.Society)
+            .Include(u => u.Memberships.Where(m => m.IsActive))
+                .ThenInclude(m => m.Flat)
+            .FirstOrDefaultAsync(u => u.Email == email, ct);
 
     public async Task<User?> FindWithMembershipsAsync(Guid userId, CancellationToken ct = default)
         => await _db.Users

@@ -7,6 +7,7 @@ import { toast } from 'sonner'
 import { api } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import { PageHeader } from '@/components/ui/PageHeader'
+import { demo } from '@/lib/demo'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 // API GET /settings → { id, name, address, registrationNumber, tier, isActive, totalFlats }
@@ -122,12 +123,12 @@ export default function SettingsPage() {
 
   // API: GET /settings → { id, name, address, registrationNumber, tier, isActive, totalFlats }
   // Map API response to form shape; fill UI-local fields from DEMO_SETTINGS defaults.
-  const { data: settings = DEMO_SETTINGS } = useQuery<SocietySettings>({
+  const { data: settings = demo(DEMO_SETTINGS) } = useQuery<SocietySettings>({
     queryKey: ['society-settings'],
     queryFn:  async () => {
       const raw = await api.get<ApiSettings>('/settings')
       return {
-        ...DEMO_SETTINGS,               // UI-local defaults
+        ...demo(DEMO_SETTINGS),               // UI-local defaults
         societyName:        raw.name,
         address:            raw.address,
         registrationNumber: raw.registrationNumber,

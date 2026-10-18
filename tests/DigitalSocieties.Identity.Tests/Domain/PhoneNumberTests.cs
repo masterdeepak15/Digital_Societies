@@ -17,6 +17,20 @@ public class PhoneNumberTests
         result.Value!.Value.Should().StartWith("+91");
     }
 
+    [Fact]
+    public void Create_AcceptsInternationalE164()
+    {
+        var result = PhoneNumber.Create("+14155552671");
+        result.IsSuccess.Should().BeTrue();
+        result.Value!.Value.Should().Be("+14155552671");
+    }
+
+    [Fact]
+    public void Create_RejectsTooShortInternational()
+    {
+        PhoneNumber.Create("+1234").IsFailure.Should().BeTrue();
+    }
+
     [Theory]
     [InlineData("")]
     [InlineData(null)]

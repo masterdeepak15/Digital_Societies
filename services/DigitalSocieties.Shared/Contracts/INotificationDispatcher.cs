@@ -24,6 +24,6 @@ public interface INotificationDispatcher
     /// <returns>Channel name that succeeded ("push" | "sms" | "email"), or null if all failed.</returns>
     Task<string?> DispatchAsync(
         NotificationMessage message,
-        string              recipientPhone,
+        string?             recipientPhone,
         CancellationToken   ct = default);
 }

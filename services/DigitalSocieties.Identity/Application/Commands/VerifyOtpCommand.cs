@@ -1,4 +1,5 @@
 using MediatR;
+using Microsoft.EntityFrameworkCore;
 using FluentValidation;
 using DigitalSocieties.Shared.Results;
 using DigitalSocieties.Shared.Contracts;
@@ -12,7 +13,7 @@ namespace DigitalSocieties.Identity.Application.Commands;
 
 // ── Command ──────────────────────────────────────────────────────────────────
 public sealed record VerifyOtpCommand(
-    string Phone,
+    string Email,
     string Otp,
     string Purpose,
     string? DeviceId,
@@ -34,8 +35,19 @@ public sealed record AuthTokenResponse(
 public sealed record UserProfile(
     Guid   UserId,
     string Name,
-    string Phone,
-    IReadOnlyList<MembershipInfo> Memberships);
+    string Email,
+    string? Phone,
+    IReadOnlyList<MembershipInfo> Memberships)
+{
+    /// <summary>Safe projection of a user: never exposes 2FA secrets or other entity internals.</summary>
+    public static UserProfile FromUser(User user) => new(
+        user.Id, user.Name, user.Email, user.Phone,
+        user.Memberships
+            .Where(m => m.IsActive)
+            .Select(m => new MembershipInfo(
+                m.SocietyId, m.Society?.Name ?? "", m.Role.ToString(), m.FlatId, m.Flat?.DisplayName))
+            .ToList());
+}
 
 public sealed record MembershipInfo(
     Guid   SocietyId,
@@ -49,7 +61,7 @@ public sealed class VerifyOtpCommandValidator : AbstractValidator<VerifyOtpComma
 {
     public VerifyOtpCommandValidator()
     {
-        RuleFor(x => x.Phone).NotEmpty();
+        RuleFor(x => x.Email).NotEmpty().MaximumLength(DigitalSocieties.Shared.Domain.ValueObjects.Email.MaxLength);
         RuleFor(x => x.Otp).NotEmpty().Length(6).WithMessage("OTP must be 6 digits.");
         RuleFor(x => x.Purpose).NotEmpty();
     }
@@ -75,39 +87,63 @@ public sealed class VerifyOtpCommandHandler : IRequestHandler<VerifyOtpCommand, 
         _uow        = uow;
     }
 
-    public async Task<Result<AuthTokenResponse>> Handle(
-        VerifyOtpCommand request, CancellationToken ct)
+    private static void RecordSignIn(User user, VerifyOtpCommand request)
     {
-        // Verify OTP
-        var verifyResult = await _otpService.VerifyAsync(request.Phone, request.Otp, request.Purpose, ct);
-        if (!verifyResult.IsSuccess)
-            return Result<AuthTokenResponse>.Fail(verifyResult.Error!);
-
-        // Get or create user
-        var user = await _users.FindByPhoneAsync(request.Phone, ct);
-        bool isNew = user is null;
-
-        if (isNew)
-        {
-            user = User.Create(
-                DigitalSocieties.Shared.Domain.ValueObjects.PhoneNumber.Create(request.Phone).Value!,
-                "New User");
-        }
-
-        user!.MarkVerified();
+        user.MarkVerified();
         user.RecordLogin();
 
         // Register device if provided (security binding)
         if (!string.IsNullOrEmpty(request.DeviceId) && !user.HasDevice(request.DeviceId))
             user.RegisterDevice(request.DeviceId, request.DeviceName ?? "Unknown", request.Platform ?? "unknown");
+    }
+
+    public async Task<Result<AuthTokenResponse>> Handle(
+        VerifyOtpCommand request, CancellationToken ct)
+    {
+        var emailResult = DigitalSocieties.Shared.Domain.ValueObjects.Email.Create(request.Email);
+        if (emailResult.IsFailure)
+            return Result<AuthTokenResponse>.Fail(emailResult.Error!);
+        var email = emailResult.Value!;
+
+        // Verify OTP
+        var verifyResult = await _otpService.VerifyAsync(email.Value, request.Otp, request.Purpose, ct);
+        if (!verifyResult.IsSuccess)
+            return Result<AuthTokenResponse>.Fail(verifyResult.Error!);
+
+        // Get or create user
+        var user = await _users.FindByEmailAsync(email.Value, ct);
+        bool isNew = user is null;
 
         if (isNew)
-            _users.Add(user);
-        else
-            _users.Update(user);
+        {
+            user = User.Create(email, "New User");
+        }
 
-        // OtpVerifiedEvent raised internally by user.MarkVerified() domain method
-        await _uow.CommitAsync(ct);
+        RecordSignIn(user!, request);
+
+        if (isNew)
+            _users.Add(user!);
+        else
+            _users.Update(user!);
+
+        try
+        {
+            // OtpVerifiedEvent raised internally by user.MarkVerified() domain method
+            await _uow.CommitAsync(ct);
+        }
+        catch (DbUpdateException) when (isNew)
+        {
+            // Two sign-ins for the same brand-new email raced and the other one inserted first
+            // (unique index on email). The code is already consumed, so continue as that user
+            // rather than failing the person who just proved they own the mailbox.
+            _users.ClearPendingChanges();
+            user = await _users.FindByEmailAsync(email.Value, ct);
+            if (user is null) throw;
+            isNew = false;
+            RecordSignIn(user, request);
+            _users.Update(user);
+            await _uow.CommitAsync(ct);
+        }
 
         var memberships = user.Memberships
             .Where(m => m.IsActive)
@@ -129,7 +165,7 @@ public sealed class VerifyOtpCommandHandler : IRequestHandler<VerifyOtpCommand, 
                 RefreshToken: string.Empty,
                 ExpiresIn: 0,
                 IsNewUser: isNew,
-                Profile: new UserProfile(user.Id, user.Name, user.Phone, memberships),
+                Profile: new UserProfile(user.Id, user.Name, user.Email, user.Phone, memberships),
                 RequiresTwoFactor: true,
                 PendingUserId: user.Id));
         }
@@ -140,6 +176,6 @@ public sealed class VerifyOtpCommandHandler : IRequestHandler<VerifyOtpCommand, 
 
         return Result<AuthTokenResponse>.Ok(new AuthTokenResponse(
             accessToken, refreshToken, expiresIn, isNew,
-            new UserProfile(user.Id, user.Name, user.Phone, memberships)));
+            new UserProfile(user.Id, user.Name, user.Email, user.Phone, memberships)));
     }
 }

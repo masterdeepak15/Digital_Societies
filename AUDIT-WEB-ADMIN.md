@@ -6,6 +6,23 @@
 
 Counts: **15 modules audited · 47 distinct API calls found · 11 OK · 25 broken · 11 minor mismatches.**
 
+> **Status update (email-login work, 2026-10-17):** this audit predates several fixes already in the code
+> (`lib/api.ts` base URL + 401 refresh, `X-Society-Id` removal, visitor reject, billing generate, notice
+> PUT/pin/create, complaint PUT, accounting reject body, removed dead marketplace/facility/social buttons,
+> `{items}` envelopes). Re-verified against the current pages in that work:
+>
+> | Item | State |
+> |---|---|
+> | §0.1 base URL, §0.2 `X-Society-Id` | Fixed (single `/api/v1` convention in `lib/api.ts`) |
+> | §0.3 refresh/logout | **Fixed now**: refresh token is stored and sent in the body of `/auth/refresh` and `/auth/logout` |
+> | §0.4 pagination | Fixed (`data?.items`) |
+> | §1 auth/login/setup | **Fixed now**: email codes; login maps API `profile` (roles from memberships) instead of a non-existent `user` field; `/auth/me` mapped the same way |
+> | P0 #2-#11 (setup path, reject, generate, pin, notice create, complaint PUT, accounting reject, dead buttons) | Fixed |
+> | Silent `DEMO_*` fallbacks | **Fixed now**: development only (`lib/demo.ts`); other environments show empty states |
+> | Members: add-member payload / phone-less users | **Fixed now**: sends `{ email, name, memberType, phone? }`; list no longer crashes when `phone` is null |
+> | Dashboard (§2) | Composes real endpoints; no longer shows invented numbers outside development |
+> | Wallet conceptual mismatch (§13), Settings extra fields (§14), P2 feature gaps | **Deferred** (product decisions, not defects) |
+
 ---
 
 ## 0. Cross-cutting issues (affect every call)

@@ -9,7 +9,7 @@ public interface ICurrentUser
     Guid?   UserId     { get; }
     Guid?   SocietyId  { get; }  // Active tenant from JWT claim
     Guid?   FlatId     { get; }
-    string? Phone      { get; }
+    string? Email      { get; }
     IReadOnlyList<string> Roles { get; }
 
     bool IsInRole(string role);

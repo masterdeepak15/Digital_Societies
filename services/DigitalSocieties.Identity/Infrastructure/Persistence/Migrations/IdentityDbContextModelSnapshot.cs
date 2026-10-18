@@ -139,10 +139,16 @@ namespace DigitalSocieties.Identity.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid");
 
                     b.Property<int>("Attempts")
+                        .IsConcurrencyToken()
                         .HasColumnType("integer");
 
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Email")
+                        .IsRequired()
+                        .HasMaxLength(250)
+                        .HasColumnType("character varying(250)");
 
                     b.Property<DateTimeOffset>("ExpiresAt")
                         .HasColumnType("timestamp with time zone");
@@ -153,12 +159,8 @@ namespace DigitalSocieties.Identity.Infrastructure.Persistence.Migrations
                         .HasColumnType("character varying(100)");
 
                     b.Property<bool>("IsUsed")
+                        .IsConcurrencyToken()
                         .HasColumnType("boolean");
-
-                    b.Property<string>("Phone")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)");
 
                     b.Property<string>("Purpose")
                         .IsRequired()
@@ -169,7 +171,7 @@ namespace DigitalSocieties.Identity.Infrastructure.Persistence.Migrations
 
                     b.HasIndex("ExpiresAt");
 
-                    b.HasIndex("Phone", "Purpose");
+                    b.HasIndex("Email", "Purpose");
 
                     b.ToTable("otp_requests", "identity");
                 });
@@ -258,6 +260,7 @@ namespace DigitalSocieties.Identity.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid");
 
                     b.Property<string>("Email")
+                        .IsRequired()
                         .HasMaxLength(250)
                         .HasColumnType("character varying(250)");
 
@@ -282,7 +285,6 @@ namespace DigitalSocieties.Identity.Infrastructure.Persistence.Migrations
                         .HasColumnType("text");
 
                     b.Property<string>("Phone")
-                        .IsRequired()
                         .HasMaxLength(20)
                         .HasColumnType("character varying(20)");
 
@@ -300,8 +302,12 @@ namespace DigitalSocieties.Identity.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("Phone")
+                    b.HasIndex("Email")
                         .IsUnique();
+
+                    b.HasIndex("Phone")
+                        .IsUnique()
+                        .HasFilter("\"Phone\" IS NOT NULL");
 
                     b.ToTable("users", "identity");
                 });

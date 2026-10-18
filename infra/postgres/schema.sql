@@ -60,9 +60,9 @@ CREATE TABLE identity.flats (
 
 CREATE TABLE identity.users (
     id            UUID        PRIMARY KEY DEFAULT uuid_generate_v4(),
-    phone         VARCHAR(20)  NOT NULL UNIQUE,
+    email         VARCHAR(250) NOT NULL UNIQUE,   -- identity (stored trimmed + lowercase)
+    phone         VARCHAR(20),                    -- optional profile field
     name          VARCHAR(200) NOT NULL,
-    email         VARCHAR(250),
     avatar_url    VARCHAR(500),
     is_verified   BOOLEAN      NOT NULL DEFAULT FALSE,
     is_active     BOOLEAN      NOT NULL DEFAULT TRUE,
@@ -73,7 +73,7 @@ CREATE TABLE identity.users (
     updated_at    TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
     updated_by    UUID
 );
-CREATE INDEX idx_users_phone ON identity.users(phone);
+CREATE UNIQUE INDEX idx_users_phone ON identity.users(phone) WHERE phone IS NOT NULL;
 
 CREATE TABLE identity.user_devices (
     id            UUID        PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -111,7 +111,7 @@ CREATE INDEX idx_memberships_user    ON identity.memberships(user_id);
 
 CREATE TABLE identity.otp_requests (
     id         UUID        PRIMARY KEY DEFAULT uuid_generate_v4(),
-    phone      VARCHAR(20)  NOT NULL,
+    email      VARCHAR(250) NOT NULL,
     hashed_otp VARCHAR(100) NOT NULL,
     purpose    VARCHAR(20)  NOT NULL CHECK (purpose IN ('login','register','step_up')),
     is_used    BOOLEAN      NOT NULL DEFAULT FALSE,
@@ -119,7 +119,7 @@ CREATE TABLE identity.otp_requests (
     expires_at TIMESTAMPTZ  NOT NULL,
     created_at TIMESTAMPTZ  NOT NULL DEFAULT NOW()
 );
-CREATE INDEX idx_otp_phone_purpose ON identity.otp_requests(phone, purpose);
+CREATE INDEX idx_otp_email_purpose ON identity.otp_requests(email, purpose);
 CREATE INDEX idx_otp_expires       ON identity.otp_requests(expires_at);
 
 CREATE TABLE identity.refresh_tokens (
