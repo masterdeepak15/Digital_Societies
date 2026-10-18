@@ -80,14 +80,14 @@ public sealed class GetWalletTransactionsHandler
 
         var txns = await _db.WalletTransactions
             .Where(t => t.WalletId == walletId.Value)
-            .OrderByDescending(t => t.CreatedAt)
+            .OrderByDescending(t => t.CreatedAt2)
             .Skip((q.Page - 1) * q.PageSize)
             .Take(q.PageSize)
             .Select(t => new WalletTxnDto(
                 t.Id, t.AmountPaise,
                 t.Direction.ToString(), t.Type.ToString(),
                 t.Description, t.BalanceAfterPaise,
-                t.ReferenceId, t.CreatedAt))
+                t.ReferenceId, t.CreatedAt2))
             .ToListAsync(ct);
 
         return Result<List<WalletTxnDto>>.Ok(txns);

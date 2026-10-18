@@ -1,5 +1,8 @@
-﻿using MediatR;
+using MediatR;
 using Microsoft.AspNetCore.Mvc;
+using System.Text.Json;
+using System.Text.Json.Nodes;
+using DigitalSocieties.Billing.Application.Commands;
 using DigitalSocieties.Shared.Contracts;
 using DigitalSocieties.Social.Application.Commands;
 using DigitalSocieties.Social.Application.Queries;
@@ -22,6 +25,7 @@ public static class SocialEndpoints
             [FromQuery] string? category,
             IMediator mediator,
             ICurrentUser currentUser,
+            IFlatQueryService flats,
             CancellationToken ct,
             [FromQuery] int page = 1,
             [FromQuery] int pageSize = 20) =>
@@ -33,7 +37,18 @@ public static class SocialEndpoints
                 page <= 0 ? 1 : page,
                 pageSize is <= 0 or > 50 ? 20 : pageSize);
             var result = await mediator.Send(query, ct);
-            return result.IsSuccess ? Results.Ok(result.Value) : Results.BadRequest(result.Error);
+            if (!result.IsSuccess) return Results.BadRequest(result.Error);
+
+            // The query returns the author's flat id; the apps want the label ("A-101").
+            var node = JsonSerializer.SerializeToNode(result.Value, new JsonSerializerOptions(JsonSerializerDefaults.Web));
+            if (node?["items"] is JsonArray items)
+            {
+                var labels = await flats.GetFlatLabelsAsync(currentUser.SocietyId!.Value, ct);
+                foreach (var item in items.OfType<JsonObject>())
+                    if (Guid.TryParse(item["authorFlatDisplay"]?.GetValue<string>(), out var fid) && labels.TryGetValue(fid, out var label))
+                        item["authorFlatDisplay"] = label;
+            }
+            return Results.Json(node);
         })
         .RequireAuthorization()
         .WithName("GetFeed")
