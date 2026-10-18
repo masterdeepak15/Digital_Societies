@@ -84,6 +84,21 @@ public static class ParkingEndpoints
                 : Results.BadRequest(r.Error);
         }).RequireAuthorization();
 
+        // A resident can retire a vehicle registered to their own flat (admins: any flat in the society).
+        g.MapPost("/my/vehicles/{vehicleId:guid}/deactivate", async (
+            Guid vehicleId,
+            DigitalSocieties.Parking.Infrastructure.Persistence.ParkingDbContext db,
+            DigitalSocieties.Shared.Contracts.ICurrentUser cu,
+            CancellationToken ct) =>
+        {
+            var vehicle = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.FirstOrDefaultAsync(
+                db.Vehicles.Where(v => v.Id == vehicleId && v.SocietyId == cu.SocietyId), ct);
+            if (vehicle is null || (!cu.IsInRole("admin") && vehicle.FlatId != cu.FlatId)) return Results.NotFound();
+            vehicle.Deactivate();
+            await db.SaveChangesAsync(ct);
+            return Results.Ok();
+        }).RequireAuthorization();
+
         return g;
     }
 
