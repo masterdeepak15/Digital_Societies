@@ -74,3 +74,9 @@ body {
 .dark .divide-gray-100 > :not([hidden]) ~ :not([hidden]) { border-color: rgb(var(--line)); }
 .dark input, .dark select, .dark textarea { background-color: rgb(var(--surface)); color: rgb(var(--ink)); }
 .dark ::placeholder { color: rgb(var(--mute)); }
+/* Status and brand text written for a light page: lift it so it stays readable on the dark surface. */
+.dark .text-brand-600, .dark .text-brand-700 { color: rgb(var(--saffron-dark)); }
+.dark .text-red-500, .dark .text-red-600, .dark .text-red-700 { color: #FF8A8A; }
+.dark .text-green-500, .dark .text-green-600, .dark .text-green-700 { color: #6EE7A0; }
+.dark .text-amber-600, .dark .text-amber-700, .dark .text-yellow-600, .dark .text-yellow-700 { color: #F5C26B; }
+.dark .text-blue-600, .dark .text-blue-700 { color: #8DB8FF; }

@@ -25,8 +25,9 @@ function defaultDeps(): ServerChangeDeps {
 export async function applyServerChange(origin: string, deps: ServerChangeDeps = defaultDeps()): Promise<{ changed: boolean }> {
   const current = await deps.getOrigin();
   if (current === origin) return { changed: false };
-  await deps.setOrigin(origin);
-  await deps.clearTokens();
+  // Sign out first: a request in flight must never pair the old session's tokens with the new origin.
   deps.logout();
+  await deps.clearTokens();
+  await deps.setOrigin(origin);
   return { changed: true };
 }

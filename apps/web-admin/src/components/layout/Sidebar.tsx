@@ -48,7 +48,9 @@ export function Sidebar({ open, onNavigate }: { open: boolean; onNavigate: () =>
   async function logout() {
     await stopSignalR()  // close WebSocket cleanly before clearing session
     await authLogout()   // POST /auth/logout + clears cookies/localStorage
-    router.push('/login')
+    // Full page load, not router.push: drops the React Query cache and cached flat labels so the next
+    // person to sign in on this browser never sees this session's data.
+    window.location.href = '/login'
   }
 
   return (

@@ -42,12 +42,12 @@ describe('applyServerChange', () => {
     expect(f.deps.logout).toHaveBeenCalledTimes(1);
   });
 
-  it('saves the new origin before clearing the session', async () => {
+  it('clears the old session before saving the new origin so old tokens never reach the new server', async () => {
     const f = fakes('https://old.example');
     const order: string[] = [];
     f.deps.setOrigin.mockImplementation(async () => { order.push('set'); });
     f.deps.clearTokens.mockImplementation(async () => { order.push('clear'); });
     await applyServerChange('https://new.example', f.deps);
-    expect(order).toEqual(['set', 'clear']);
+    expect(order).toEqual(['clear', 'set']);
   });
 });

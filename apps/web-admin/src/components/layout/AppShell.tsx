@@ -7,7 +7,7 @@ import { Sidebar } from './Sidebar'
 
 /**
  * Sidebar on large screens; below 1024 px a top bar with a menu button opens it as an overlay
- * (Escape, the scrim and any nav link close it, and focus returns to the menu button).
+ * (Escape, the scrim and any nav link close it; focus moves into the menu on open and back to the menu button on close).
  */
 export function AppShell({ children }: { children: React.ReactNode }) {
   const [open, setOpen] = useState(false)
@@ -16,13 +16,22 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   useEffect(() => { setOpen(false) }, [pathname])
 
+  // Move focus into the menu when it opens and back to the menu button however it closes
+  // (Escape, scrim, nav link), so keyboard users never lose their place.
+  const wasOpen = useRef(false)
+  useEffect(() => {
+    if (open) {
+      document.querySelector<HTMLElement>('#sidebar a')?.focus()
+    } else if (wasOpen.current) {
+      menuButton.current?.focus()
+    }
+    wasOpen.current = open
+  }, [open])
+
   useEffect(() => {
     if (!open) return
     function onKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') {
-        setOpen(false)
-        menuButton.current?.focus()
-      }
+      if (e.key === 'Escape') setOpen(false)
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
