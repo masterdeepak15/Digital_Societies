@@ -136,7 +136,8 @@ export function applyFlatLabels(path: string, data: unknown, labels: Record<stri
     if (!isRec(row)) return row
     if (p === '/facilities/bookings') {
       const flat = label(row.flatId)
-      return flat ? { ...row, flatDisplay: row.flatDisplay ?? flat } : row
+      // bookedBy is a user id; the console would print it raw, so drop it once the flat is named.
+      return flat ? { ...row, flatDisplay: row.flatDisplay ?? flat, bookedBy: undefined } : row
     }
     const flat = label(row.authorFlat) ?? label(row.authorFlatDisplay)
     return flat ? { ...row, authorFlat: flat, authorName: flat } : row
