@@ -1,0 +1,61 @@
+# Your own society, run from this PC: API + Postgres + Redis + MinIO, data kept in a folder you choose.
+#
+#   1. Copy selfhost.env.example to <DS_DATA_DIR>/selfhost.env and fill it in (keep that file OUT of git).
+#   2. docker compose -p ds -f docker-compose.yml -f docker-compose.selfhost.yml --env-file <DS_DATA_DIR>/selfhost.env up -d --build api
+#   3. Optional public HTTPS address without a domain:  ... --profile tunnel up -d tunnel   (see docs/SELFHOST.md)
+#
+# Everything that must survive a restart lives under ${DS_DATA_DIR}: postgres/, redis/, minio/, backups/.
+name: digital-societies
+
+services:
+  api:
+    environment:
+      ASPNETCORE_ENVIRONMENT:           Production
+      Demo__Enabled:                    "false"
+      Notification__Email__Host:        ${SMTP_HOST:-smtp.gmail.com}
+      Notification__Email__Port:        ${SMTP_PORT:-587}
+      Notification__Email__Security:    ${SMTP_SECURITY:-StartTls}
+      Notification__Email__Username:    ${SMTP_USERNAME}
+      Notification__Email__Password:    ${SMTP_PASSWORD}
+      Notification__Email__FromAddress: ${SMTP_FROM_ADDRESS:-${SMTP_USERNAME}}
+      Notification__Email__FromName:    ${SMTP_FROM_NAME:-Digital Societies}
+      Storage__Minio__Endpoint:         minio:9000
+      Storage__Minio__AccessKey:        ${MINIO_ACCESS_KEY}
+      Storage__Minio__SecretKey:        ${MINIO_SECRET_KEY}
+      Storage__Minio__UseSSL:           "false"
+      Calling__Provider:                JitsiMeet
+      Calling__Jitsi__ServerUrl:        ${JITSI_SERVER_URL:-https://meet.jit.si}
+      Calling__Jitsi__AppSecret:        ${JITSI_APP_SECRET}
+    # Only this PC can reach the API directly; the tunnel (below) is the way in from a phone.
+    ports: !override
+      - "127.0.0.1:8080:8080"
+
+  postgres:
+    volumes: !override
+      - ${DS_DATA_DIR}/postgres:/var/lib/postgresql/data
+      - ./postgres-init:/docker-entrypoint-initdb.d:ro
+    ports: !reset []
+
+  redis:
+    volumes: !override
+      - ${DS_DATA_DIR}/redis:/data
+    ports: !reset []
+
+  # The official minio/minio image cannot be pulled anonymously from here; Chainguard's build is free and public.
+  minio:
+    image: chainguard/minio:latest
+    volumes: !override
+      - ${DS_DATA_DIR}/minio:/data
+    ports: !reset []
+    healthcheck:
+      disable: true
+
+  # A free public HTTPS address with no domain (Cloudflare quick tunnel). The address changes each time it starts.
+  tunnel:
+    image: cloudflare/cloudflared:latest
+    profiles: ["tunnel"]
+    restart: unless-stopped
+    command: tunnel --no-autoupdate --url http://api:8080
+    depends_on:
+      api: { condition: service_healthy }
+    networks: [ds-net]
