@@ -19,7 +19,7 @@ public sealed class Flat : AuditableEntity
     }
 
     public Guid   SocietyId   { get; private set; }
-    public string Number      { get; private set; } = default!;  // e.g. "204"
+    public string Number      { get; private set; } = default!;  // e.g. "204" (the wing is not part of it)
     public string Wing        { get; private set; } = default!;  // e.g. "A"
     public int    Floor       { get; private set; }
     public string? OwnerPhone { get; private set; }              // denormalized for quick lookup
@@ -31,5 +31,5 @@ public sealed class Flat : AuditableEntity
     public static Flat Create(Guid societyId, string number, string wing, int floor)
         => new(Guid.NewGuid(), societyId, number, wing, floor);
 
-    public string DisplayName => $"{Wing}-{Number}";
+    public string DisplayName => DigitalSocieties.Shared.Domain.FlatLabel.Of(Wing, Number);
 }

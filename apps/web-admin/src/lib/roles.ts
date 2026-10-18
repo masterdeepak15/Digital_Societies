@@ -1,7 +1,7 @@
 import type { AdminUser } from './auth'
 
 /** Pages only an admin may open; an accountant sees the finance side of the console. */
-export const ADMIN_ONLY_PATHS = ['/wallet', '/members', '/complaints', '/parking', '/settings'] as const
+export const ADMIN_ONLY_PATHS = ['/wallet', '/members', '/flats', '/complaints', '/parking', '/settings'] as const
 
 export const isAdminUser = (user: AdminUser | null): boolean => !!user && user.roles.includes('admin')
 

@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Search, Plus, Users, UserMinus } from 'lucide-react'
+import { Search, Plus, Users, UserMinus, UserPlus } from 'lucide-react'
 import { toast } from 'sonner'
 import { api } from '@/lib/api'
 import { getUser } from '@/lib/auth'
@@ -46,6 +46,8 @@ export default function MembersPage() {
   const [search,  setSearch]  = useState('')
   const [role,    setRole]    = useState<RoleFilter>('all')
   const [showAdd, setShowAdd] = useState(false)
+  // Set when the admin gives an existing person another role: their details are filled in already.
+  const [prefill, setPrefill] = useState<Partial<MemberFormValues> | null>(null)
 
   const { data, isLoading } = useQuery<MembersPage>({
     queryKey: ['members', role],
@@ -72,7 +74,7 @@ export default function MembersPage() {
       <PageHeader
         title="Members"
         description="Residents, guards, staff and the management"
-        action={<Button onClick={() => setShowAdd(true)}><Plus className="h-4 w-4" /> Add person</Button>}
+        action={<Button onClick={() => { setPrefill(null); setShowAdd(true) }}><Plus className="h-4 w-4" /> Add person</Button>}
       />
 
       <div className="flex flex-wrap gap-3 rounded-xl border border-line bg-surface p-4">
@@ -93,6 +95,7 @@ export default function MembersPage() {
 
       {showAdd && (
         <AddPersonModal
+          initial={prefill}
           onClose={() => setShowAdd(false)}
           onCreated={() => { qc.invalidateQueries({ queryKey: ['members'] }); setShowAdd(false) }}
         />
@@ -134,6 +137,11 @@ export default function MembersPage() {
                   <Td className="text-sm capitalize text-mute">{m.memberType ?? '—'}</Td>
                   <Td>{formatDate(m.joinedAt ?? '')}</Td>
                   <Td>
+                    <Button variant="ghost" className="min-h-[32px] px-2 text-xs"
+                      aria-label={`Give ${m.name} another role`} title="Give another role"
+                      onClick={() => { setPrefill({ name: m.name, email: m.email ?? '', phone: m.phone ?? '', role: 'guard' }); setShowAdd(true) }}>
+                      <UserPlus className="h-4 w-4" />
+                    </Button>
                     {m.userId !== me?.userId && (
                       <Button variant="ghost" className="min-h-[32px] px-2 text-xs text-bad"
                         aria-label={`Remove ${m.name}`}
@@ -152,8 +160,8 @@ export default function MembersPage() {
   )
 }
 
-function AddPersonModal({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
-  const [v, setV] = useState<MemberFormValues>(EMPTY_MEMBER_FORM)
+function AddPersonModal({ initial, onClose, onCreated }: { initial: Partial<MemberFormValues> | null; onClose: () => void; onCreated: () => void }) {
+  const [v, setV] = useState<MemberFormValues>({ ...EMPTY_MEMBER_FORM, ...initial })
   const [showError, setShowError] = useState(false)
   const error = memberFormError(v)
   const set = (k: keyof MemberFormValues) => (e: { target: { value: string } }) => setV({ ...v, [k]: e.target.value })
@@ -172,7 +180,7 @@ function AddPersonModal({ onClose, onCreated }: { onClose: () => void; onCreated
   })
 
   return (
-    <Modal title="Add person" onClose={onClose}>
+    <Modal title={initial ? `Give ${initial.name} another role` : 'Add person'} onClose={onClose}>
       <form className="space-y-3" onSubmit={e => { e.preventDefault(); if (error) setShowError(true); else save.mutate() }}>
         <Field label="Role">
           <select className={selectClass} value={v.role} onChange={set('role')}>

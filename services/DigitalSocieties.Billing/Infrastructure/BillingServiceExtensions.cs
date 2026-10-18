@@ -62,7 +62,7 @@ internal sealed class PostgresFlatQueryService : IFlatQueryService
         var rows = await _db.Database.SqlQueryRaw<FlatLabelRow>(
             "SELECT \"Id\" AS \"Id\", \"Wing\" AS \"Wing\", \"Number\" AS \"Number\" FROM identity.\"Flats\" WHERE \"SocietyId\" = {0} AND \"IsDeleted\" = FALSE",
             societyId).ToListAsync(ct);
-        return rows.ToDictionary(r => r.Id, r => $"{r.Wing}-{r.Number}");
+        return rows.ToDictionary(r => r.Id, r => DigitalSocieties.Shared.Domain.FlatLabel.Of(r.Wing, r.Number));
     }
 
     private sealed record FlatLabelRow(Guid Id, string Wing, string Number);

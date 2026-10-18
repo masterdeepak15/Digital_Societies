@@ -26,6 +26,7 @@ using DigitalSocieties.Facility.Infrastructure;
 using DigitalSocieties.Api.Endpoints.Accounting;
 using DigitalSocieties.Api.Endpoints.Facility;
 using DigitalSocieties.Api.Endpoints.Member;
+using DigitalSocieties.Api.Endpoints.Flat;
 using DigitalSocieties.Parking.Infrastructure;
 using DigitalSocieties.Api.Endpoints.Parking;
 using DigitalSocieties.Mcp;
@@ -271,6 +272,7 @@ try
     app.MapGroup("/api/v1/accounting").MapAccountingEndpoints();
     app.MapGroup("/api/v1/facilities").MapFacilityEndpoints();
     app.MapGroup("/api/v1/members").MapMemberEndpoints();
+    app.MapGroup("/api/v1/flats").MapFlatEndpoints();
     app.MapGroup("/api/v1/parking").MapParkingEndpoints();
     app.MapGroup("/api/v1/calling").MapCallingEndpoints();
     app.MapGroup("/api/v1/marketplace").MapMarketplaceEndpoints();

@@ -53,6 +53,9 @@ public sealed class Society : AuditableEntity
         Raise(new SocietyDeactivatedEvent(Id));
     }
 
+    /// <summary>Keeps the stored flat count in step with the flats that exist.</summary>
+    public void SetTotalFlats(int total) => TotalFlats = total;
+
     public Flat AddFlat(string number, string wing, int floor)
     {
         var flat = Flat.Create(Id, number, wing, floor);

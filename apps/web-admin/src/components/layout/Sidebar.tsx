@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import {
   Building2, LayoutDashboard, CreditCard, Users, MessageSquare, ShieldAlert, Megaphone, BarChart3,
-  CalendarCheck, Car, Globe, ShoppingBag, Wallet, Settings, LogOut, type LucideIcon,
+  CalendarCheck, Car, Globe, ShoppingBag, Wallet, Settings, LogOut, Building, type LucideIcon,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { initialsOf } from '@/lib/utils'
@@ -26,6 +26,7 @@ const groups: NavGroup[] = [
   ] },
   { label: 'People', items: [
     { label: 'Members',  href: '/members',  icon: Users },
+    { label: 'Flats',    href: '/flats',    icon: Building },
     { label: 'Visitors', href: '/visitors', icon: ShieldAlert },
   ] },
   { label: 'Operations', items: [

@@ -137,15 +137,9 @@ public sealed class InitializeSocietyCommandHandler
             request.Society.Address,
             request.Society.RegistrationNumber);
 
-        // Seed flats by wing/floor (simplified — A-101 … A-N05, B-101 …)
-        int perWing = (int)Math.Ceiling(request.Society.TotalFlats / 2.0);
-        for (int i = 1; i <= request.Society.TotalFlats; i++)
-        {
-            string wing  = i <= perWing ? "A" : "B";
-            int    seq   = i <= perWing ? i : i - perWing;
-            int    floor = (int)Math.Ceiling(seq / 5.0);
-            society.AddFlat($"{wing}-{floor}{(seq % 5 == 0 ? 5 : seq % 5):D2}", wing, floor);
-        }
+        // No flats are invented here: the admin describes the real buildings (wings, floors, flats per
+        // floor) from the Flats screen, so every flat that exists is one the society actually has.
+        society.SetTotalFlats(request.Society.TotalFlats);
 
         _db.Societies.Add(society);
         await _db.SaveChangesAsync(ct);      // save to get Id
