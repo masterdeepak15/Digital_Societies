@@ -35,7 +35,8 @@ public static class SocialEndpoints
                 groupId,
                 category,
                 page <= 0 ? 1 : page,
-                pageSize is <= 0 or > 50 ? 20 : pageSize);
+                pageSize is <= 0 or > 50 ? 20 : pageSize,
+                currentUser.UserId, currentUser.IsInRole("admin"));
             var result = await mediator.Send(query, ct);
             if (!result.IsSuccess) return Results.BadRequest(result.Error);
 
@@ -64,7 +65,7 @@ public static class SocialEndpoints
             IFlatQueryService flats,
             CancellationToken ct) =>
         {
-            var query = new GetPostDetailQuery(postId, currentUser.UserId!.Value);
+            var query = new GetPostDetailQuery(postId, currentUser.UserId!.Value, currentUser.IsInRole("admin"));
             var result = await mediator.Send(query, ct);
             if (!result.IsSuccess) return Results.NotFound(result.Error);
 
@@ -95,11 +96,18 @@ public static class SocialEndpoints
             CreatePostCommand body,
             IMediator mediator,
             ICurrentUser currentUser,
+            DigitalSocieties.Shared.Contracts.IStorageProvider storage,
             CancellationToken ct) =>
         {
             if (currentUser.SocietyId is null || currentUser.UserId is null)
                 return Results.BadRequest("Society context required.");
             // Who posts, and where, always comes from the session, never from the request body.
+            foreach (var mediaId in body.ImageUrls ?? [])
+                if (!DigitalSocieties.Shared.Media.MediaRules.IsValidId(mediaId)
+                    || !await storage.ExistsAsync(DigitalSocieties.Shared.Media.MediaRules.KeyFor(currentUser.SocietyId.Value, mediaId), ct))
+                    return Results.BadRequest("A picture was not uploaded. Upload it first and try again.");
+            if (body.ImageUrls is { Count: > 4 }) return Results.BadRequest("At most 4 pictures per post.");
+
             var cmd = body with
             {
                 SocietyId    = currentUser.SocietyId.Value,
@@ -176,14 +184,31 @@ public static class SocialEndpoints
             Guid postId,
             [FromBody] LockPostRequest body,
             IMediator mediator,
+            ICurrentUser currentUser,
             CancellationToken ct) =>
         {
-            var result = await mediator.Send(new LockPostCommentsCommand(postId, body.IsLocked), ct);
+            var result = await mediator.Send(new LockPostCommentsCommand(
+                postId, body.IsLocked, currentUser.UserId!.Value, currentUser.IsInRole("admin")), ct);
+            return result.IsSuccess ? Results.Ok() : Results.BadRequest(result.Error);
+        })
+        .RequireAuthorization()
+        .WithName("LockPostComments")
+        .WithSummary("Close or reopen comments on a post: the author, or an admin on any post.")
+        .WithTags("Social");
+
+        // ── Feed: admin hides / unhides a post (reversible, unlike delete) ─────
+        // PUT /api/v1/social/posts/{postId}/hide
+        group.MapPut("/posts/{postId:guid}/hide", async (
+            Guid postId,
+            [FromBody] HidePostRequest body,
+            IMediator mediator,
+            CancellationToken ct) =>
+        {
+            var result = await mediator.Send(new HidePostCommand(postId, body.Hidden), ct);
             return result.IsSuccess ? Results.Ok() : Results.BadRequest(result.Error);
         })
         .RequireAuthorization("AdminOnly")
-        .WithName("LockPostComments")
-        .WithSummary("Admin: lock (disable) or unlock comments on a post.")
+        .WithName("HidePost")
         .WithTags("Social");
 
         // ── Reactions ─────────────────────────────────────────────────────────
@@ -332,6 +357,7 @@ public static class SocialEndpoints
     }
 
     // ── Request DTOs ──────────────────────────────────────────────────────────
+    public record HidePostRequest(bool Hidden);
     public record PinPostRequest(bool IsPinned);
     public record LockPostRequest(bool IsLocked);
     public record ReactRequest(string Type);

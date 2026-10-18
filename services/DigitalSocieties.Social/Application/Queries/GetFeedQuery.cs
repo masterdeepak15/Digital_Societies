@@ -10,7 +10,9 @@ public record GetFeedQuery(
     Guid? GroupId,
     string? Category,
     int Page,
-    int PageSize) : IRequest<Result<FeedPagedResult>>;
+    int PageSize,
+    Guid? ViewerUserId = null,
+    bool ViewerIsAdmin = false) : IRequest<Result<FeedPagedResult>>;
 
 public record FeedPostDto(
     Guid Id,
@@ -29,7 +31,9 @@ public record FeedPostDto(
     // Marketplace
     long? PricePaise,
     string? Condition,
-    bool? IsSold);
+    bool? IsSold,
+    bool IsHidden = false,
+    bool LikedByMe = false);
 
 public record FeedPagedResult(
     IReadOnlyList<FeedPostDto> Items,
@@ -37,7 +41,7 @@ public record FeedPagedResult(
     int Page,
     int PageSize);
 
-internal sealed class GetFeedQueryHandler(SocialDbContext db)
+public sealed class GetFeedQueryHandler(SocialDbContext db)
     : IRequestHandler<GetFeedQuery, Result<FeedPagedResult>>
 {
     public async Task<Result<FeedPagedResult>> Handle(GetFeedQuery request, CancellationToken ct)
@@ -48,6 +52,10 @@ internal sealed class GetFeedQueryHandler(SocialDbContext db)
             .Where(p => p.SocietyId == request.SocietyId
                      && !p.IsDeleted
                      && (p.ExpiresAt == null || p.ExpiresAt > now));
+
+        // A post hidden by an admin is only seen by admins and by the person who wrote it.
+        if (!request.ViewerIsAdmin)
+            query = query.Where(p => !p.IsHidden || p.AuthorUserId == request.ViewerUserId);
 
         if (request.GroupId.HasValue)
             query = query.Where(p => p.GroupId == request.GroupId.Value);
@@ -89,7 +97,9 @@ internal sealed class GetFeedQueryHandler(SocialDbContext db)
                 db.Listings
                     .Where(l => l.PostId == p.Id)
                     .Select(l => (bool?)l.IsSold)
-                    .FirstOrDefault()))
+                    .FirstOrDefault(),
+                p.IsHidden,
+                p.Reactions.Any(r => r.UserId == request.ViewerUserId && r.Type == "thumbsup")))
             .ToListAsync(ct);
 
         return Result<FeedPagedResult>.Ok(

@@ -334,6 +334,9 @@ namespace DigitalSocieties.Social.Infrastructure.Persistence.Migrations
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("boolean");
 
+                    b.Property<bool>("IsHidden")
+                        .HasColumnType("boolean");
+
                     b.Property<bool>("IsLocked")
                         .HasColumnType("boolean");
 

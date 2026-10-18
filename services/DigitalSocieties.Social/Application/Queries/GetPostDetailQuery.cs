@@ -5,7 +5,7 @@ using Microsoft.EntityFrameworkCore;
 
 namespace DigitalSocieties.Social.Application.Queries;
 
-public record GetPostDetailQuery(Guid PostId, Guid RequestingUserId)
+public record GetPostDetailQuery(Guid PostId, Guid RequestingUserId, bool RequesterIsAdmin = false)
     : IRequest<Result<PostDetailDto>>;
 
 public record CommentDto(
@@ -66,7 +66,7 @@ internal sealed class GetPostDetailQueryHandler(SocialDbContext db)
             .Include(p => p.Comments)
             .FirstOrDefaultAsync(p => p.Id == request.PostId && !p.IsDeleted, ct);
 
-        if (post is null)
+        if (post is null || (post.IsHidden && !request.RequesterIsAdmin && post.AuthorUserId != request.RequestingUserId))
             return Result<PostDetailDto>.Fail(
                 new Error("Post.NotFound", "Post not found."));
 

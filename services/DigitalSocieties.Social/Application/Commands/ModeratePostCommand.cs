@@ -51,9 +51,9 @@ internal sealed class PinPostCommandHandler(SocialDbContext db)
 
 // ── Lock / Unlock comments (admin) ────────────────────────────────────────────
 
-public record LockPostCommentsCommand(Guid PostId, bool IsLocked) : IRequest<Result<bool>>;
+public record LockPostCommentsCommand(Guid PostId, bool IsLocked, Guid RequestedBy = default, bool IsAdmin = true) : IRequest<Result<bool>>;
 
-internal sealed class LockPostCommentsCommandHandler(SocialDbContext db)
+public sealed class LockPostCommentsCommandHandler(SocialDbContext db)
     : IRequestHandler<LockPostCommentsCommand, Result<bool>>
 {
     public async Task<Result<bool>> Handle(LockPostCommentsCommand request, CancellationToken ct)
@@ -62,7 +62,30 @@ internal sealed class LockPostCommentsCommandHandler(SocialDbContext db)
         if (post is null)
             return Result<bool>.Fail(new Error("Post.NotFound", "Post not found."));
 
+        // An admin can close comments on any post; otherwise only the person who wrote it.
+        if (!request.IsAdmin && post.AuthorUserId != request.RequestedBy)
+            return Result<bool>.Fail(new Error("Post.Unauthorized", "Only the author or an admin can change comments on this post."));
+
         if (request.IsLocked) post.LockComments(); else post.UnlockComments();
+        await db.SaveChangesAsync(ct);
+        return Result<bool>.Ok(true);
+    }
+}
+
+// ── Hide / unhide a post (admin moderation, reversible) ────────────────────────
+
+public record HidePostCommand(Guid PostId, bool Hidden) : IRequest<Result<bool>>;
+
+public sealed class HidePostCommandHandler(SocialDbContext db)
+    : IRequestHandler<HidePostCommand, Result<bool>>
+{
+    public async Task<Result<bool>> Handle(HidePostCommand request, CancellationToken ct)
+    {
+        var post = await db.Posts.FirstOrDefaultAsync(p => p.Id == request.PostId, ct);
+        if (post is null)
+            return Result<bool>.Fail(new Error("Post.NotFound", "Post not found."));
+
+        if (request.Hidden) post.Hide(); else post.Unhide();
         await db.SaveChangesAsync(ct);
         return Result<bool>.Ok(true);
     }

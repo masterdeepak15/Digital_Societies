@@ -32,6 +32,7 @@ public sealed class SocialPost : AggregateRoot
     public bool IsPinned       { get; private set; }
     public bool IsLocked       { get; private set; }   // comments disabled
     public bool IsDeleted      { get; private set; }
+    public bool IsHidden       { get; private set; }   // hidden by an admin: only admins and the author still see it
     public DateTimeOffset? ExpiresAt { get; private set; }
 
     // ── Audit ─────────────────────────────────────────────────────────────────
@@ -124,6 +125,20 @@ public sealed class SocialPost : AggregateRoot
     public Result<bool> UnlockComments()
     {
         IsLocked  = false;
+        UpdatedAt = DateTimeOffset.UtcNow;
+        return Result<bool>.Ok(true);
+    }
+
+    public Result<bool> Hide()
+    {
+        IsHidden  = true;
+        UpdatedAt = DateTimeOffset.UtcNow;
+        return Result<bool>.Ok(true);
+    }
+
+    public Result<bool> Unhide()
+    {
+        IsHidden  = false;
         UpdatedAt = DateTimeOffset.UtcNow;
         return Result<bool>.Ok(true);
     }
