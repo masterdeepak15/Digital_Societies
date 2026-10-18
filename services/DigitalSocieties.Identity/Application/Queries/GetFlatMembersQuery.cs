@@ -66,7 +66,9 @@ public sealed record SocietyMemberDto(
     string MemberType,
     string? FlatNumber,
     string? Wing,
-    DateTimeOffset JoinedAt);
+    DateTimeOffset JoinedAt,
+    Guid MembershipId,
+    Guid? FlatId);
 
 public sealed record GetSocietyMembersQuery(
     string? Role     = null,
@@ -115,7 +117,9 @@ public sealed class GetSocietyMembersHandler
                 m.MemberType,
                 m.Flat != null ? m.Flat.Number : null,
                 m.Flat != null ? m.Flat.Wing   : null,
-                m.JoinedAt))
+                m.JoinedAt,
+                m.Id,
+                m.FlatId))
             .ToListAsync(ct);
 
         return Result<List<SocietyMemberDto>>.Ok(members);

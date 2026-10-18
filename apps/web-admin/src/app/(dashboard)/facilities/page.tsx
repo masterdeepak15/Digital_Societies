@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { CalendarCheck, Clock, Users, XCircle, Plus, Pencil, Power, Building2 } from 'lucide-react'
+import { CalendarCheck, Clock, Users, XCircle, Plus, Pencil, Power, Building2, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { api } from '@/lib/api'
 import { cn } from '@/lib/utils'
@@ -78,6 +78,12 @@ export default function FacilitiesPage() {
   const activeMutation = useMutation({
     mutationFn: (v: { id: string; isActive: boolean }) => api.put(`/facilities/${v.id}/active`, { isActive: v.isActive }),
     onSuccess: (_d, v) => { toast.success(v.isActive ? 'Facility switched on' : 'Facility switched off'); qc.invalidateQueries({ queryKey: ['facilities'] }) },
+    onError:   (e: Error) => toast.error(e.message),
+  })
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => api.delete(`/facilities/${id}`),
+    onSuccess: () => { toast.success('Facility deleted'); qc.invalidateQueries({ queryKey: ['facilities'] }) },
     onError:   (e: Error) => toast.error(e.message),
   })
 
@@ -181,6 +187,11 @@ export default function FacilitiesPage() {
                       loading={activeMutation.isPending && activeMutation.variables?.id === f.id}
                       onClick={() => activeMutation.mutate({ id: f.id, isActive: !f.isActive })}>
                       <Power className="h-3.5 w-3.5" /> {f.isActive ? 'Switch off' : 'Switch on'}
+                    </Button>
+                    <Button variant="ghost" className="min-h-[32px] px-3 text-xs text-bad" aria-label={`Delete ${f.name}`}
+                      loading={deleteMutation.isPending && deleteMutation.variables === f.id}
+                      onClick={() => { if (confirm(`Delete ${f.name}? Switch it off instead if you only want to hide it for a while.`)) deleteMutation.mutate(f.id) }}>
+                      <Trash2 className="h-3.5 w-3.5" /> Delete
                     </Button>
                   </div>
                 </div>

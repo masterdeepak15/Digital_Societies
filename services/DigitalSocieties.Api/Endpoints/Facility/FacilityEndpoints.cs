@@ -39,6 +39,15 @@ public static class FacilityEndpoints
         .WithName("AdminUpdateFacility")
         .WithTags("Facilities");
 
+        g.MapDelete("/{id:guid}", async (IMediator mediator, Guid id) =>
+        {
+            var result = await mediator.Send(new DeleteFacilityCommand(id));
+            return result.IsSuccess ? Results.NoContent() : Results.BadRequest(result.Error);
+        })
+        .RequireAuthorization("AdminOnly")
+        .WithName("AdminDeleteFacility")
+        .WithTags("Facilities");
+
         g.MapPut("/{id:guid}/active", async (IMediator mediator, Guid id, SetActiveRequest req) =>
         {
             var result = await mediator.Send(new SetFacilityActiveCommand(id, req.IsActive));

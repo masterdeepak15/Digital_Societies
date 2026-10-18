@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Building, Trash2 } from 'lucide-react'
+import { Building } from 'lucide-react'
 import { toast } from 'sonner'
 import { api } from '@/lib/api'
 import { cn } from '@/lib/utils'
@@ -10,7 +10,7 @@ import { PageHeader } from '@/components/ui/PageHeader'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { EmptyState } from '@/components/ui/EmptyState'
-import { Field } from '@/components/ui/Modal'
+import { Field, Modal } from '@/components/ui/Modal'
 import {
   EMPTY_LAYOUT_FORM, groupFlats, layoutError, layoutPreview, parseWings,
   type FlatRow, type LayoutFormValues,
@@ -23,6 +23,7 @@ export default function FlatsPage() {
   const [form, setForm] = useState<LayoutFormValues>(EMPTY_LAYOUT_FORM)
   const [removeOthers, setRemoveOthers] = useState(false)
   const [showError, setShowError] = useState(false)
+  const [editing, setEditing] = useState<FlatRow | null>(null)
 
   const { data: flats = [], isLoading } = useQuery<FlatRow[]>({
     queryKey: ['flats'],
@@ -47,12 +48,6 @@ export default function FlatsPage() {
       refresh()
     },
     onError: (e: Error) => toast.error(e.message),
-  })
-
-  const remove = useMutation({
-    mutationFn: (id: string) => api.delete(`/flats/${id}`),
-    onSuccess: () => { toast.success('Flat removed'); refresh() },
-    onError:   (e: Error) => toast.error(e.message),
   })
 
   const groups = groupFlats(flats)
@@ -82,6 +77,8 @@ export default function FlatsPage() {
         <Button type="submit" loading={apply.isPending}>Apply layout</Button>
       </form>
 
+      {editing && <FlatModal flat={editing} onClose={() => setEditing(null)} onChanged={() => { setEditing(null); refresh() }} />}
+
       {groups.length === 0 && !isLoading
         ? <div className="rounded-xl border border-line bg-surface">
             <EmptyState icon={Building} title="No flats yet" description="Fill in the layout above and press Apply layout." />
@@ -95,18 +92,12 @@ export default function FlatsPage() {
                 <div key={f.floor} className="flex flex-wrap items-center gap-2">
                   <span className="w-16 shrink-0 text-xs text-mute">Floor {f.floor}</span>
                   {f.flats.map(fl => (
-                    <span key={fl.id} className={cn('group inline-flex items-center gap-1 rounded-lg border px-2.5 py-1 text-sm',
-                      fl.residents > 0 ? 'border-brand-600/40 bg-brand-600/10 text-ink' : 'border-line text-mute')}>
+                    <button key={fl.id} type="button" onClick={() => setEditing(fl)} title="Edit or remove this flat"
+                      className={cn('inline-flex items-center gap-1 rounded-lg border px-2.5 py-1 text-sm hover:border-brand-600',
+                        fl.residents > 0 ? 'border-brand-600/40 bg-brand-600/10 text-ink' : 'border-line text-mute')}>
                       {fl.label}
-                      {fl.residents > 0
-                        ? <span className="text-xs text-mute">· {fl.residents}</span>
-                        : (
-                          <button type="button" aria-label={`Remove flat ${fl.label}`} className="hidden text-bad group-hover:inline"
-                            onClick={() => { if (confirm(`Remove flat ${fl.label}?`)) remove.mutate(fl.id) }}>
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </button>
-                        )}
-                    </span>
+                      {fl.residents > 0 && <span className="text-xs text-mute">· {fl.residents}</span>}
+                    </button>
                   ))}
                 </div>
               ))}
@@ -115,3 +106,44 @@ export default function FlatsPage() {
     </div>
   )
 }
+
+function FlatModal({ flat, onClose, onChanged }: { flat: FlatRow; onClose: () => void; onChanged: () => void }) {
+  const [wing, setWing]     = useState(flat.wing)
+  const [number, setNumber] = useState(flat.number)
+  const [floor, setFloor]   = useState(String(flat.floor))
+  const bad = !wing.trim() ? 'Enter the wing.' : !number.trim() ? 'Enter the flat number.' : !/^\d+$/.test(floor.trim()) ? 'Floor must be a number.' : null
+
+  const save = useMutation({
+    mutationFn: () => api.put(`/flats/${flat.id}`, { wing: wing.trim(), number: number.trim(), floor: Number(floor) }),
+    onSuccess: () => { toast.success('Flat updated'); onChanged() },
+    onError:   (e: Error) => toast.error(e.message),
+  })
+  const remove = useMutation({
+    mutationFn: () => api.delete(`/flats/${flat.id}`),
+    onSuccess: () => { toast.success('Flat removed'); onChanged() },
+    onError:   (e: Error) => toast.error(e.message),
+  })
+
+  return (
+    <Modal title={`Flat ${flat.label}`} onClose={onClose}>
+      <form className="space-y-3" onSubmit={e => { e.preventDefault(); if (!bad) save.mutate() }}>
+        <div className="grid grid-cols-3 gap-3">
+          <Field label="Wing"><Input value={wing} onChange={e => setWing(e.target.value)} maxLength={10} /></Field>
+          <Field label="Number" hint="For example 807"><Input value={number} onChange={e => setNumber(e.target.value)} maxLength={10} /></Field>
+          <Field label="Floor"><Input inputMode="numeric" value={floor} onChange={e => setFloor(e.target.value)} /></Field>
+        </div>
+        {bad && <p role="alert" className="text-sm text-bad">{bad}</p>}
+        {flat.residents > 0 && <p className="text-xs text-mute">{flat.residents} {flat.residents === 1 ? 'person lives' : 'people live'} here, so it cannot be removed.</p>}
+        <div className="flex justify-between gap-2 pt-2">
+          <Button variant="danger" disabled={flat.residents > 0} loading={remove.isPending}
+            onClick={() => { if (confirm(`Remove flat ${flat.label}?`)) remove.mutate() }}>Remove flat</Button>
+          <div className="flex gap-2">
+            <Button variant="secondary" onClick={onClose}>Cancel</Button>
+            <Button type="submit" loading={save.isPending} disabled={!!bad}>Save</Button>
+          </div>
+        </div>
+      </form>
+    </Modal>
+  )
+}
+

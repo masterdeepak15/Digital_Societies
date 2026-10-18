@@ -31,5 +31,12 @@ public sealed class Flat : AuditableEntity
     public static Flat Create(Guid societyId, string number, string wing, int floor)
         => new(Guid.NewGuid(), societyId, number, wing, floor);
 
+    public void Update(string number, string wing, int floor)
+    {
+        Number = number;
+        Wing   = wing;
+        Floor  = floor;
+    }
+
     public string DisplayName => DigitalSocieties.Shared.Domain.FlatLabel.Of(Wing, Number);
 }

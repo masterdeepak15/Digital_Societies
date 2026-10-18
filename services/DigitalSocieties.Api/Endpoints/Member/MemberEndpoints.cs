@@ -36,10 +36,18 @@ public static class MemberEndpoints
                 : Results.BadRequest(result.Error);
         }).RequireAuthorization("AdminOnly");
 
-        // ── Admin: remove a person from the society ─────────────────────────
-        g.MapDelete("/{userId:guid}", async (IMediator mediator, Guid userId) =>
+        // ── Admin: edit a person / one of their roles ───────────────────────
+        g.MapPut("/{membershipId:guid}", async (IMediator mediator, Guid membershipId, EditMemberRequest body) =>
         {
-            var result = await mediator.Send(new RemoveSocietyMemberCommand(userId));
+            var result = await mediator.Send(new EditSocietyMemberCommand(
+                membershipId, body.Name, body.Phone, body.Role, body.MemberType, body.FlatId));
+            return result.IsSuccess ? Results.NoContent() : Results.BadRequest(result.Error);
+        }).RequireAuthorization("AdminOnly");
+
+        // ── Admin: remove one role from a person (admins cannot be removed) ─
+        g.MapDelete("/{membershipId:guid}", async (IMediator mediator, Guid membershipId) =>
+        {
+            var result = await mediator.Send(new RemoveSocietyMembershipCommand(membershipId));
             return result.IsSuccess ? Results.NoContent() : Results.BadRequest(result.Error);
         }).RequireAuthorization("AdminOnly");
 
@@ -88,4 +96,5 @@ public static class MemberEndpoints
     }
 
     private sealed record PushTokenRequest(string Token);
+    private sealed record EditMemberRequest(string Name, string? Phone, string? Role, string? MemberType, Guid? FlatId);
 }

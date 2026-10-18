@@ -27,6 +27,12 @@ public static class FlatEndpoints
             return r.IsSuccess ? Results.Created($"/api/v1/flats/{r.Value}", r.Value) : Results.BadRequest(r.Error);
         }).RequireAuthorization("AdminOnly");
 
+        g.MapPut("/{id:guid}", async (IMediator mediator, Guid id, FlatRequest body) =>
+        {
+            var r = await mediator.Send(new UpdateFlatCommand(id, body.Wing, body.Number, body.Floor));
+            return r.IsSuccess ? Results.NoContent() : Results.BadRequest(r.Error);
+        }).RequireAuthorization("AdminOnly");
+
         g.MapDelete("/{id:guid}", async (IMediator mediator, Guid id) =>
         {
             var r = await mediator.Send(new DeleteFlatCommand(id));
@@ -35,4 +41,6 @@ public static class FlatEndpoints
 
         return g;
     }
+
+    private sealed record FlatRequest(string Wing, string Number, int Floor);
 }

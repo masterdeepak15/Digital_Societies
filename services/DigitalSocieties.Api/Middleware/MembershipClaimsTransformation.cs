@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authentication;
+using DigitalSocieties.Shared.Contracts;
 
 namespace DigitalSocieties.Api.Middleware;
 
@@ -35,24 +36,19 @@ public sealed class MembershipClaimsTransformation : IClaimsTransformation
         if (memberships.Count == 0)
             return Task.FromResult(principal);
 
-        string? role = null;
-
+        // The society this request acts on: the header's society if the person belongs to it, else their first.
         var header = _accessor.HttpContext?.Request.Headers["X-Society-Id"].FirstOrDefault();
-        if (Guid.TryParse(header, out var societyId))
-        {
-            role = memberships
-                .FirstOrDefault(p => Guid.TryParse(p[0], out var sid) && sid == societyId)
-                ?[1];
-        }
+        var claims = principal.FindAll("membership").Select(c => c.Value).ToList();
+        var societyId = ActiveSocietyResolver.Resolve(claims, header);
 
-        // Fallback: use first membership's role if header missing or not matched
-        role ??= memberships[0][1];
-
-        if (role is null)
-            return Task.FromResult(principal);
+        // Every role the person holds in that society counts (resident AND admin, for example); policies
+        // such as RequireClaim("role", "admin") pass if any of them matches.
+        var roles = societyId is { } sid ? ActiveMembership.RolesIn(claims, sid) : [];
+        if (roles.Count == 0) return Task.FromResult(principal);
 
         var cloned = principal.Clone();
-        ((ClaimsIdentity)cloned.Identity!).AddClaim(new Claim("role", role));
+        foreach (var role in roles)
+            ((ClaimsIdentity)cloned.Identity!).AddClaim(new Claim("role", role));
         return Task.FromResult(cloned);
     }
 }

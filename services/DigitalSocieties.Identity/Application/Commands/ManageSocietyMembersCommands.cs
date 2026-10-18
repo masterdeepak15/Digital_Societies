@@ -115,42 +115,113 @@ public sealed class AddSocietyMemberHandler : IRequestHandler<AddSocietyMemberCo
     }
 }
 
-// ── Remove a person from the society (admin) ───────────────────────────────
-// Ends every active role they hold here. The account itself is kept so history stays intact.
-public sealed record RemoveSocietyMemberCommand(Guid UserId) : IRequest<Result>;
+// ── Remove one role from a person (admin) ──────────────────────────────────
+// Ends that role only; other roles and the account itself stay. Admins can never be removed.
+public sealed record RemoveSocietyMembershipCommand(Guid MembershipId) : IRequest<Result>;
 
-public sealed class RemoveSocietyMemberHandler : IRequestHandler<RemoveSocietyMemberCommand, Result>
+public sealed class RemoveSocietyMembershipHandler : IRequestHandler<RemoveSocietyMembershipCommand, Result>
 {
     private readonly IdentityDbContext _db;
     private readonly ICurrentUser      _cu;
-    public RemoveSocietyMemberHandler(IdentityDbContext db, ICurrentUser cu) => (_db, _cu) = (db, cu);
+    public RemoveSocietyMembershipHandler(IdentityDbContext db, ICurrentUser cu) => (_db, _cu) = (db, cu);
 
-    public async Task<Result> Handle(RemoveSocietyMemberCommand cmd, CancellationToken ct)
+    public async Task<Result> Handle(RemoveSocietyMembershipCommand cmd, CancellationToken ct)
     {
         if (_cu.SocietyId is not { } societyId)
             return Result.Fail("SOCIETY.REQUIRED", "Society context is required.");
         if (!_cu.IsInRole(UserRole.Admin))
             return Result.Fail("FORBIDDEN", "Only the management can remove people.");
-        if (_cu.UserId == cmd.UserId)
-            return Result.Fail("MEMBER.SELF_REMOVE", "You cannot remove yourself.");
 
-        var memberships = await _db.Memberships
-            .Where(m => m.UserId == cmd.UserId && m.SocietyId == societyId && m.IsActive && !m.IsDeleted)
-            .ToListAsync(ct);
-        if (memberships.Count == 0)
-            return Result.Fail("MEMBER.NOT_FOUND", "That person is not a member of this society.");
+        var m = await _db.Memberships.FirstOrDefaultAsync(x =>
+            x.Id == cmd.MembershipId && x.SocietyId == societyId && x.IsActive && !x.IsDeleted, ct);
+        if (m is null) return Result.Fail("MEMBER.NOT_FOUND", "That person is not a member of this society.");
 
-        // Someone must always be left in charge.
-        if (memberships.Any(m => m.Role == UserRole.Admin))
+        if (m.Role == UserRole.Admin)
+            return Result.Fail("MEMBER.ADMIN_PROTECTED", "An admin cannot be removed.");
+
+        m.Revoke();
+        await _db.SaveChangesAsync(ct);
+        return Result.Ok();
+    }
+}
+
+// ── Edit a person and one of their roles (admin) ───────────────────────────
+// Name and phone belong to the person; flat, relationship and role belong to the one role being edited.
+public sealed record EditSocietyMemberCommand(
+    Guid    MembershipId,
+    string  Name,
+    string? Phone,
+    string? Role       = null,   // omit to keep; an admin stays admin
+    string? MemberType = null,
+    Guid?   FlatId     = null
+) : IRequest<Result>;
+
+public sealed class EditSocietyMemberValidator : AbstractValidator<EditSocietyMemberCommand>
+{
+    private static readonly HashSet<string> ResidentTypes = ["owner", "tenant", "family"];
+
+    public EditSocietyMemberValidator()
+    {
+        RuleFor(x => x.Name).NotEmpty().MaximumLength(200);
+        RuleFor(x => x.Phone).MaximumLength(20);
+        RuleFor(x => x.Role).Must(r => r is null || AddSocietyMemberValidator.AllowedRoles.Contains(r))
+            .WithMessage("Role must be resident, guard, staff, accountant or admin.");
+        RuleFor(x => x.MemberType).Must(t => t is null || ResidentTypes.Contains(t))
+            .WithMessage("Relationship must be owner, tenant or family.");
+    }
+}
+
+public sealed class EditSocietyMemberHandler : IRequestHandler<EditSocietyMemberCommand, Result>
+{
+    private readonly IdentityDbContext _db;
+    private readonly ICurrentUser      _cu;
+    public EditSocietyMemberHandler(IdentityDbContext db, ICurrentUser cu) => (_db, _cu) = (db, cu);
+
+    public async Task<Result> Handle(EditSocietyMemberCommand cmd, CancellationToken ct)
+    {
+        if (_cu.SocietyId is not { } societyId)
+            return Result.Fail("SOCIETY.REQUIRED", "Society context is required.");
+        if (!_cu.IsInRole(UserRole.Admin))
+            return Result.Fail("FORBIDDEN", "Only the management can edit people.");
+
+        var m = await _db.Memberships.Include(x => x.User).FirstOrDefaultAsync(x =>
+            x.Id == cmd.MembershipId && x.SocietyId == societyId && x.IsActive && !x.IsDeleted, ct);
+        if (m?.User is null) return Result.Fail("MEMBER.NOT_FOUND", "That person is not a member of this society.");
+
+        var newRole = cmd.Role ?? m.Role;
+        if (m.Role == UserRole.Admin && newRole != UserRole.Admin)
+            return Result.Fail("MEMBER.ADMIN_PROTECTED", "An admin cannot be changed to another role.");
+
+        // Phone belongs to the person and must stay unique.
+        PhoneNumber? phone = null;
+        if (!string.IsNullOrWhiteSpace(cmd.Phone))
         {
-            var otherAdmins = await _db.Memberships.CountAsync(m =>
-                m.SocietyId == societyId && m.Role == UserRole.Admin && m.IsActive && !m.IsDeleted &&
-                m.UserId != cmd.UserId, ct);
-            if (otherAdmins == 0)
-                return Result.Fail("MEMBER.LAST_ADMIN", "This is the only admin. Make someone else an admin first.");
+            var p = PhoneNumber.Create(cmd.Phone);
+            if (p.IsFailure) return Result.Fail(p.Error!);
+            phone = p.Value!;
+            if (await _db.Users.AnyAsync(u => u.Phone == phone.Value && u.Id != m.UserId, ct))
+                return Result.Fail("PHONE.TAKEN", "That phone number is already registered to another account.");
         }
 
-        foreach (var m in memberships) m.Revoke();
+        // A resident lives in a flat; the other roles have none.
+        Guid? flatId = newRole == UserRole.Resident ? (cmd.FlatId ?? m.FlatId) : null;
+        if (newRole == UserRole.Resident)
+        {
+            if (flatId is null) return Result.Fail("FLAT.REQUIRED", "Choose the flat this resident lives in.");
+            if (!await _db.Flats.AnyAsync(f => f.Id == flatId && f.SocietyId == societyId && !f.IsDeleted, ct))
+                return Result.Fail("FLAT.NOT_FOUND", "That flat is not in this society.");
+        }
+        var memberType = newRole == UserRole.Resident ? (cmd.MemberType ?? (m.MemberType == "staff" ? "owner" : m.MemberType)) : "staff";
+
+        if (newRole != m.Role &&
+            await _db.Memberships.AnyAsync(x => x.Id != m.Id && x.UserId == m.UserId && x.SocietyId == societyId &&
+                x.Role == newRole && x.FlatId == flatId && x.IsActive && !x.IsDeleted, ct))
+            return Result.Fail("MEMBER.EXISTS", "This person already has that role here.");
+
+        m.User.Rename(cmd.Name);
+        if (phone is null) m.User.ClearPhone(); else m.User.SetPhone(phone);
+        if (newRole != m.Role) m.ChangeRole(newRole);
+        m.Update(flatId, memberType);
         await _db.SaveChangesAsync(ct);
         return Result.Ok();
     }

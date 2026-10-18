@@ -67,3 +67,69 @@ export function sortedFlats(labels: Record<string, string>): { id: string; label
     .map(([id, label]) => ({ id, label }))
     .sort((a, b) => a.label.localeCompare(b.label, undefined, { numeric: true }))
 }
+
+export interface MemberRow {
+  userId: string
+  name: string
+  email?: string
+  phone?: string | null
+  role: string
+  memberType?: string
+  flatNumber?: string
+  wing?: string
+  flatId?: string | null
+  joinedAt?: string
+  membershipId: string
+}
+
+export interface PersonRole {
+  membershipId: string
+  role: string
+  flatId?: string | null
+  flatText: string
+  memberType?: string
+  /** An admin role can never be removed or changed to another role. */
+  isProtected: boolean
+}
+
+export interface Person {
+  userId: string
+  name: string
+  email?: string
+  phone?: string | null
+  joinedAt?: string
+  roles: PersonRole[]
+}
+
+const ROLE_ORDER = ['admin', 'accountant', 'resident', 'guard', 'staff']
+
+/** One entry per person, with every role they hold in one list (admin first). */
+export function groupMembers(rows: MemberRow[]): Person[] {
+  const people = new Map<string, Person>()
+  for (const r of rows) {
+    const p = people.get(r.userId) ?? { userId: r.userId, name: r.name, email: r.email, phone: r.phone, joinedAt: r.joinedAt, roles: [] }
+    p.roles.push({
+      membershipId: r.membershipId, role: r.role, flatId: r.flatId, memberType: r.memberType,
+      flatText: flatText(r.wing, r.flatNumber), isProtected: r.role === 'admin',
+    })
+    if (r.joinedAt && (!p.joinedAt || r.joinedAt < p.joinedAt)) p.joinedAt = r.joinedAt
+    people.set(r.userId, p)
+  }
+  return Array.from(people.values())
+    .map(p => ({ ...p, roles: p.roles.sort((a, b) => ROLE_ORDER.indexOf(a.role) - ROLE_ORDER.indexOf(b.role)) }))
+    .sort((a, b) => a.name.localeCompare(b.name))
+}
+
+/** "Resident · A-807 · Owner", "Guard", "Admin": one role, written for people. */
+export function roleSummary(r: PersonRole): string {
+  const parts = [roleLabel(r.role)]
+  if (r.role === 'resident') {
+    if (r.flatText !== '—') parts.push(r.flatText)
+    if (r.memberType) parts.push(r.memberType.charAt(0).toUpperCase() + r.memberType.slice(1))
+  }
+  return parts.join(' · ')
+}
+
+/** True when the form changes nothing about the person's details, so no save is needed. */
+export const nothingToSave = (a: { name: string; phone: string }, p: { name: string; phone?: string | null }) =>
+  a.name.trim() === p.name && a.phone.replace(/[\s-]/g, '') === (p.phone ?? '').replace(/^\+91/, '')

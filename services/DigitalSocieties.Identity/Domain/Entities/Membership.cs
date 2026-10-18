@@ -52,6 +52,13 @@ public sealed class Membership : AuditableEntity
         Raise(new MembershipRevokedEvent(Id, UserId, SocietyId));
     }
 
+    /// <summary>Moves a resident to another flat or changes owner / tenant / family.</summary>
+    public void Update(Guid? flatId, string memberType)
+    {
+        FlatId     = flatId;
+        MemberType = memberType;
+    }
+
     public void ChangeRole(string newRole)
     {
         Role = newRole;

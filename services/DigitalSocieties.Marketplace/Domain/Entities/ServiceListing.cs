@@ -75,6 +75,21 @@ public sealed class ServiceListing : AuditableEntity
         ReviewCount   = count;
     }
 
+    public void Update(string providerName, string phone, ServiceCategory category, string title,
+        string description, Money baseRate, RateUnit rateUnit, decimal commissionPct)
+    {
+        if (commissionPct is < 0 or > 100)
+            throw new ArgumentOutOfRangeException(nameof(commissionPct), "Commission must be 0–100%.");
+        ProviderName  = providerName.Trim();
+        Phone         = phone.Trim();
+        Category      = category;
+        Title         = title.Trim();
+        Description   = description.Trim();
+        BaseRate      = baseRate;
+        RateUnit      = rateUnit;
+        CommissionPct = commissionPct;
+    }
+
     public void Deactivate() => IsActive = false;
     public void Activate()   => IsActive = true;
 

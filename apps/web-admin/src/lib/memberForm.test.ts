@@ -47,3 +47,46 @@ describe('sortedFlats / roleLabel', () => {
     expect(sortedFlats({ x: 'A-10', y: 'A-2', z: 'A-1' }).map(f => f.label)).toEqual(['A-1', 'A-2', 'A-10']))
   it('names roles for people', () => { expect(roleLabel('accountant')).toBe('Accountant'); expect(roleLabel('zzz')).toBe('zzz') })
 })
+
+import { groupMembers, roleSummary, nothingToSave, type MemberRow } from './memberForm'
+
+const row = (over: Partial<MemberRow>): MemberRow => ({ userId: 'u1', name: 'Deepak', role: 'resident', membershipId: 'm1', ...over })
+
+describe('groupMembers', () => {
+  it('shows one person once, with every role together, admin first', () => {
+    const people = groupMembers([
+      row({ membershipId: 'm1', role: 'resident', wing: 'A', flatNumber: 'A-807', memberType: 'owner', joinedAt: '2026-10-18T10:00:00Z' }),
+      row({ membershipId: 'm2', role: 'admin', joinedAt: '2026-10-18T09:00:00Z' }),
+      row({ membershipId: 'm3', role: 'accountant' }),
+    ])
+    expect(people).toHaveLength(1)
+    expect(people[0].roles.map(r => r.role)).toEqual(['admin', 'accountant', 'resident'])
+    expect(people[0].joinedAt).toBe('2026-10-18T09:00:00Z')
+  })
+  it('keeps different people apart, sorted by name', () => {
+    const people = groupMembers([row({ userId: 'b', name: 'Zed' }), row({ userId: 'a', name: 'Amy', membershipId: 'm2' })])
+    expect(people.map(p => p.name)).toEqual(['Amy', 'Zed'])
+  })
+  it('marks only admin roles as protected', () => {
+    const [p] = groupMembers([row({ role: 'admin' }), row({ role: 'guard', membershipId: 'm2' })])
+    expect(p.roles.map(r => [r.role, r.isProtected])).toEqual([['admin', true], ['guard', false]])
+  })
+  it('returns nobody for an empty list', () => expect(groupMembers([])).toEqual([]))
+})
+
+describe('roleSummary', () => {
+  const base = { membershipId: 'm', isProtected: false }
+  it('writes a resident with flat and relationship', () =>
+    expect(roleSummary({ ...base, role: 'resident', flatText: 'A-807', memberType: 'owner' })).toBe('Resident · A-807 · Owner'))
+  it('writes other roles on their own', () => {
+    expect(roleSummary({ ...base, role: 'guard', flatText: '—', memberType: 'staff' })).toBe('Guard')
+    expect(roleSummary({ ...base, role: 'admin', flatText: '—' })).toBe('Admin')
+  })
+})
+
+describe('nothingToSave', () => {
+  it('is true when name and phone are as they were', () =>
+    expect(nothingToSave({ name: 'Ramu ', phone: '9975001174' }, { name: 'Ramu', phone: '+919975001174' })).toBe(true))
+  it('is false after a change', () =>
+    expect(nothingToSave({ name: 'Ramu S', phone: '' }, { name: 'Ramu', phone: null })).toBe(false))
+})

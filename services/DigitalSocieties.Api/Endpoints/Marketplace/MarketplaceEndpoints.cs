@@ -36,6 +36,19 @@ public static class MarketplaceEndpoints
                 : Results.BadRequest(r.Error);
         }).RequireAuthorization("AdminOnly");
 
+        g.MapPut("/listings/{id:guid}", async (IMediator mediator, Guid id, ListingDetails d) =>
+        {
+            var r = await mediator.Send(new UpdateListingCommand(id, d.ProviderName, d.Phone, d.Category, d.Title,
+                d.Description, d.BaseRateRupees, d.RateUnit, d.CommissionPct));
+            return r.IsSuccess ? Results.NoContent() : Results.BadRequest(r.Error);
+        }).RequireAuthorization("AdminOnly");
+
+        g.MapDelete("/listings/{id:guid}", async (IMediator mediator, Guid id) =>
+        {
+            var r = await mediator.Send(new DeleteListingCommand(id));
+            return r.IsSuccess ? Results.NoContent() : Results.BadRequest(r.Error);
+        }).RequireAuthorization("AdminOnly");
+
         g.MapPut("/listings/{id:guid}/active", async (IMediator mediator, Guid id, SetListingActiveRequest req) =>
         {
             var r = await mediator.Send(new SetListingActiveCommand(id, req.IsActive));
@@ -86,4 +99,6 @@ public static class MarketplaceEndpoints
     private sealed record ReviewBody(int Rating, string Comment);
 
     private sealed record SetListingActiveRequest(bool IsActive);
+    private sealed record ListingDetails(string ProviderName, string Phone, string Category, string Title,
+        string Description, decimal BaseRateRupees, string RateUnit, decimal CommissionPct);
 }

@@ -37,6 +37,7 @@ public sealed class FacilityDbContext : DbContext
             e.Property(x => x.UpdatedBy).HasColumnName("updated_by");
             e.HasIndex(x => x.SocietyId).HasDatabaseName("ix_facilities_society_id");
             e.Ignore(x => x.Bookings);
+            e.HasQueryFilter(x => !x.IsDeleted);
         });
 
         mb.Entity<FacilityBooking>(e =>

@@ -37,9 +37,8 @@ public sealed class JwtCurrentUser : ICurrentUser
     {
         get
         {
-            if (SocietyId is null) return null;
-            var membership = GetMembershipForActiveSociety();
-            return membership?.flatId;
+            if (SocietyId is not { } sid) return null;
+            return ActiveMembership.FlatIn(Principal!.FindAll("membership").Select(c => c.Value), sid);
         }
     }
 

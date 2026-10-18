@@ -119,45 +119,135 @@ public class ManageSocietyMembersTests
         ok.Should().Be(role == "guard");
     }
 
-    [Fact] public async Task Remove_EndsEveryRole_ButKeepsTheAccount()
+    private Task<Guid> MembershipOf(Guid userId, string role)
+        => _db.Memberships.Where(m => m.UserId == userId && m.Role == role).Select(m => m.Id).SingleAsync();
+
+    private Task<DigitalSocieties.Shared.Results.Result> Remove(Guid membershipId, bool admin = true)
+        => new RemoveSocietyMembershipHandler(_db, Me(admin)).Handle(new RemoveSocietyMembershipCommand(membershipId), default);
+
+    private Task<DigitalSocieties.Shared.Results.Result> Edit(EditSocietyMemberCommand c, bool admin = true)
+        => new EditSocietyMemberHandler(_db, Me(admin)).Handle(c, default);
+
+    // ── remove ──────────────────────────────────────────────────────────────────
+    [Fact] public async Task Remove_EndsOnlyThatRole_ThePersonAndTheirOtherRolesStay()
     {
-        var guard = (await Add(new("ramu@x.com", "Ramu", "guard"))).Value;
+        var person = (await Add(new("ramu@x.com", "Ramu", "guard"))).Value;
         await Add(new("ramu@x.com", "Ramu", "staff"));
 
-        var r = await new RemoveSocietyMemberHandler(_db, Me()).Handle(new RemoveSocietyMemberCommand(guard), default);
+        (await Remove(await MembershipOf(person, "guard"))).IsSuccess.Should().BeTrue();
 
-        r.IsSuccess.Should().BeTrue();
-        (await _db.Memberships.CountAsync(m => m.UserId == guard && m.IsActive)).Should().Be(0);
-        (await _db.Users.AnyAsync(u => u.Id == guard)).Should().BeTrue();
+        (await _db.Memberships.Where(m => m.UserId == person && m.IsActive).Select(m => m.Role).ToListAsync()).Should().Equal("staff");
+        (await _db.Users.AnyAsync(u => u.Id == person)).Should().BeTrue();
     }
 
-    [Fact] public async Task Remove_Yourself_IsRefused()
+    [Fact] public async Task AnAdmin_CanNeverBeRemoved_NotEvenByAnotherAdmin()
     {
-        var r = await new RemoveSocietyMemberHandler(_db, Me()).Handle(new RemoveSocietyMemberCommand(_adminId), default);
-        r.IsSuccess.Should().BeFalse();
-        r.Error!.Code.Should().Be("MEMBER.SELF_REMOVE");
-    }
-
-    [Fact] public async Task Remove_TheOnlyOtherAdmin_ByAnotherAdmin_Works_ButNotTheLastOne()
-    {
-        // second admin removes nobody here; the first removing the second is fine, and the second cannot be the last
         var second = (await Add(new("boss@x.com", "Boss", "admin"))).Value;
-        var ok = await new RemoveSocietyMemberHandler(_db, Me()).Handle(new RemoveSocietyMemberCommand(second), default);
-        ok.IsSuccess.Should().BeTrue();
 
-        // now only _adminId remains; a different caller trying to remove them must be stopped
-        var other = Substitute.For<ICurrentUser>();
-        other.SocietyId.Returns(SocietyId); other.UserId.Returns(Guid.NewGuid()); other.IsInRole("admin").Returns(true);
-        var blocked = await new RemoveSocietyMemberHandler(_db, other).Handle(new RemoveSocietyMemberCommand(_adminId), default);
-        blocked.IsSuccess.Should().BeFalse();
-        blocked.Error!.Code.Should().Be("MEMBER.LAST_ADMIN");
+        var r = await Remove(await MembershipOf(second, "admin"));
+        r.IsSuccess.Should().BeFalse();
+        r.Error!.Code.Should().Be("MEMBER.ADMIN_PROTECTED");
+
+        var self = await Remove(await MembershipOf(_adminId, "admin"));
+        self.Error!.Code.Should().Be("MEMBER.ADMIN_PROTECTED");
+        (await _db.Memberships.CountAsync(m => m.Role == "admin" && m.IsActive)).Should().Be(2);
     }
 
     [Fact] public async Task Remove_ByNonAdmin_IsRefused()
     {
         var guard = (await Add(new("ramu@x.com", "Ramu", "guard"))).Value;
-        var r = await new RemoveSocietyMemberHandler(_db, Me(admin: false)).Handle(new RemoveSocietyMemberCommand(guard), default);
+        var r = await Remove(await MembershipOf(guard, "guard"), admin: false);
         r.IsSuccess.Should().BeFalse();
         (await _db.Memberships.CountAsync(m => m.UserId == guard && m.IsActive)).Should().Be(1);
+    }
+
+    [Fact] public async Task Remove_OfAnotherSocietysMember_IsRefused()
+    {
+        var guard = (await Add(new("ramu@x.com", "Ramu", "guard"))).Value;
+        var id = await MembershipOf(guard, "guard");
+        var other = Substitute.For<ICurrentUser>();
+        other.SocietyId.Returns(Guid.NewGuid()); other.IsInRole("admin").Returns(true);
+        (await new RemoveSocietyMembershipHandler(_db, other).Handle(new RemoveSocietyMembershipCommand(id), default)).IsSuccess.Should().BeFalse();
+    }
+
+    // ── edit ────────────────────────────────────────────────────────────────────
+    [Fact] public async Task Edit_ChangesNameAndPhone_OfThePerson()
+    {
+        var guard = (await Add(new("ramu@x.com", "Ramu", "guard", "9975001174"))).Value;
+        var r = await Edit(new(await MembershipOf(guard, "guard"), "Ramu Singh", "9975001199"));
+        r.IsSuccess.Should().BeTrue();
+        var u = await _db.Users.SingleAsync(x => x.Id == guard);
+        (u.Name, u.Phone).Should().Be(("Ramu Singh", "+919975001199"));
+    }
+
+    [Fact] public async Task Edit_CanClearThePhone()
+    {
+        var guard = (await Add(new("ramu@x.com", "Ramu", "guard", "9975001174"))).Value;
+        (await Edit(new(await MembershipOf(guard, "guard"), "Ramu", null))).IsSuccess.Should().BeTrue();
+        (await _db.Users.SingleAsync(x => x.Id == guard)).Phone.Should().BeNull();
+    }
+
+    [Fact] public async Task Edit_RefusesAPhoneAnotherPersonUses()
+    {
+        await Add(new("one@x.com", "One", "guard", "9975001174"));
+        var two = (await Add(new("two@x.com", "Two", "staff", "9975001175"))).Value;
+        var r = await Edit(new(await MembershipOf(two, "staff"), "Two", "9975001174"));
+        r.Error!.Code.Should().Be("PHONE.TAKEN");
+    }
+
+    [Fact] public async Task Edit_MovesAResident_ToAnotherFlat_AndChangesRelationship()
+    {
+        var other = Flat.Create(SocietyId, "808", "A", 8);
+        _db.Flats.Add(other); await _db.SaveChangesAsync();
+        var r = (await Add(new("d@x.com", "D", "resident", MemberType: "tenant", FlatId: _flat.Id))).Value;
+
+        (await Edit(new(await MembershipOf(r, "resident"), "D", null, MemberType: "owner", FlatId: other.Id))).IsSuccess.Should().BeTrue();
+
+        var m = await _db.Memberships.SingleAsync(x => x.UserId == r);
+        (m.FlatId, m.MemberType).Should().Be((other.Id, "owner"));
+    }
+
+    [Fact] public async Task Edit_GuardToResident_NeedsAFlat_AndResidentToGuard_DropsTheFlat()
+    {
+        var p = (await Add(new("ramu@x.com", "Ramu", "guard"))).Value;
+        var noFlat = await Edit(new(await MembershipOf(p, "guard"), "Ramu", null, Role: "resident", MemberType: "owner"));
+        noFlat.Error!.Code.Should().Be("FLAT.REQUIRED");
+
+        (await Edit(new(await MembershipOf(p, "guard"), "Ramu", null, Role: "resident", MemberType: "owner", FlatId: _flat.Id))).IsSuccess.Should().BeTrue();
+        (await Edit(new(await MembershipOf(p, "resident"), "Ramu", null, Role: "guard"))).IsSuccess.Should().BeTrue();
+        var m = await _db.Memberships.SingleAsync(x => x.UserId == p && x.IsActive);
+        (m.Role, m.FlatId, m.MemberType).Should().Be(("guard", null, "staff"));
+    }
+
+    [Fact] public async Task Edit_CanPromoteToAdmin_ButNeverDemoteAnAdmin()
+    {
+        var p = (await Add(new("ramu@x.com", "Ramu", "guard"))).Value;
+        (await Edit(new(await MembershipOf(p, "guard"), "Ramu", null, Role: "admin"))).IsSuccess.Should().BeTrue();
+
+        var demote = await Edit(new(await MembershipOf(p, "admin"), "Ramu", null, Role: "guard"));
+        demote.Error!.Code.Should().Be("MEMBER.ADMIN_PROTECTED");
+        (await _db.Memberships.AnyAsync(m => m.UserId == p && m.Role == "admin" && m.IsActive)).Should().BeTrue();
+    }
+
+    [Fact] public async Task Edit_OfAnAdmin_StillAllowsNameAndPhone()
+    {
+        var r = await Edit(new(await MembershipOf(_adminId, "admin"), "Deepak S. Chougale", "9975001173"));
+        r.IsSuccess.Should().BeTrue();
+        (await _db.Users.SingleAsync(u => u.Id == _adminId)).Name.Should().Be("Deepak S. Chougale");
+    }
+
+    [Fact] public async Task Edit_ToARoleThePersonAlreadyHas_IsRefused()
+    {
+        var p = (await Add(new("ramu@x.com", "Ramu", "guard"))).Value;
+        await Add(new("ramu@x.com", "Ramu", "staff"));
+        var r = await Edit(new(await MembershipOf(p, "guard"), "Ramu", null, Role: "staff"));
+        r.Error!.Code.Should().Be("MEMBER.EXISTS");
+    }
+
+    [Fact] public async Task Edit_ByNonAdmin_IsRefused()
+    {
+        var p = (await Add(new("ramu@x.com", "Ramu", "guard"))).Value;
+        (await Edit(new(await MembershipOf(p, "guard"), "Hacked", null), admin: false)).IsSuccess.Should().BeFalse();
+        (await _db.Users.SingleAsync(u => u.Id == p)).Name.Should().Be("Ramu");
     }
 }

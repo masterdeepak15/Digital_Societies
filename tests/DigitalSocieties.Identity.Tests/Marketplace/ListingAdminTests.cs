@@ -86,4 +86,55 @@ public class ListingAdminTests
         new CreateListingValidator().Validate(Plumber() with { BaseRateRupees = 0 }).IsValid.Should().BeFalse();
         new CreateListingValidator().Validate(Plumber() with { CommissionPct = 120 }).IsValid.Should().BeFalse();
     }
+
+    [Fact] public async Task Update_ChangesTheListing_AndRejectsBadValues()
+    {
+        var db = NewDb();
+        var id = await Add(db);
+        var h = new UpdateListingHandler(db, User(true));
+
+        var ok = await h.Handle(new UpdateListingCommand(id, "Ramesh K.", "9975001199", "Electrician", "Wiring", "Fans and lights", 500m, "PerHour", 5m), default);
+        ok.IsSuccess.Should().BeTrue();
+        var l = await db.ServiceListings.SingleAsync();
+        (l.ProviderName, l.Category.ToString(), l.Title, l.BaseRate.Amount, l.RateUnit.ToString(), l.CommissionPct)
+            .Should().Be(("Ramesh K.", "Electrician", "Wiring", 500m, "PerHour", 5m));
+
+        (await h.Handle(new UpdateListingCommand(id, "R", "9975001199", "Nonsense", "T", "", 500m, "PerHour", 5m), default)).Error!.Code.Should().Be("LISTING.INVALID_CATEGORY");
+        (await db.ServiceListings.SingleAsync()).Title.Should().Be("Wiring");
+    }
+
+    [Fact] public async Task Update_FromAnotherSociety_IsRefused()
+    {
+        var db = NewDb();
+        var id = await Add(db);
+        var r = await new UpdateListingHandler(db, User(true, Guid.NewGuid())).Handle(
+            new UpdateListingCommand(id, "X", "9975001199", "Plumber", "Hijack", "", 1m, "PerVisit", 0m), default);
+        r.IsSuccess.Should().BeFalse();
+        (await db.ServiceListings.SingleAsync()).Title.Should().Be("Leak repair");
+    }
+
+    [Fact] public async Task Delete_RemovesTheListing_ForEveryone()
+    {
+        var db = NewDb();
+        var id = await Add(db);
+        (await new DeleteListingHandler(db, User(true)).Handle(new DeleteListingCommand(id), default)).IsSuccess.Should().BeTrue();
+
+        (await db.ServiceListings.CountAsync()).Should().Be(0);
+        var admin = await new GetListingsHandler(db, User(true)).Handle(new GetListingsQuery(null, 1, 20, IncludeInactive: true), default);
+        admin.Value.Should().BeEmpty();
+    }
+
+    [Fact] public async Task Delete_IsRefused_WhileABookingIsOpen()
+    {
+        var db = NewDb();
+        var id = await Add(db);
+        db.ServiceBookings.Add(DigitalSocieties.Marketplace.Domain.Entities.ServiceBooking.Create(
+            Society, id, Guid.NewGuid(), Guid.NewGuid(), DateTimeOffset.UtcNow.AddDays(1),
+            DigitalSocieties.Shared.Domain.ValueObjects.Money.CreateInr(350m).Value!));
+        await db.SaveChangesAsync();
+
+        var r = await new DeleteListingHandler(db, User(true)).Handle(new DeleteListingCommand(id), default);
+        r.Error!.Code.Should().Be("LISTING.HAS_BOOKINGS");
+        (await db.ServiceListings.CountAsync()).Should().Be(1);
+    }
 }

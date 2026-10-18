@@ -188,4 +188,28 @@ public class FlatLayoutTests
         var id = (await _db.Flats.FirstAsync()).Id;
         (await new DeleteFlatHandler(_db, other).Handle(new DeleteFlatCommand(id), default)).IsSuccess.Should().BeFalse();
     }
+
+    [Fact] public async Task UpdateFlat_FixesNumberAndFloor_ButNotIntoAnExistingFlat()
+    {
+        var a = NewFlat("807", "A", 8);
+        NewFlat("808", "A", 8);
+        await _db.SaveChangesAsync();
+        var h = new UpdateFlatHandler(_db, Me());
+
+        (await h.Handle(new UpdateFlatCommand(a.Id, "A", "809", 8), default)).IsSuccess.Should().BeTrue();
+        (await _db.Flats.SingleAsync(f => f.Id == a.Id)).DisplayName.Should().Be("A-809");
+
+        var clash = await h.Handle(new UpdateFlatCommand(a.Id, "a", "A-808", 8), default);
+        clash.Error!.Code.Should().Be("FLAT.EXISTS");
+        (await h.Handle(new UpdateFlatCommand(a.Id, "A", "809", 8), default)).IsSuccess.Should().BeTrue();   // unchanged is fine
+    }
+
+    [Fact] public async Task UpdateFlat_ByNonAdmin_OrFromAnotherSociety_IsRefused()
+    {
+        var a = NewFlat("807", "A", 8);
+        await _db.SaveChangesAsync();
+        (await new UpdateFlatHandler(_db, Me(admin: false)).Handle(new UpdateFlatCommand(a.Id, "A", "1", 1), default)).IsSuccess.Should().BeFalse();
+        (await new UpdateFlatHandler(_db, Me(society: Guid.NewGuid())).Handle(new UpdateFlatCommand(a.Id, "A", "1", 1), default)).IsSuccess.Should().BeFalse();
+        (await _db.Flats.SingleAsync()).Number.Should().Be("807");
+    }
 }

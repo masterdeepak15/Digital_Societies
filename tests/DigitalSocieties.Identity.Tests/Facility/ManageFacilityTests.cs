@@ -100,4 +100,43 @@ public class ManageFacilityTests
 
     [Fact] public void Validator_AcceptsSensibleSettings()
         => new CreateFacilityValidator().Validate(new CreateFacilityCommand(Clubhouse())).IsValid.Should().BeTrue();
+
+    [Fact] public async Task Delete_RemovesTheFacility_FromEveryList()
+    {
+        var db = NewDb();
+        var id = (await new CreateFacilityHandler(db, Admin()).Handle(new CreateFacilityCommand(Clubhouse()), default)).Value;
+
+        (await new DeleteFacilityHandler(db, Admin()).Handle(new DeleteFacilityCommand(id), default)).IsSuccess.Should().BeTrue();
+
+        (await db.Facilities.CountAsync()).Should().Be(0);   // gone for every query, but kept in the table
+        (await db.Facilities.IgnoreQueryFilters().CountAsync()).Should().Be(1);
+        // the name can be used again
+        (await new CreateFacilityHandler(db, Admin()).Handle(new CreateFacilityCommand(Clubhouse()), default)).IsSuccess.Should().BeTrue();
+    }
+
+    [Fact] public async Task Delete_IsRefused_WhileThereAreUpcomingBookings_ButAllowedOnceTheyAreGone()
+    {
+        var db = NewDb();
+        var id = (await new CreateFacilityHandler(db, Admin()).Handle(new CreateFacilityCommand(Clubhouse()), default)).Value;
+        var booking = DigitalSocieties.Facility.Domain.Entities.FacilityBooking.Create(
+            id, Society, Guid.NewGuid(), Guid.NewGuid(), DateOnly.FromDateTime(DateTime.Today.AddDays(2)), new TimeOnly(10, 0), new TimeOnly(11, 0));
+        db.Bookings.Add(booking);
+        await db.SaveChangesAsync();
+
+        var refused = await new DeleteFacilityHandler(db, Admin()).Handle(new DeleteFacilityCommand(id), default);
+        refused.Error!.Code.Should().Be("FACILITY.HAS_BOOKINGS");
+        (await db.Facilities.CountAsync()).Should().Be(1);
+
+        db.Bookings.Remove(booking);
+        await db.SaveChangesAsync();
+        (await new DeleteFacilityHandler(db, Admin()).Handle(new DeleteFacilityCommand(id), default)).IsSuccess.Should().BeTrue();
+    }
+
+    [Fact] public async Task Delete_OfAnotherSocietysFacility_IsRefused()
+    {
+        var db = NewDb();
+        var id = (await new CreateFacilityHandler(db, Admin()).Handle(new CreateFacilityCommand(Clubhouse()), default)).Value;
+        (await new DeleteFacilityHandler(db, Admin(Guid.NewGuid())).Handle(new DeleteFacilityCommand(id), default)).IsSuccess.Should().BeFalse();
+        (await db.Facilities.CountAsync()).Should().Be(1);
+    }
 }

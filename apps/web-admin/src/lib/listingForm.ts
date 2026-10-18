@@ -64,3 +64,20 @@ export function toListingPayload(v: ListingFormValues) {
     commissionPct: Number(v.commission),
   }
 }
+
+/** Fills the form from a listing the server returned, so it can be edited. */
+export function listingToForm(l: {
+  providerName: string; phone?: string; category: string; title: string; description?: string
+  price: number; rateUnit?: string; commissionPct?: number
+}): ListingFormValues {
+  return {
+    providerName: l.providerName,
+    phone: l.phone ?? '',
+    category: l.category,
+    title: l.title,
+    description: l.description ?? '',
+    rate: String(l.price),
+    rateUnit: l.rateUnit ?? 'PerVisit',
+    commission: String(l.commissionPct ?? 0),
+  }
+}

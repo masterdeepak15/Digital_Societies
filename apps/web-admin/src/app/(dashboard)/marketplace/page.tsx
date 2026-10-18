@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { ShoppingBag, Search, Plus, Power, Phone } from 'lucide-react'
+import { ShoppingBag, Search, Plus, Power, Phone, Pencil, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { api } from '@/lib/api'
 import { cn } from '@/lib/utils'
@@ -13,7 +13,7 @@ import { Input } from '@/components/ui/Input'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { Modal, Field } from '@/components/ui/Modal'
 import {
-  EMPTY_LISTING_FORM, RATE_UNITS, SERVICE_CATEGORIES, categoryLabel, listingFormError, rateUnitLabel, toListingPayload,
+  EMPTY_LISTING_FORM, RATE_UNITS, SERVICE_CATEGORIES, categoryLabel, listingFormError, listingToForm, rateUnitLabel, toListingPayload,
   type ListingFormValues,
 } from '@/lib/listingForm'
 
@@ -43,7 +43,7 @@ export default function MarketplacePage() {
   const qc = useQueryClient()
   const [category, setCategory] = useState('all')
   const [search,   setSearch]   = useState('')
-  const [adding,   setAdding]   = useState(false)
+  const [editing,  setEditing]  = useState<Listing | 'new' | null>(null)
 
   const { data, isLoading } = useQuery<ListingsPage>({
     queryKey: ['marketplace-listings'],
@@ -54,6 +54,12 @@ export default function MarketplacePage() {
   const activeMutation = useMutation({
     mutationFn: (v: { id: string; isActive: boolean }) => api.put(`/marketplace/listings/${v.id}/active`, { isActive: v.isActive }),
     onSuccess: (_d, v) => { toast.success(v.isActive ? 'Service switched on' : 'Service switched off'); qc.invalidateQueries({ queryKey: ['marketplace-listings'] }) },
+    onError:   (e: Error) => toast.error(e.message),
+  })
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => api.delete(`/marketplace/listings/${id}`),
+    onSuccess: () => { toast.success('Service deleted'); qc.invalidateQueries({ queryKey: ['marketplace-listings'] }) },
     onError:   (e: Error) => toast.error(e.message),
   })
 
@@ -70,7 +76,7 @@ export default function MarketplacePage() {
       <PageHeader
         title="Marketplace"
         description="Trusted service providers your residents can book"
-        action={<Button onClick={() => setAdding(true)}><Plus className="h-4 w-4" /> Add service</Button>}
+        action={<Button onClick={() => setEditing('new')}><Plus className="h-4 w-4" /> Add service</Button>}
       />
 
       <div className="grid grid-cols-2 gap-4">
@@ -123,19 +129,30 @@ export default function MarketplacePage() {
                   {l.phone ? <span className="flex items-center gap-1"><Phone className="h-3 w-3" />{l.phone}</span> : <span />}
                   {l.reviewCount ? <span>★ {(l.rating ?? 0).toFixed(1)} ({l.reviewCount})</span> : <span>No reviews yet</span>}
                 </div>
-                <Button variant={l.isActive ? 'danger' : 'secondary'} className="min-h-[32px] px-3 text-xs"
-                  loading={activeMutation.isPending && activeMutation.variables?.id === l.id}
-                  onClick={() => activeMutation.mutate({ id: l.id, isActive: !l.isActive })}>
-                  <Power className="h-3.5 w-3.5" /> {l.isActive ? 'Switch off' : 'Switch on'}
-                </Button>
+                <div className="flex flex-wrap gap-2">
+                  <Button variant="secondary" className="min-h-[32px] px-3 text-xs" onClick={() => setEditing(l)}>
+                    <Pencil className="h-3.5 w-3.5" /> Edit
+                  </Button>
+                  <Button variant={l.isActive ? 'danger' : 'secondary'} className="min-h-[32px] px-3 text-xs"
+                    loading={activeMutation.isPending && activeMutation.variables?.id === l.id}
+                    onClick={() => activeMutation.mutate({ id: l.id, isActive: !l.isActive })}>
+                    <Power className="h-3.5 w-3.5" /> {l.isActive ? 'Switch off' : 'Switch on'}
+                  </Button>
+                  <Button variant="ghost" className="min-h-[32px] px-3 text-xs text-bad" aria-label={`Delete ${l.title}`}
+                    loading={deleteMutation.isPending && deleteMutation.variables === l.id}
+                    onClick={() => { if (confirm(`Delete ${l.title}? Switch it off instead if you only want to hide it.`)) deleteMutation.mutate(l.id) }}>
+                    <Trash2 className="h-3.5 w-3.5" /> Delete
+                  </Button>
+                </div>
               </div>
             ))}
           </div>}
 
-      {adding && (
-        <AddServiceModal
-          onClose={() => setAdding(false)}
-          onSaved={() => { setAdding(false); qc.invalidateQueries({ queryKey: ['marketplace-listings'] }) }}
+      {editing && (
+        <ServiceModal
+          listing={editing === 'new' ? null : editing}
+          onClose={() => setEditing(null)}
+          onSaved={() => { setEditing(null); qc.invalidateQueries({ queryKey: ['marketplace-listings'] }) }}
         />
       )}
     </div>
@@ -151,20 +168,22 @@ function Stat({ label, value }: { label: string; value: number }) {
   )
 }
 
-function AddServiceModal({ onClose, onSaved }: { onClose: () => void; onSaved: () => void }) {
-  const [v, setV] = useState<ListingFormValues>(EMPTY_LISTING_FORM)
+function ServiceModal({ listing, onClose, onSaved }: { listing: Listing | null; onClose: () => void; onSaved: () => void }) {
+  const [v, setV] = useState<ListingFormValues>(listing ? listingToForm(listing) : EMPTY_LISTING_FORM)
   const [showError, setShowError] = useState(false)
   const error = listingFormError(v)
   const set = (k: keyof ListingFormValues) => (e: { target: { value: string } }) => setV({ ...v, [k]: e.target.value })
 
   const save = useMutation({
-    mutationFn: () => api.post('/marketplace/listings', toListingPayload(v)),
-    onSuccess: () => { toast.success('Service added'); onSaved() },
+    mutationFn: () => listing
+      ? api.put(`/marketplace/listings/${listing.id}`, toListingPayload(v))
+      : api.post('/marketplace/listings', toListingPayload(v)),
+    onSuccess: () => { toast.success(listing ? 'Service updated' : 'Service added'); onSaved() },
     onError:   (e: Error) => toast.error(e.message),
   })
 
   return (
-    <Modal title="Add service" onClose={onClose}>
+    <Modal title={listing ? 'Edit service' : 'Add service'} onClose={onClose}>
       <form className="space-y-3" onSubmit={e => { e.preventDefault(); if (error) setShowError(true); else save.mutate() }}>
         <Field label="Service provider"><Input value={v.providerName} onChange={set('providerName')} placeholder="Ramesh Kale" maxLength={100} autoFocus /></Field>
         <Field label="Phone number"><Input type="tel" value={v.phone} onChange={set('phone')} placeholder="9975001173" /></Field>
@@ -189,7 +208,7 @@ function AddServiceModal({ onClose, onSaved }: { onClose: () => void; onSaved: (
         {showError && error && <p role="alert" className="text-sm text-bad">{error}</p>}
         <div className="flex justify-end gap-2 pt-2">
           <Button variant="secondary" onClick={onClose}>Cancel</Button>
-          <Button type="submit" loading={save.isPending}>Add service</Button>
+          <Button type="submit" loading={save.isPending}>{listing ? 'Save changes' : 'Add service'}</Button>
         </div>
       </form>
     </Modal>

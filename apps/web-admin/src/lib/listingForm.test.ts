@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { EMPTY_LISTING_FORM, listingFormError, toListingPayload, categoryLabel, rateUnitLabel } from './listingForm'
+import { EMPTY_LISTING_FORM, listingFormError, toListingPayload, categoryLabel, rateUnitLabel, listingToForm } from './listingForm'
 
 const ok = { ...EMPTY_LISTING_FORM, providerName: 'Ramesh Kale', phone: '99750 01173', title: 'Leak repair', rate: '350' }
 
@@ -39,5 +39,13 @@ describe('labels', () => {
     expect(categoryLabel('PestControl')).toBe('Pest control')
     expect(categoryLabel('Unknown')).toBe('Unknown')
     expect(rateUnitLabel('PerDay')).toBe('per day')
+  })
+})
+
+describe('listingToForm', () => {
+  it('fills the form from a listing and the result can be saved as it is', () => {
+    const form = listingToForm({ providerName: 'Ramesh Kale', phone: '+919975001173', category: 'Plumber', title: 'Leak repair', price: 350, rateUnit: 'PerVisit', commissionPct: 10 })
+    expect(form).toMatchObject({ rate: '350', commission: '10', rateUnit: 'PerVisit', description: '' })
+    expect(listingFormError(form)).toBeNull()
   })
 })

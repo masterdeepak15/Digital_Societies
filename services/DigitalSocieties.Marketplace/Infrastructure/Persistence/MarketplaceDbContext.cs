@@ -19,6 +19,7 @@ public sealed class MarketplaceDbContext : DbContext
         {
             e.ToTable("service_listings", "marketplace");
             e.HasKey(x => x.Id);
+            e.HasQueryFilter(x => !x.IsDeleted);
             e.Property(x => x.Id).HasColumnName("id").HasDefaultValueSql("gen_random_uuid()");
             e.Property(x => x.SocietyId).HasColumnName("society_id");
             e.Property(x => x.ProviderId).HasColumnName("provider_id");
