@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { MembershipInfo } from '../services/api/authService';
+import { queryClient } from '../services/queryClient';
 
 interface AuthState {
   isAuthenticated:  boolean;
@@ -70,7 +71,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       phone: fields.phone !== undefined ? fields.phone : s.phone,
     })),
 
-  logout: () =>
+  logout: () => {
+    // Cached answers belong to the signed-in person; drop them with the session.
+    queryClient.clear();
     set({
       isAuthenticated: false,
       userId:          null,
@@ -83,5 +86,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       societyName:     null,
       flatId:          null,
       accessToken:     null,
-    }),
+    });
+  },
 }));

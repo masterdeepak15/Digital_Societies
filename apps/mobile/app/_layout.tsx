@@ -7,6 +7,8 @@ import { useFonts as useManrope, Manrope_400Regular, Manrope_500Medium, Manrope_
 import { SyncService }          from '../src/database/sync/SyncService';
 import { OfflineQueueService }  from '../src/services/offline/OfflineQueueService';
 import { ThemeProvider }        from '../src/theme/ThemeProvider';
+import { QueryClientProvider }  from '@tanstack/react-query';
+import { queryClient }          from '../src/services/queryClient';
 
 // Keep the splash screen up until the fonts are ready (or have failed — then system fonts are used).
 SplashScreen.preventAutoHideAsync().catch(() => {});
@@ -40,11 +42,13 @@ export default function RootLayout() {
   if (!fontsDone) return null;
 
   return (
-    <ThemeProvider>
-      <Stack screenOptions={{ headerShown: false }}>
-        <Stack.Screen name="(auth)" />
-        <Stack.Screen name="(app)"  />
-      </Stack>
-    </ThemeProvider>
+    <QueryClientProvider client={queryClient}>
+      <ThemeProvider>
+        <Stack screenOptions={{ headerShown: false }}>
+          <Stack.Screen name="(auth)" />
+          <Stack.Screen name="(app)"  />
+        </Stack>
+      </ThemeProvider>
+    </QueryClientProvider>
   );
 }
