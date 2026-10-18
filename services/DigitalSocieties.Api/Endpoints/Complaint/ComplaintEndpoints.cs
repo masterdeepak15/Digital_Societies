@@ -23,6 +23,7 @@ public static class ComplaintEndpoints
             RaiseComplaintCommand body,
             IMediator mediator,
             ICurrentUser currentUser,
+            DigitalSocieties.Shared.Contracts.IStorageProvider storage,
             CancellationToken ct) =>
         {
             if (currentUser.SocietyId is null) return Results.BadRequest("Society context required.");
@@ -30,6 +31,10 @@ public static class ComplaintEndpoints
             // (who has no flat) may name the flat in the body, (not verified against the society).
             var flatId = currentUser.IsInRole("admin") && body.FlatId != Guid.Empty ? body.FlatId : currentUser.FlatId;
             if (flatId is null) return Results.BadRequest("A flat is required to raise a complaint.");
+            foreach (var mediaId in body.ImageUrls ?? [])
+                if (!DigitalSocieties.Shared.Media.MediaRules.IsValidId(mediaId)
+                    || !await storage.ExistsAsync(DigitalSocieties.Shared.Media.MediaRules.KeyFor(currentUser.SocietyId.Value, mediaId), ct))
+                    return Results.BadRequest("A picture was not uploaded. Upload it first and try again.");
             var cmd = body with { SocietyId = currentUser.SocietyId.Value, FlatId = flatId.Value };
             var result = await mediator.Send(cmd, ct);
             return result.IsSuccess
@@ -112,6 +117,44 @@ public static class ComplaintEndpoints
         .RequireAuthorization()
         .WithName("UpdateComplaintStatus")
         .WithSummary("Update complaint status (InProgress / Resolved / Closed / Reopened)")
+        .WithTags("Complaint");
+
+        // ── Add a progress update: a note, pictures and optionally the next status ──
+        // POST /api/v1/complaints/{id}/updates   { comment, status?, mediaIds? }
+        group.MapPost("/{complaintId:guid}/updates", async (
+            Guid complaintId,
+            [FromBody] AddUpdateRequest body,
+            IMediator mediator,
+            ICurrentUser currentUser,
+            DigitalSocieties.Complaint.Infrastructure.Persistence.ComplaintDbContext db,
+            DigitalSocieties.Shared.Contracts.IStorageProvider storage,
+            CancellationToken ct) =>
+        {
+            if (currentUser.UserId is null || currentUser.SocietyId is null) return Results.Unauthorized();
+            var row = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.FirstOrDefaultAsync(
+                db.Complaints.Where(c => c.Id == complaintId && c.SocietyId == currentUser.SocietyId), ct);
+            if (row is null) return Results.NotFound();
+
+            var isAdmin = currentUser.IsInRole("admin");
+            var isAssignedStaff = currentUser.IsInRole("staff") && row.AssignedTo == currentUser.UserId;
+            var isRaiser = row.RaisedBy == currentUser.UserId || (currentUser.FlatId is not null && row.FlatId == currentUser.FlatId);
+            if (!isAdmin && !isAssignedStaff && !isRaiser) return Results.NotFound();
+            // The person who raised it may add notes and pictures, and reopen or close it; moving the work along is for staff and admins.
+            var raiserStatusOk = body.Status is null
+                || string.Equals(body.Status, "Reopened", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(body.Status, "Closed", StringComparison.OrdinalIgnoreCase);
+            if (!isAdmin && !isAssignedStaff && !raiserStatusOk) return Results.Forbid();
+
+            foreach (var mediaId in body.MediaIds ?? [])
+                if (!DigitalSocieties.Shared.Media.MediaRules.IsValidId(mediaId)
+                    || !await storage.ExistsAsync(DigitalSocieties.Shared.Media.MediaRules.KeyFor(currentUser.SocietyId.Value, mediaId), ct))
+                    return Results.BadRequest("A picture was not uploaded. Upload it first and try again.");
+
+            var result = await mediator.Send(new AddComplaintUpdateCommand(complaintId, currentUser.UserId.Value, body.Comment ?? "", body.MediaIds, body.Status), ct);
+            return result.IsSuccess ? Results.Ok() : Results.BadRequest(result.Error);
+        })
+        .RequireAuthorization()
+        .WithName("AddComplaintUpdate")
         .WithTags("Complaint");
 
         // ── Staff: complaints assigned to me ────────────────────────────────────
@@ -201,8 +244,10 @@ public static class ComplaintEndpoints
             // Admins and staff see every complaint in their society; a resident only their own flat's.
             var row = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.FirstOrDefaultAsync(
                 db.Complaints.Where(c => c.Id == complaintId && c.SocietyId == currentUser.SocietyId), ct);
-            var staff = currentUser.IsInRole("admin") || currentUser.IsInRole("staff");
-            if (row is null || (!staff && row.FlatId != currentUser.FlatId && row.RaisedBy != currentUser.UserId)) return Results.NotFound();
+            var allowed = currentUser.IsInRole("admin")
+                || (currentUser.IsInRole("staff") && row?.AssignedTo == currentUser.UserId)
+                || row?.FlatId == currentUser.FlatId || row?.RaisedBy == currentUser.UserId;
+            if (row is null || !allowed) return Results.NotFound();
 
             var query = new GetComplaintDetailQuery(complaintId);
             var result = await mediator.Send(query, ct);
@@ -219,4 +264,5 @@ public static class ComplaintEndpoints
     public record GetUploadUrlRequest(string FileName);
     public record AssignComplaintRequest(Guid AssigneeId, string? Note);
     public record UpdateComplaintStatusRequest(string Status, string? Note);
+    public record AddUpdateRequest(string? Comment, string? Status, List<string>? MediaIds);
 }

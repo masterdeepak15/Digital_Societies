@@ -4,7 +4,8 @@ import {
   ActivityIndicator, RefreshControl, Alert, Modal,
   TextInput, ScrollView, Platform,
 } from 'react-native';
-import * as ImagePicker from 'expo-image-picker';
+import { pickPhoto } from '../../services/media/pickPhoto';
+import { uploadImage } from '../../services/media/mediaService';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '../../services/api/apiClient';
 import { useAuthStore } from '../../store/authStore';
@@ -52,31 +53,10 @@ const raiseComplaint = async (payload: {
   description: string;
   category: string;
   priority: string;
+  imageUrls?: string[];   // ids of pictures already uploaded through /media
 }): Promise<{ complaintId: string; ticketNumber: string }> => {
   const { data } = await apiClient.post('/complaints', payload);
   return data;
-};
-
-const getUploadUrl = async (
-  complaintId: string,
-  fileName: string
-): Promise<{ uploadUrl: string; objectKey: string }> => {
-  const { data } = await apiClient.post(
-    `/complaints/${complaintId}/upload-url`,
-    { fileName }
-  );
-  return data;
-};
-
-// Upload directly to MinIO pre-signed URL — never hits API server
-const uploadToMinio = async (presignedUrl: string, imageUri: string): Promise<void> => {
-  const response = await fetch(imageUri);
-  const blob = await response.blob();
-  await fetch(presignedUrl, {
-    method: 'PUT',
-    headers: { 'Content-Type': blob.type },
-    body: blob,
-  });
 };
 
 // ── Component ─────────────────────────────────────────────────────────────────
@@ -115,7 +95,9 @@ export default function ComplaintsScreen() {
 
     setIsSubmitting(true);
     try {
-      // 1. Raise the complaint
+      // 1. Upload the pictures (stored once per identical file), then raise the complaint with their ids
+      const imageUrls: string[] = [];
+      for (const imageUri of pickedImages) imageUrls.push((await uploadImage(imageUri)).id);
       const result = await raiseComplaint({
         societyId: activeSocietyId,
         flatId,
@@ -123,14 +105,8 @@ export default function ComplaintsScreen() {
         description: description.trim(),
         category,
         priority,
+        imageUrls,
       });
-
-      // 2. Upload images directly to MinIO (if any)
-      for (const imageUri of pickedImages) {
-        const fileName = `photo_${Date.now()}.jpg`;
-        const { uploadUrl } = await getUploadUrl(result.complaintId, fileName);
-        await uploadToMinio(uploadUrl, imageUri);
-      }
 
       queryClient.invalidateQueries({ queryKey: ['complaints'] });
       setModalVisible(false);
@@ -160,14 +136,8 @@ export default function ComplaintsScreen() {
       Alert.alert('Limit reached', 'You can attach up to 3 photos.');
       return;
     }
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      quality: 0.7,
-      allowsEditing: true,
-    });
-    if (!result.canceled && result.assets[0]) {
-      setPickedImages((prev: string[]) => [...prev, result.assets[0].uri]);
-    }
+    const uri = await pickPhoto();
+    if (uri) setPickedImages((prev: string[]) => [...prev, uri]);
   }, [pickedImages]);
 
   // ── Status badge ─────────────────────────────────────────────────────────────

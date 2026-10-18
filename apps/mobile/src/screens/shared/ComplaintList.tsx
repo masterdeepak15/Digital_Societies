@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, Alert } from 'react-native';
+import { useNavigation } from '@react-navigation/native';
 import { useQueryClient } from '@tanstack/react-query';
 import QueryList, { listStyles as s } from './QueryList';
 import { toComplaintRow, nextComplaintActions, type ComplaintRow } from './opsModel';
@@ -14,6 +15,7 @@ const STATUS_COLOR: Record<string, string> = {
 /** Complaints with the next-step button. `path` is the list endpoint; admins also see which flat raised each one. */
 export default function ComplaintList({ title, path, queryKey }: { title: string; path: string; queryKey: unknown[] }) {
   const queryClient = useQueryClient();
+  const navigation = useNavigation<any>();
 
   const fetcher = async (): Promise<ComplaintRow[]> => {
     const [res, labels] = await Promise.all([
@@ -42,7 +44,7 @@ export default function ComplaintList({ title, path, queryKey }: { title: string
       renderItem={(c) => {
         const color = STATUS_COLOR[c.status] ?? Colors.textSecondary;
         return (
-          <View style={s.card}>
+          <TouchableOpacity activeOpacity={0.8} style={s.card} onPress={() => navigation.navigate('ComplaintDetail', { id: c.id })}>
             <View style={s.row}>
               <Text style={s.primary}>{c.title}</Text>
               <Text style={[s.pill, { color, backgroundColor: color + '22' }]}>{c.status}</Text>
@@ -56,7 +58,7 @@ export default function ComplaintList({ title, path, queryKey }: { title: string
                 </TouchableOpacity>
               ))}
             </View>
-          </View>
+          </TouchableOpacity>
         );
       }}
     />

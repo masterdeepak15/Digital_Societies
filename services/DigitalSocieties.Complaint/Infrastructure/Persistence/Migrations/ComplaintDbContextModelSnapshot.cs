@@ -102,7 +102,6 @@ namespace DigitalSocieties.Complaint.Infrastructure.Persistence.Migrations
             modelBuilder.Entity("DigitalSocieties.Complaint.Domain.Entities.ComplaintUpdate", b =>
                 {
                     b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
                     b.Property<string>("Comment")
@@ -115,6 +114,9 @@ namespace DigitalSocieties.Complaint.Infrastructure.Persistence.Migrations
 
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("MediaIdsJson")
+                        .HasColumnType("text");
 
                     b.Property<string>("Status")
                         .IsRequired()

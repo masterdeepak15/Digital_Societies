@@ -11,7 +11,8 @@ public record ComplaintUpdateDto(
     string Comment,
     string Status,
     Guid UpdatedBy,
-    DateTimeOffset UpdatedAt);
+    DateTimeOffset UpdatedAt,
+    IReadOnlyList<string>? MediaIds = null);
 
 public record ComplaintDetailDto(
     Guid Id,
@@ -63,11 +64,19 @@ internal sealed class GetComplaintDetailQueryHandler(ComplaintDbContext db)
                     u.Comment,
                     u.Status.ToString(),
                     u.UpdatedBy,
-                    u.CreatedAt))
+                    u.CreatedAt,
+                    ParseIds(u.MediaIdsJson)))
                 .ToList(),
             complaint.CreatedAt,
             complaint.ResolvedAt);
 
         return Result<ComplaintDetailDto>.Ok(dto);
+    }
+
+    private static IReadOnlyList<string> ParseIds(string? json)
+    {
+        if (string.IsNullOrEmpty(json)) return [];
+        try { return System.Text.Json.JsonSerializer.Deserialize<List<string>>(json) ?? []; }
+        catch (System.Text.Json.JsonException) { return []; }
     }
 }

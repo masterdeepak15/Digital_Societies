@@ -46,6 +46,7 @@ public sealed class ComplaintDbContext : DbContext
             // Ids are assigned in the domain; without this EF treats a new update on a tracked complaint as an existing row.
             b.Property(e => e.Id).ValueGeneratedNever();
             b.Property(e => e.Comment).HasMaxLength(2000).IsRequired();
+            b.Property(e => e.MediaIdsJson).HasColumnType("text");
             b.Property(e => e.Status).HasConversion<string>().HasMaxLength(20);
         });
     }

@@ -92,6 +92,10 @@ public sealed class Complaint : AuditableEntity
         Raise(new ComplaintReopenedEvent(Id, SocietyId, reason));
     }
 
+    /// <summary>A progress note with optional pictures (media ids), added without changing the status.</summary>
+    public void AddNote(Guid by, string comment, IReadOnlyList<string>? mediaIds = null)
+        => _updates.Add(ComplaintUpdate.Create(Id, by, Status, comment, mediaIds));
+
     private void AddUpdate(Guid by, ComplaintStatus status, string comment)
         => _updates.Add(ComplaintUpdate.Create(Id, by, status, comment));
 }
@@ -99,18 +103,21 @@ public sealed class Complaint : AuditableEntity
 public sealed class ComplaintUpdate : Entity
 {
     private ComplaintUpdate() { }
-    private ComplaintUpdate(Guid id, Guid complaintId, Guid updatedBy, ComplaintStatus status, string comment)
+    private ComplaintUpdate(Guid id, Guid complaintId, Guid updatedBy, ComplaintStatus status, string comment, string? mediaIdsJson)
         : base(id)
-    { ComplaintId = complaintId; UpdatedBy = updatedBy; Status = status; Comment = comment; CreatedAt = DateTimeOffset.UtcNow; }
+    { ComplaintId = complaintId; UpdatedBy = updatedBy; Status = status; Comment = comment; MediaIdsJson = mediaIdsJson; CreatedAt = DateTimeOffset.UtcNow; }
 
     public Guid            ComplaintId { get; private set; }
     public Guid            UpdatedBy   { get; private set; }
     public ComplaintStatus Status      { get; private set; }
     public string          Comment     { get; private set; } = default!;
     public DateTimeOffset  CreatedAt   { get; private set; }
+    public string?         MediaIdsJson { get; private set; }   // pictures attached to this update (media ids)
 
-    public static ComplaintUpdate Create(Guid complaintId, Guid updatedBy, ComplaintStatus status, string comment)
-        => new(Guid.NewGuid(), complaintId, updatedBy, status, comment);
+    public static ComplaintUpdate Create(Guid complaintId, Guid updatedBy, ComplaintStatus status, string comment,
+                                         IReadOnlyList<string>? mediaIds = null)
+        => new(Guid.NewGuid(), complaintId, updatedBy, status, comment,
+               mediaIds is { Count: > 0 } ? System.Text.Json.JsonSerializer.Serialize(mediaIds) : null);
 }
 
 public enum ComplaintStatus { Open, Assigned, InProgress, Resolved, Closed, Reopened }
