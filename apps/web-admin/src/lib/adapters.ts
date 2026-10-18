@@ -120,3 +120,26 @@ export function adaptResponse(path: string, data: unknown): unknown {
       return data
   }
 }
+
+/** Paths whose rows only carry a flat id; the api client fetches the id -> label map for these. */
+export const needsFlatLabels = (path: string): boolean => {
+  const p = pathOf(path)
+  return p === '/facilities/bookings' || p === '/social/posts'
+}
+
+/** Replace flat ids with their labels ("A-101") on bookings and social posts. */
+export function applyFlatLabels(path: string, data: unknown, labels: Record<string, string>): unknown {
+  const p = pathOf(path)
+  if (!isRec(data) || !Array.isArray(data.items)) return data
+  const label = (id: unknown) => (typeof id === 'string' ? labels[id] : undefined)
+  const items = data.items.map(row => {
+    if (!isRec(row)) return row
+    if (p === '/facilities/bookings') {
+      const flat = label(row.flatId)
+      return flat ? { ...row, flatDisplay: row.flatDisplay ?? flat } : row
+    }
+    const flat = label(row.authorFlat) ?? label(row.authorFlatDisplay)
+    return flat ? { ...row, authorFlat: flat, authorName: flat } : row
+  })
+  return { ...data, items }
+}

@@ -17,6 +17,18 @@ public static class BillingEndpoints
 {
     public static RouteGroupBuilder MapBillingEndpoints(this RouteGroupBuilder group)
     {
+        // ── Any signed-in member: flat id -> "A-101" labels, used by the console to name flats ──
+        // GET /api/v1/billing/flat-labels
+        group.MapGet("/flat-labels", async (
+            IFlatQueryService flats,
+            ICurrentUser      cu,
+            CancellationToken ct) =>
+        {
+            if (cu.SocietyId is null) return Results.BadRequest("Society context required.");
+            return Results.Ok(await flats.GetFlatLabelsAsync(cu.SocietyId.Value, ct));
+        })
+        .RequireAuthorization();
+
         // ── Admin: list all bills for the society (paginated + filtered) ────────
         // GET /api/v1/billing/bills?status=all&search=&page=1&limit=20
         group.MapGet("/bills", async (

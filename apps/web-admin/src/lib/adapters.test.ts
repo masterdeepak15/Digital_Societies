@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { toPage, adaptResponse } from './adapters'
+import { toPage, adaptResponse, applyFlatLabels, needsFlatLabels } from './adapters'
 
 describe('toPage', () => {
   it('wraps a bare array', () => {
@@ -106,5 +106,23 @@ describe('adaptResponse', () => {
   it('survives unexpected shapes without throwing', () => {
     expect(() => adaptResponse('/visitors', null)).not.toThrow()
     expect(() => adaptResponse('/facilities', { nope: true })).not.toThrow()
+  })
+})
+
+describe('applyFlatLabels', () => {
+  const labels = { f1: 'A-101' }
+  it('names the flat on bookings', () => {
+    const out = applyFlatLabels('/facilities/bookings?date=2026-10-18', { items: [{ id: 'b', flatId: 'f1' }], total: 1 }, labels) as { items: Record<string, unknown>[] }
+    expect(out.items[0].flatDisplay).toBe('A-101')
+  })
+  it('replaces the flat id used as author on posts', () => {
+    const out = applyFlatLabels('/social/posts', { items: [{ id: 'p', authorFlat: 'f1', authorName: 'f1' }], total: 1 }, labels) as { items: Record<string, unknown>[] }
+    expect(out.items[0]).toMatchObject({ authorFlat: 'A-101', authorName: 'A-101' })
+  })
+  it('leaves unknown flats untouched and only applies to those paths', () => {
+    const data = { items: [{ id: 'p', authorFlat: 'zzz' }], total: 1 }
+    expect(applyFlatLabels('/social/posts', data, labels)).toEqual(data)
+    expect(needsFlatLabels('/notices')).toBe(false)
+    expect(needsFlatLabels('/social/posts?page=1')).toBe(true)
   })
 })

@@ -13,7 +13,7 @@ import { getUser, logout as authLogout, type AdminUser } from '@/lib/auth'
 import { stopSignalR } from '@/lib/useSignalR'
 import { ThemeToggle } from './ThemeToggle'
 
-interface NavItem { label: string; href: string; icon: LucideIcon }
+interface NavItem { label: string; href: string; icon: LucideIcon; adminOnly?: boolean }
 interface NavGroup { label?: string; items: NavItem[] }
 
 const groups: NavGroup[] = [
@@ -21,20 +21,20 @@ const groups: NavGroup[] = [
   { label: 'Money', items: [
     { label: 'Billing',    href: '/billing',    icon: CreditCard },
     { label: 'Accounting', href: '/accounting', icon: BarChart3 },
-    { label: 'Wallet',     href: '/wallet',     icon: Wallet },
+    { label: 'Wallet',     href: '/wallet',     icon: Wallet, adminOnly: true },
   ] },
   { label: 'People', items: [
-    { label: 'Members',  href: '/members',  icon: Users },
+    { label: 'Members',  href: '/members',  icon: Users, adminOnly: true },
     { label: 'Visitors', href: '/visitors', icon: ShieldAlert },
   ] },
   { label: 'Operations', items: [
-    { label: 'Complaints',  href: '/complaints',  icon: MessageSquare },
+    { label: 'Complaints',  href: '/complaints',  icon: MessageSquare, adminOnly: true },
     { label: 'Notices',     href: '/notices',     icon: Megaphone },
     { label: 'Facilities',  href: '/facilities',  icon: CalendarCheck },
-    { label: 'Parking',     href: '/parking',     icon: Car },
+    { label: 'Parking',     href: '/parking',     icon: Car, adminOnly: true },
     { label: 'Social feed', href: '/social',      icon: Globe },
     { label: 'Marketplace', href: '/marketplace', icon: ShoppingBag },
-    { label: 'Settings',    href: '/settings',    icon: Settings },
+    { label: 'Settings',    href: '/settings',    icon: Settings, adminOnly: true },
   ] },
 ]
 
@@ -74,7 +74,7 @@ export function Sidebar({ open, onNavigate }: { open: boolean; onNavigate: () =>
         {groups.map((g, i) => (
           <div key={g.label ?? i} className="space-y-0.5">
             {g.label && <p className="px-3 pb-1 text-xs text-nav-text/80">{g.label}</p>}
-            {g.items.map(({ label, href, icon: Icon }) => {
+            {g.items.filter(item => !item.adminOnly || !(user && !user.roles.includes('admin'))).map(({ label, href, icon: Icon }) => {
               const active = pathname.startsWith(href)
               return (
                 <Link

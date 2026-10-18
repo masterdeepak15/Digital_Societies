@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Settings, Building2, Bell, Shield, CreditCard, Save } from 'lucide-react'
 import { toast } from 'sonner'
@@ -123,7 +123,7 @@ export default function SettingsPage() {
 
   // API: GET /settings → { id, name, address, registrationNumber, tier, isActive, totalFlats }
   // Map API response to form shape; fill UI-local fields from DEMO_SETTINGS defaults.
-  const { data: settings = demo(DEMO_SETTINGS) } = useQuery<SocietySettings>({
+  const { data: fetched } = useQuery<SocietySettings>({
     queryKey: ['society-settings'],
     queryFn:  async () => {
       const raw = await api.get<ApiSettings>('/settings')
@@ -136,7 +136,9 @@ export default function SettingsPage() {
     },
   })
 
-  const [form, setForm] = useState<SocietySettings>(settings)
+  const [form, setForm] = useState<SocietySettings>(() => demo(DEMO_SETTINGS))
+  // The query resolves after the first render; copy the server values into the form once they arrive.
+  useEffect(() => { if (fetched) setForm(fetched) }, [fetched])
   const set = <K extends keyof SocietySettings>(k: K, v: SocietySettings[K]) =>
     setForm(prev => ({ ...prev, [k]: v }))
 
