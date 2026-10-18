@@ -1,9 +1,11 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import { Menu } from 'lucide-react'
 import { Sidebar } from './Sidebar'
+import { getUser } from '@/lib/auth'
+import { canOpen } from '@/lib/roles'
 
 /**
  * Sidebar on large screens; below 1024 px a top bar with a menu button opens it as an overlay
@@ -12,9 +14,15 @@ import { Sidebar } from './Sidebar'
 export function AppShell({ children }: { children: React.ReactNode }) {
   const [open, setOpen] = useState(false)
   const pathname = usePathname()
+  const router = useRouter()
   const menuButton = useRef<HTMLButtonElement>(null)
 
   useEffect(() => { setOpen(false) }, [pathname])
+
+  // A role that cannot use a page is sent to the overview instead of an empty page and an error toast.
+  useEffect(() => {
+    if (!canOpen(getUser(), pathname)) router.replace('/dashboard')
+  }, [pathname, router])
 
   // Move focus into the menu when it opens and back to the menu button however it closes
   // (Escape, scrim, nav link), so keyboard users never lose their place.
