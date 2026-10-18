@@ -1,4 +1,4 @@
-﻿using MediatR;
+using MediatR;
 using DigitalSocieties.Communication.Application.Commands;
 using DigitalSocieties.Communication.Application.Queries;
 using DigitalSocieties.Shared.Contracts;
@@ -24,11 +24,14 @@ public static class NoticeEndpoints
         group.MapPost("/", async (
             PostNoticeCommand cmd,
             IMediator mediator,
+            DigitalSocieties.Shared.Contracts.ICurrentUser cu,
             CancellationToken ct) =>
         {
-            var result = await mediator.Send(cmd, ct);
+            if (cu.SocietyId is null) return Results.BadRequest("Society context required.");
+            // A notice always goes to the caller's own society, whatever the body says.
+            var result = await mediator.Send(cmd with { SocietyId = cu.SocietyId.Value }, ct);
             return result.IsSuccess
-                ? Results.Created($"/api/v1/notices/{result.Value}", new { noticeId = result.Value })
+                ? Results.Created($"/api/v1/notices/{result.Value!.NoticeId}", new { noticeId = result.Value.NoticeId })
                 : Results.BadRequest(result.Error);
         })
         .RequireAuthorization("AdminOnly")

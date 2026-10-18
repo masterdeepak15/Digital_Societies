@@ -1,8 +1,11 @@
-﻿using MediatR;
+using MediatR;
 using DigitalSocieties.Visitor.Application.Commands;
 using DigitalSocieties.Visitor.Application.Queries;
 using DigitalSocieties.Shared.Contracts;
 using Microsoft.AspNetCore.Mvc;
+using System.Text.Json;
+using System.Text.Json.Nodes;
+using DigitalSocieties.Billing.Application.Commands;
 
 namespace DigitalSocieties.Api.Endpoints.Visitor;
 
@@ -118,6 +121,7 @@ public static class VisitorEndpoints
             [FromQuery] string? status,
             IMediator mediator,
             ICurrentUser currentUser,
+            IFlatQueryService flats,
             CancellationToken ct,
             [FromQuery] int page = 1,
             [FromQuery] int pageSize = 20) =>
@@ -130,9 +134,18 @@ public static class VisitorEndpoints
                 page <= 0 ? 1 : page,
                 pageSize is <= 0 or > 100 ? 20 : pageSize);
             var result = await mediator.Send(query, ct);
-            return result.IsSuccess
-                ? Results.Ok(result.Value)
-                : Results.BadRequest(result.Error);
+            if (!result.IsSuccess) return Results.BadRequest(result.Error);
+
+            // Add the host flat label ("A-101") so the console can show where the visitor is going.
+            var node = JsonSerializer.SerializeToNode(result.Value, new JsonSerializerOptions(JsonSerializerDefaults.Web));
+            if (node?["items"] is JsonArray items)
+            {
+                var labels = await flats.GetFlatLabelsAsync(currentUser.SocietyId!.Value, ct);
+                foreach (var item in items.OfType<JsonObject>())
+                    if (Guid.TryParse(item["flatId"]?.GetValue<string>(), out var fid) && labels.TryGetValue(fid, out var label))
+                        item["hostFlatDisplay"] = label;
+            }
+            return Results.Json(node);
         })
         .RequireAuthorization()
         .WithName("GetVisitors")
