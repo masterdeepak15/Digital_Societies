@@ -114,6 +114,33 @@ public static class ComplaintEndpoints
         .WithSummary("Update complaint status (InProgress / Resolved / Closed / Reopened)")
         .WithTags("Complaint");
 
+        // ── Staff: complaints assigned to me ────────────────────────────────────
+        // GET /api/v1/complaints/assigned
+        group.MapGet("/assigned", async (
+            ICurrentUser currentUser,
+            DigitalSocieties.Complaint.Infrastructure.Persistence.ComplaintDbContext db,
+            CancellationToken ct) =>
+        {
+            if (currentUser.UserId is null || currentUser.SocietyId is null) return Results.Unauthorized();
+            var rows = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.ToListAsync(
+                db.Complaints
+                    .Where(c => c.SocietyId == currentUser.SocietyId && c.AssignedTo == currentUser.UserId
+                                && c.Status != DigitalSocieties.Complaint.Domain.Entities.ComplaintStatus.Closed)
+                    .OrderByDescending(c => c.CreatedAt)
+                    .Take(100), ct);
+            var items = rows.Select(c => new
+            {
+                c.Id,
+                TicketNumber = $"C-{c.CreatedAt.Year}-{c.Id.ToString("N")[..4].ToUpper()}",
+                c.Title, c.Category, Priority = c.Priority.ToString(), Status = c.Status.ToString(),
+                c.CreatedAt, c.FlatId,
+            });
+            return Results.Ok(new { items });
+        })
+        .RequireAuthorization("StaffOrAdmin")
+        .WithName("GetAssignedComplaints")
+        .WithTags("Complaint");
+
         // ── Resident: list my complaints ──────────────────────────────────────
         // GET /api/v1/complaints/my?status=Open&page=1&pageSize=20
         group.MapGet("/my", async (

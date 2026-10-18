@@ -21,6 +21,8 @@ const MarketplaceScreen  = React.lazy(() => import('../screens/resident/Marketpl
 const WalletScreen       = React.lazy(() => import('../screens/resident/WalletScreen'));
 const VideoCallScreen    = React.lazy(() => import('../screens/resident/VideoCallScreen'));
 const SosScreen          = React.lazy(() => import('../screens/resident/SosScreen'));
+const PostDetailScreen   = React.lazy(() => import('../screens/resident/PostDetailScreen'));
+const CreatePostScreen   = React.lazy(() => import('../screens/resident/CreatePostScreen'));
 
 const DETAIL: Record<ResidentDetail, { component: React.ComponentType<any>; title: string }> = {
   Visitors:    { component: VisitorsScreen,    title: 'Visitors' },
@@ -32,6 +34,8 @@ const DETAIL: Record<ResidentDetail, { component: React.ComponentType<any>; titl
   Wallet:      { component: WalletScreen,      title: 'Wallet' },
   VideoCall:   { component: VideoCallScreen,   title: 'Call' },
   Sos:         { component: SosScreen,         title: 'SOS' },
+  PostDetail:  { component: PostDetailScreen,  title: 'Post' },
+  CreatePost:  { component: CreatePostScreen,  title: 'New post' },
 };
 
 function Tabs() {

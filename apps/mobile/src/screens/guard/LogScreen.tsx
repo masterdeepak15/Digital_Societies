@@ -1,20 +1,43 @@
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text } from 'react-native';
+import QueryList, { listStyles as s } from '../shared/QueryList';
+import { toVisitorRow, type VisitorRow } from '../shared/opsModel';
+import { apiFetch } from '../../utils/api';
 import { Colors } from '../../theme/colors';
-import { Typography } from '../../theme/typography';
-import { Spacing } from '../../theme/spacing';
 
-export default function LogScreen() {
+const STATUS_COLOR: Record<string, string> = {
+  Pending: Colors.warning, Approved: Colors.info, Entered: Colors.success, Exited: Colors.textSecondary, Rejected: Colors.error,
+};
+
+export const fetchVisitorRows = async (): Promise<VisitorRow[]> => {
+  const res = await apiFetch<{ items?: any[] }>('/visitors?page=1&pageSize=50');
+  return (res.items ?? []).map(toVisitorRow);
+};
+
+export function VisitorCard({ v }: { v: VisitorRow }) {
+  const color = STATUS_COLOR[v.status] ?? Colors.textSecondary;
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>LogScreen</Text>
-      <Text style={styles.sub}>[guard] — Implementation in Phase 1 build</Text>
+    <View style={s.card}>
+      <View style={s.row}>
+        <Text style={s.primary}>{v.name}</Text>
+        <Text style={[s.pill, { color, backgroundColor: color + '22' }]}>{v.status}</Text>
+      </View>
+      <Text style={s.secondary}>To {v.flat} · {v.purpose}</Text>
+      {!!v.time && <Text style={s.secondary}>{v.time}</Text>}
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background, padding: Spacing.md, justifyContent: 'center', alignItems: 'center' },
-  title:     { ...Typography.h2, color: Colors.primary, textAlign: 'center' },
-  sub:       { ...Typography.body2, color: Colors.textSecondary, textAlign: 'center', marginTop: Spacing.sm },
-});
+/** Everyone who came to the gate lately, newest first. Pull down to refresh. */
+export default function LogScreen() {
+  return (
+    <QueryList<VisitorRow>
+      title="Gate log"
+      queryKey={['guard', 'log']}
+      fetcher={fetchVisitorRows}
+      keyOf={(v) => v.id}
+      renderItem={(v) => <VisitorCard v={v} />}
+      emptyText="No visitors yet."
+    />
+  );
+}

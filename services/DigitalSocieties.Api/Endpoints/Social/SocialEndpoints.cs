@@ -61,11 +61,28 @@ public static class SocialEndpoints
             Guid postId,
             IMediator mediator,
             ICurrentUser currentUser,
+            IFlatQueryService flats,
             CancellationToken ct) =>
         {
             var query = new GetPostDetailQuery(postId, currentUser.UserId!.Value);
             var result = await mediator.Send(query, ct);
-            return result.IsSuccess ? Results.Ok(result.Value) : Results.NotFound(result.Error);
+            if (!result.IsSuccess) return Results.NotFound(result.Error);
+
+            // The post and its comments carry flat ids; the apps show the label ("A-101").
+            var node = JsonSerializer.SerializeToNode(result.Value, new JsonSerializerOptions(JsonSerializerDefaults.Web));
+            var labels = await flats.GetFlatLabelsAsync(currentUser.SocietyId!.Value, ct);
+            void Label(JsonObject o)
+            {
+                if (Guid.TryParse(o["authorFlatDisplay"]?.GetValue<string>(), out var fid) && labels.TryGetValue(fid, out var label))
+                    o["authorFlatDisplay"] = label;
+            }
+            if (node is JsonObject post)
+            {
+                Label(post);
+                if (post["comments"] is JsonArray comments)
+                    foreach (var c in comments.OfType<JsonObject>()) Label(c);
+            }
+            return Results.Json(node);
         })
         .RequireAuthorization()
         .WithName("GetPostDetail")
@@ -75,10 +92,20 @@ public static class SocialEndpoints
         // ── Feed: create post ─────────────────────────────────────────────────
         // POST /api/v1/social/posts
         group.MapPost("/posts", async (
-            CreatePostCommand cmd,
+            CreatePostCommand body,
             IMediator mediator,
+            ICurrentUser currentUser,
             CancellationToken ct) =>
         {
+            if (currentUser.SocietyId is null || currentUser.UserId is null)
+                return Results.BadRequest("Society context required.");
+            // Who posts, and where, always comes from the session, never from the request body.
+            var cmd = body with
+            {
+                SocietyId    = currentUser.SocietyId.Value,
+                AuthorUserId = currentUser.UserId.Value,
+                AuthorFlatId = currentUser.FlatId ?? Guid.Empty,
+            };
             var result = await mediator.Send(cmd, ct);
             return result.IsSuccess
                 ? Results.Created($"/api/v1/social/posts/{result.Value.PostId}", result.Value)

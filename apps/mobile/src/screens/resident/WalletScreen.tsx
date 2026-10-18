@@ -16,6 +16,7 @@ import {
 import { Colors, Typography, Spacing } from '../../theme';
 import { apiFetch } from '../../utils/api';
 import { toWalletBalance, toWalletTransaction, type WalletBalance, type WalletTransaction } from './walletModel';
+import { errorMessage } from '../../utils/errorMessage';
 
 // ── Extended tokens not in design system ────────────────────────────────────
 const colors = {
@@ -115,7 +116,7 @@ function TopUpModal({ visible, onClose, onSuccess }: TopUpModalProps) {
         ],
       );
     } catch (e: any) {
-      setError(e.message ?? 'Failed to initiate top-up');
+      setError(errorMessage(e, 'Failed to initiate top-up'));
       setStep('input');
     }
   };
@@ -139,7 +140,7 @@ function TopUpModal({ visible, onClose, onSuccess }: TopUpModalProps) {
       onSuccess();
       Alert.alert('✅ Top-up Successful', `₹${amountNum.toFixed(2)} added to your wallet.`);
     } catch (e: any) {
-      setError(e.message ?? 'Verification failed');
+      setError(errorMessage(e, 'Verification failed'));
       setStep('input');
     }
   };
@@ -257,7 +258,7 @@ export default function WalletScreen() {
       const bal = await apiFetch<Record<string, any>>('/wallet/balance');
       setBalance(toWalletBalance(bal));
     } catch (e: any) {
-      Alert.alert('Error', e.message ?? 'Failed to load wallet');
+      Alert.alert('Error', errorMessage(e, 'Failed to load wallet'));
     }
   }, []);
 

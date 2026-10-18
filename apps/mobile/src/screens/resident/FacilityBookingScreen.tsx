@@ -11,6 +11,7 @@ const colors  = { ...Colors, backgroundSecondary: Colors.divider };
 const spacing = Spacing;
 const typography = { ...Typography, body: Typography.body1 };
 import { apiFetch } from '../../utils/api';
+import { errorMessage } from '../../utils/errorMessage';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 interface Facility {
@@ -69,7 +70,13 @@ export default function FacilityBookingScreen() {
         apiFetch<Booking[] | { items: Booking[] }>('/facilities/bookings/mine'),
       ]);
       // The API answers with bare arrays; accept the wrapped form too.
-      const facilityList = Array.isArray(fac) ? fac : fac.items;
+      // The API names these fields capacityPersons / slotDurationMinutes / advanceBookingDays.
+      const facilityList = (Array.isArray(fac) ? fac : fac.items).map((f: any) => ({
+        ...f,
+        capacity: f.capacity ?? f.capacityPersons ?? 0,
+        maxHoursPerBooking: f.maxHoursPerBooking ?? Math.max(1, Math.round((f.slotDurationMinutes ?? 60) / 60)),
+        maxAdvanceBookingDays: f.maxAdvanceBookingDays ?? f.advanceBookingDays ?? 7,
+      })) as Facility[];
       const bookingList  = Array.isArray(bk)  ? bk  : bk.items;
       setFacilities(facilityList.filter(f => f.isActive));
       setMyBookings(bookingList);
@@ -112,7 +119,7 @@ export default function FacilityBookingScreen() {
       load();
       Alert.alert('Success', `${selected.name} booked successfully!`);
     } catch (e: any) {
-      Alert.alert('Booking Failed', e?.message ?? 'Slot may already be taken.');
+      Alert.alert('Booking Failed', errorMessage(e, 'Slot may already be taken.'));
     }
   };
 

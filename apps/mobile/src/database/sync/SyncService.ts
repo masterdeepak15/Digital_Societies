@@ -18,6 +18,7 @@ export class SyncService {
     if (!net.isConnected) return;   // offline — skip, will retry when online
 
     SyncService._syncing = true;
+    let pushedVisitorIds: string[] = [];
     try {
       await synchronize({
         database,
@@ -32,11 +33,25 @@ export class SyncService {
 
         // Push: send locally-created records (offline writes) to server
         pushChanges: async ({ changes, lastPulledAt }) => {
-          await apiClient.post('/sync/push', { changes, lastPulledAt });
+          const created: Array<{ id: string }> = (changes as any).visitors?.created ?? [];
+          const { data } = await apiClient.post('/sync/push', { changes, lastPulledAt });
+          // The server keeps its own copy under a new id and the next pull brings it back, so once every
+          // offline visitor is applied the local stand-ins are removed (otherwise the log shows them twice).
+          if (created.length > 0 && data?.applied === created.length) pushedVisitorIds = created.map((r) => r.id);
         },
 
-        migrationsEnabledAtVersion: 1,
+        // No migrations exist yet (schema version 1), so migration sync must stay off:
+        // WatermelonDB rejects it on a database created without a migrations definition.
       });
+      if (pushedVisitorIds.length > 0) {
+        await database.write(async () => {
+          for (const id of pushedVisitorIds) {
+            try { await (await database.get('visitors').find(id)).destroyPermanently(); } catch { /* already gone */ }
+          }
+        });
+        SyncService._syncing = false;
+        void SyncService.sync(); // pull the server copies back in
+      }
     } catch (err) {
       console.warn('[SyncService] Sync failed:', err);
     } finally {

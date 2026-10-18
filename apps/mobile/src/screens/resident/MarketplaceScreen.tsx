@@ -7,6 +7,7 @@ import { Colors } from '../../theme/colors';
 import { Spacing } from '../../theme/spacing';
 import { Typography } from '../../theme/typography';
 import { apiFetch } from '../../services/api/apiFetch';
+import { errorMessage } from '../../utils/errorMessage';
 
 const colors    = { ...Colors, successLight: '#d4edda', warningLight: '#fff3cd', backgroundSecondary: Colors.divider };
 const spacing   = Spacing;
@@ -64,7 +65,7 @@ function BookModal({ listing, onClose, onBooked }: {
       });
       onBooked(); onClose();
       Alert.alert('Booked!', 'Your service has been requested. The provider will confirm shortly.');
-    } catch (e: any) { Alert.alert('Error', e.message); }
+    } catch (e: any) { Alert.alert('Error', errorMessage(e)); }
     finally { setLoading(false); }
   };
 
@@ -142,7 +143,7 @@ function ReviewModal({ bookingId, onClose, onReviewed }: {
         body: JSON.stringify({ rating, comment }),
       });
       onReviewed(); onClose();
-    } catch (e: any) { Alert.alert('Error', e.message); }
+    } catch (e: any) { Alert.alert('Error', errorMessage(e)); }
     finally { setLoading(false); }
   };
 
@@ -199,7 +200,7 @@ export default function MarketplaceScreen() {
       const cat = category === 'All' ? undefined : category;
       const data = await apiFetch<Listing[]>(`/marketplace/listings${cat ? `?category=${cat}` : ''}`);
       setListings(data);
-    } catch (e: any) { Alert.alert('Error', e.message); }
+    } catch (e: any) { Alert.alert('Error', errorMessage(e)); }
     finally { setLoading(false); setRefreshing(false); }
   }, [category]);
 
@@ -207,7 +208,7 @@ export default function MarketplaceScreen() {
     try {
       const data = await apiFetch<Booking[]>('/marketplace/my/bookings');
       setBookings(data);
-    } catch (e: any) { Alert.alert('Error', e.message); }
+    } catch (e: any) { Alert.alert('Error', errorMessage(e)); }
     finally { setLoading(false); setRefreshing(false); }
   }, []);
 
@@ -227,7 +228,7 @@ export default function MarketplaceScreen() {
           await apiFetch(`/marketplace/bookings/${bookingId}/cancel`,
             { method: 'POST', body: JSON.stringify({ reason: 'Cancelled by resident' }) });
           fetchBookings();
-        } catch (e: any) { Alert.alert('Error', e.message); }
+        } catch (e: any) { Alert.alert('Error', errorMessage(e)); }
       }},
     ]);
   };

@@ -16,6 +16,7 @@ import { Colors } from '../../theme/colors';
 import { Spacing } from '../../theme/spacing';
 import { Typography } from '../../theme/typography';
 import { apiFetch } from '../../services/api/apiFetch';
+import { errorMessage } from '../../utils/errorMessage';
 
 // ── Theme alias bridge ─────────────────────────────────────────────────────
 const colors = {
@@ -177,7 +178,7 @@ function AddVehicleModal({ visible, onClose, onAdded }: AddVehicleModalProps) {
       onAdded();
       onClose();
     } catch (e: any) {
-      Alert.alert('Error', e.message);
+      Alert.alert('Error', errorMessage(e));
     } finally {
       setLoading(false);
     }
@@ -265,7 +266,7 @@ export default function ParkingScreen() {
       const data = await apiFetch<MyParking>('/parking/my');
       setParking(data);
     } catch (e: any) {
-      Alert.alert('Error', e.message);
+      Alert.alert('Error', errorMessage(e));
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -285,7 +286,7 @@ export default function ParkingScreen() {
           try {
             await apiFetch(`/parking/my/vehicles/${vehicleId}/deactivate`, { method: 'POST' });
             fetchParking();
-          } catch (e: any) { Alert.alert('Error', e.message); }
+          } catch (e: any) { Alert.alert('Error', errorMessage(e)); }
         },
       },
     ]);

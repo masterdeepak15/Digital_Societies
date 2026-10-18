@@ -111,6 +111,7 @@ try
         opts.AddPolicy("FinanceStaff",    p => p.RequireClaim("role", "admin", "accountant"));
         opts.AddPolicy("ResidentOrFinance", p => p.RequireClaim("role", "resident", "admin", "accountant"));
         opts.AddPolicy("ResidentOrAdmin", p => p.RequireClaim("role", "resident", "admin"));
+        opts.AddPolicy("StaffOrAdmin",    p => p.RequireClaim("role", "staff", "admin"));
         opts.AddPolicy("GuardOnly",       p => p.RequireClaim("role", "guard"));
         opts.AddPolicy("GuardOrAdmin",    p => p.RequireClaim("role", "guard", "admin"));
     });

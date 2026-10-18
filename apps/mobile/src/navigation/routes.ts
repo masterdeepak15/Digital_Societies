@@ -3,6 +3,7 @@ export const RESIDENT_TABS = ['Home', 'Bills', 'Community', 'Me'] as const;
 
 export const RESIDENT_DETAIL = [
   'Visitors', 'Complaints', 'Notices', 'Facilities', 'Parking', 'Marketplace', 'Wallet', 'VideoCall', 'Sos',
+  'PostDetail', 'CreatePost',
 ] as const;
 
 export const GUARD_TABS = ['Gate', 'Log', 'Sos', 'Me'] as const;

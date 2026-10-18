@@ -17,6 +17,9 @@ const TILES: { key: 'mint' | 'sky' | 'peach' | 'lilac'; icon: IconName; title: s
   { key: 'peach', icon: 'tool',     title: 'Complaints', hint: 'Raise or track',         route: 'Complaints' },
   { key: 'lilac', icon: 'calendar', title: 'Book',       hint: 'Clubhouse, pool, court', route: 'Facilities' },
   { key: 'sky',   icon: 'bell',     title: 'Notices',    hint: 'From the committee',     route: 'Notices' },
+  { key: 'mint',  icon: 'truck',    title: 'Parking',    hint: 'Your slot and vehicles', route: 'Parking' },
+  { key: 'peach', icon: 'users',    title: 'Services',   hint: 'Plumber, cleaner, more', route: 'Marketplace' },
+  { key: 'lilac', icon: 'credit-card', title: 'Wallet',  hint: 'Balance and top-ups',    route: 'Wallet' },
 ];
 
 export default function HomeScreen() {

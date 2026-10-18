@@ -1,20 +1,18 @@
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
-import { Colors } from '../../theme/colors';
-import { Typography } from '../../theme/typography';
-import { Spacing } from '../../theme/spacing';
+import QueryList from '../shared/QueryList';
+import { type VisitorRow } from '../shared/opsModel';
+import { fetchVisitorRows, VisitorCard } from './LogScreen';
 
+/** Deliveries only: couriers and parcels that came to the gate. */
 export default function DeliveryScreen() {
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>DeliveryScreen</Text>
-      <Text style={styles.sub}>[guard] — Implementation in Phase 1 build</Text>
-    </View>
+    <QueryList<VisitorRow>
+      title="Deliveries"
+      queryKey={['guard', 'deliveries']}
+      fetcher={async () => (await fetchVisitorRows()).filter((v) => v.purpose === 'Delivery')}
+      keyOf={(v) => v.id}
+      renderItem={(v) => <VisitorCard v={v} />}
+      emptyText="No deliveries yet."
+    />
   );
 }
-
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background, padding: Spacing.md, justifyContent: 'center', alignItems: 'center' },
-  title:     { ...Typography.h2, color: Colors.primary, textAlign: 'center' },
-  sub:       { ...Typography.body2, color: Colors.textSecondary, textAlign: 'center', marginTop: Spacing.sm },
-});

@@ -17,6 +17,7 @@ import { Colors } from '../../theme/colors';
 import { Spacing } from '../../theme/spacing';
 import { Typography } from '../../theme/typography';
 import { apiFetch } from '../../services/api/apiFetch';
+import { errorMessage } from '../../utils/errorMessage';
 
 // ── Theme alias bridge ─────────────────────────────────────────────────────
 const colors = {
@@ -98,7 +99,7 @@ function AddLevelModal({ visible, onClose, onAdded }: AddLevelModalProps) {
       });
       setName(''); setLevelNumber('');
       onAdded(); onClose();
-    } catch (e: any) { Alert.alert('Error', e.message); }
+    } catch (e: any) { Alert.alert('Error', errorMessage(e)); }
     finally { setLoading(false); }
   };
 
@@ -176,7 +177,7 @@ function AddSlotModal({ visible, levelId, onClose, onAdded }: AddSlotModalProps)
       });
       setSlotNumber(''); setSlotType('Car'); setIsEv(false);
       onAdded(); onClose();
-    } catch (e: any) { Alert.alert('Error', e.message); }
+    } catch (e: any) { Alert.alert('Error', errorMessage(e)); }
     finally { setLoading(false); }
   };
 
@@ -262,7 +263,7 @@ function AssignSlotModal({ visible, slot, onClose, onDone }: AssignSlotModalProp
       });
       setFlatId(''); setVehicleNumber(''); setVehicleType('Car');
       onDone(); onClose();
-    } catch (e: any) { Alert.alert('Error', e.message); }
+    } catch (e: any) { Alert.alert('Error', errorMessage(e)); }
     finally { setLoading(false); }
   };
 
@@ -459,7 +460,7 @@ export default function ParkingManagementScreen() {
         setSelectedLevel(data[0]);
       }
     } catch (e: any) {
-      Alert.alert('Error', e.message);
+      Alert.alert('Error', errorMessage(e));
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -472,7 +473,7 @@ export default function ParkingManagementScreen() {
       const data = await apiFetch<ParkingSlot[]>(`/parking/levels/${levelId}/slots`);
       setSlots(data);
     } catch (e: any) {
-      Alert.alert('Error', e.message);
+      Alert.alert('Error', errorMessage(e));
     } finally {
       setSlotsLoading(false);
     }
@@ -497,7 +498,7 @@ export default function ParkingManagementScreen() {
             await apiFetch(`/parking/slots/${slotId}/unassign`, { method: 'POST' });
             if (selectedLevel) fetchSlots(selectedLevel.id);
             fetchLevels();
-          } catch (e: any) { Alert.alert('Error', e.message); }
+          } catch (e: any) { Alert.alert('Error', errorMessage(e)); }
         },
       },
     ]);
@@ -515,7 +516,7 @@ export default function ParkingManagementScreen() {
             await apiFetch(`/parking/slots/${slotId}/unassign`, { method: 'POST' });
             if (selectedLevel) fetchSlots(selectedLevel.id);
             fetchLevels();
-          } catch (e: any) { Alert.alert('Error', e.message); }
+          } catch (e: any) { Alert.alert('Error', errorMessage(e)); }
         },
       },
     ]);
