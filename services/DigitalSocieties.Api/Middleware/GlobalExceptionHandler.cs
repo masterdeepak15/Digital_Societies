@@ -15,16 +15,23 @@ public static class GlobalExceptionHandler
         var env = ctx.RequestServices.GetRequiredService<IWebHostEnvironment>();
         var log = ctx.RequestServices.GetRequiredService<ILogger<Program>>();
 
-        log.LogError(ex, "Unhandled exception on {Method} {Path}",
-            ctx.Request.Method, ctx.Request.Path);
-
         int status = ex switch
         {
+            // A malformed or incomplete request body is the caller's mistake, not a server fault.
+            BadHttpRequestException bad => bad.StatusCode,
+            JsonException               => 400,
             UnauthorizedAccessException => 401,
             KeyNotFoundException        => 404,
             InvalidOperationException   => 422,
+            Microsoft.EntityFrameworkCore.DbUpdateConcurrencyException => 409,
             _                           => 500,
         };
+
+        if (status >= 500)
+            log.LogError(ex, "Unhandled exception on {Method} {Path}", ctx.Request.Method, ctx.Request.Path);
+        else
+            log.LogWarning("Rejected {Method} {Path} with {Status}: {Reason}",
+                ctx.Request.Method, ctx.Request.Path, status, ex?.Message);
 
         ctx.Response.StatusCode  = status;
         ctx.Response.ContentType = "application/problem+json";
@@ -34,7 +41,7 @@ public static class GlobalExceptionHandler
             type    = $"https://httpstatuses.com/{status}",
             title   = ex?.GetType().Name ?? "Error",
             status,
-            detail  = env.IsProduction() ? "An internal error occurred." : ex?.Message,
+            detail  = status < 500 || !env.IsProduction() ? ex?.Message : "An internal error occurred.",
             traceId = ctx.TraceIdentifier,
         };
 

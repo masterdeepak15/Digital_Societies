@@ -1,4 +1,4 @@
-﻿using System.Text;
+using System.Text;
 using Microsoft.AspNetCore.RateLimiting;
 using FluentValidation.AspNetCore;
 using Serilog;
@@ -182,6 +182,24 @@ try
         cfg.AddOpenBehavior(typeof(DigitalSocieties.Identity.Application.Behaviors.ValidationBehavior<,>));
     });
 
+    // Command validators live in each module; without this registration the validation behavior has nothing to run.
+    RegisterValidators(builder.Services, new[]
+    {
+        typeof(Program).Assembly,
+        typeof(DigitalSocieties.Accounting.Infrastructure.AccountingServiceExtensions).Assembly,
+        typeof(DigitalSocieties.Billing.Infrastructure.BillingServiceExtensions).Assembly,
+        typeof(DigitalSocieties.Calling.Infrastructure.CallingServiceExtensions).Assembly,
+        typeof(DigitalSocieties.Communication.Infrastructure.CommunicationServiceExtensions).Assembly,
+        typeof(DigitalSocieties.Complaint.Infrastructure.ComplaintServiceExtensions).Assembly,
+        typeof(DigitalSocieties.Facility.Infrastructure.FacilityServiceExtensions).Assembly,
+        typeof(DigitalSocieties.Identity.Infrastructure.IdentityServiceExtensions).Assembly,
+        typeof(DigitalSocieties.Marketplace.Infrastructure.MarketplaceServiceExtensions).Assembly,
+        typeof(DigitalSocieties.Parking.Infrastructure.ParkingServiceExtensions).Assembly,
+        typeof(DigitalSocieties.Social.Infrastructure.SocialServiceExtensions).Assembly,
+        typeof(DigitalSocieties.Visitor.Infrastructure.VisitorServiceExtensions).Assembly,
+        typeof(DigitalSocieties.Wallet.Infrastructure.WalletServiceExtensions).Assembly,
+    });
+
     builder.Services.AddFluentValidationAutoValidation();
 
     // ── OpenTelemetry (tracing + metrics → OTLP collector; /metrics for Prometheus) ──
@@ -273,4 +291,16 @@ catch (Exception ex) when (ex is not HostAbortedException)
 finally
 {
     Log.CloseAndFlush();
+}
+
+// Registers every FluentValidation validator found in the given assemblies as IValidator<T>.
+static void RegisterValidators(IServiceCollection services, IEnumerable<System.Reflection.Assembly> assemblies)
+{
+    foreach (var type in assemblies.SelectMany(a => a.GetTypes()))
+    {
+        if (type.IsAbstract || type.IsInterface) continue;
+        foreach (var contract in type.GetInterfaces()
+                     .Where(i => i.IsGenericType && i.GetGenericTypeDefinition() == typeof(FluentValidation.IValidator<>)))
+            services.AddScoped(contract, type);
+    }
 }

@@ -20,10 +20,17 @@ public static class ComplaintEndpoints
         // Body: { "societyId":"...", "flatId":"...", "title":"...",
         //         "description":"...", "category":"Plumbing", "priority":"Medium" }
         group.MapPost("/", async (
-            RaiseComplaintCommand cmd,
+            RaiseComplaintCommand body,
             IMediator mediator,
+            ICurrentUser currentUser,
             CancellationToken ct) =>
         {
+            if (currentUser.SocietyId is null) return Results.BadRequest("Society context required.");
+            // The society always comes from the session; a resident's flat does too. Only an admin
+            // (who has no flat) may name the flat in the body, (not verified against the society).
+            var flatId = currentUser.IsInRole("admin") && body.FlatId != Guid.Empty ? body.FlatId : currentUser.FlatId;
+            if (flatId is null) return Results.BadRequest("A flat is required to raise a complaint.");
+            var cmd = body with { SocietyId = currentUser.SocietyId.Value, FlatId = flatId.Value };
             var result = await mediator.Send(cmd, ct);
             return result.IsSuccess
                 ? Results.Created($"/api/v1/complaints/{result.Value.ComplaintId}",

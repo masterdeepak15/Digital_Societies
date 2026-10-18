@@ -98,6 +98,92 @@ public class AddFamilyMemberCommandTests
         second.Error!.Code.Should().Be("MEMBER.EXISTS");
     }
 
+    // ── Admin adds a member to a named flat (an admin has no flat of their own) ──
+    private async Task<Flat> SeedFlatAsync(string wing, string number)
+    {
+        var flat = Flat.Create(SocietyId, number, wing, 1);
+        _db.Flats.Add(flat);
+        await _db.SaveChangesAsync();
+        return flat;
+    }
+
+    [Fact]
+    public async Task AddFamilyMember_AdminWithFlatNumber_AddsToThatFlat()
+    {
+        var flat = await SeedFlatAsync("B", "204");
+        _me.FlatId.Returns((Guid?)null);
+        _me.IsInRole("admin").Returns(true);
+
+        var result = await Handler().Handle(new AddFamilyMemberCommand("kid@example.com", "Kid", "family", null, "B", "204"), default);
+
+        result.IsSuccess.Should().BeTrue();
+        (await _db.Memberships.CountAsync(m => m.FlatId == flat.Id)).Should().Be(1);
+    }
+
+    [Fact]
+    public async Task AddFamilyMember_AdminUnknownFlat_FailsFlatNotFound()
+    {
+        _me.FlatId.Returns((Guid?)null);
+        _me.IsInRole("admin").Returns(true);
+
+        var result = await Handler().Handle(new AddFamilyMemberCommand("kid@example.com", "Kid", "family", null, "Z", "999"), default);
+
+        result.Error!.Code.Should().Be("FLAT.NOT_FOUND");
+    }
+
+    [Fact]
+    public async Task AddFamilyMember_ResidentCannotChooseAnotherFlat()
+    {
+        var other = await SeedFlatAsync("C", "301");
+        _me.IsInRole("admin").Returns(false);
+
+        await Handler().Handle(new AddFamilyMemberCommand("kid@example.com", "Kid", "family", null, "C", "301"), default);
+
+        (await _db.Memberships.CountAsync(m => m.FlatId == other.Id)).Should().Be(0);
+        (await _db.Memberships.CountAsync(m => m.FlatId == FlatId)).Should().Be(1);
+    }
+
+    [Fact]
+    public async Task AddFamilyMember_NonAdminWithoutFlat_FailsFlatRequired()
+    {
+        _me.FlatId.Returns((Guid?)null);
+
+        var result = await Handler().Handle(new AddFamilyMemberCommand("kid@example.com", "Kid", "family"), default);
+
+        result.Error!.Code.Should().Be("FLAT.REQUIRED");
+    }
+
+    [Fact]
+    public async Task RemoveFamilyMember_AdminRemovesMemberOfAnyFlat()
+    {
+        var flat = await SeedFlatAsync("B", "204");
+        var user = User.Create(Email.Create("kid@example.com").Value!, "Kid");
+        _db.Users.Add(user);
+        _db.Memberships.Add(Membership.Create(user.Id, SocietyId, "resident", flat.Id, "family"));
+        await _db.SaveChangesAsync();
+        _me.FlatId.Returns((Guid?)null);
+        _me.IsInRole("admin").Returns(true);
+
+        var result = await new RemoveFamilyMemberHandler(_db, _me).Handle(new RemoveFamilyMemberCommand(user.Id), default);
+
+        result.IsSuccess.Should().BeTrue();
+        (await _db.Memberships.AnyAsync(m => m.UserId == user.Id && m.IsActive)).Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task RemoveFamilyMember_ResidentCannotRemoveMemberOfAnotherFlat()
+    {
+        var flat = await SeedFlatAsync("B", "204");
+        var user = User.Create(Email.Create("kid@example.com").Value!, "Kid");
+        _db.Users.Add(user);
+        _db.Memberships.Add(Membership.Create(user.Id, SocietyId, "resident", flat.Id, "family"));
+        await _db.SaveChangesAsync();
+
+        var result = await new RemoveFamilyMemberHandler(_db, _me).Handle(new RemoveFamilyMemberCommand(user.Id), default);
+
+        result.Error!.Code.Should().Be("MEMBER.NOT_FOUND");
+    }
+
     [Fact]
     public async Task GetFlatMembers_UserWithoutPhone_DoesNotThrow()
     {

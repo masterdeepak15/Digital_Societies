@@ -14,7 +14,9 @@ public sealed record AddFamilyMemberCommand(
     string  Email,
     string  Name,
     string  MemberType,   // "owner" | "tenant" | "family"
-    string? Phone = null  // optional profile field
+    string? Phone = null, // optional profile field
+    string? Wing = null,         // admins name the flat; residents always add to their own
+    string? FlatNumber = null
 ) : IRequest<Result<Guid>>;
 
 public sealed class AddFamilyMemberValidator : AbstractValidator<AddFamilyMemberCommand>
@@ -43,10 +45,24 @@ public sealed class AddFamilyMemberHandler : IRequestHandler<AddFamilyMemberComm
 
     public async Task<Result<Guid>> Handle(AddFamilyMemberCommand cmd, CancellationToken ct)
     {
-        if (_currentUser.FlatId is null)
-            return Result<Guid>.Fail("FLAT.REQUIRED", "You must be a flat resident to add family members.");
         if (_currentUser.SocietyId is null)
             return Result<Guid>.Fail("SOCIETY.REQUIRED", "Society context is required.");
+
+        // Residents add to their own flat. An admin has no flat, so they name one by wing + number.
+        var flatId = _currentUser.FlatId;
+        if (_currentUser.IsInRole("admin") && !string.IsNullOrWhiteSpace(cmd.FlatNumber))
+        {
+            var number = cmd.FlatNumber.Trim();
+            var wing   = cmd.Wing?.Trim() ?? "";
+            var flat = await _db.Flats.FirstOrDefaultAsync(f =>
+                f.SocietyId == _currentUser.SocietyId.Value && f.Number == number &&
+                (wing == "" || f.Wing == wing) && !f.IsDeleted, ct);
+            if (flat is null)
+                return Result<Guid>.Fail("FLAT.NOT_FOUND", "No flat with that wing and number in this society.");
+            flatId = flat.Id;
+        }
+        if (flatId is null)
+            return Result<Guid>.Fail("FLAT.REQUIRED", "You must be a flat resident to add family members.");
 
         // Validate and normalize email (identity) and optional phone
         var emailResult = Shared.Domain.ValueObjects.Email.Create(cmd.Email);
@@ -82,18 +98,18 @@ public sealed class AddFamilyMemberHandler : IRequestHandler<AddFamilyMemberComm
         var exists = await _db.Memberships.AnyAsync(m =>
             m.UserId    == user.Id &&
             m.SocietyId == _currentUser.SocietyId.Value &&
-            m.FlatId    == _currentUser.FlatId.Value &&
+            m.FlatId    == flatId.Value &&
             m.IsActive  &&
             !m.IsDeleted, ct);
 
         if (exists)
-            return Result<Guid>.Fail("MEMBER.EXISTS", "This person is already a member of your flat.");
+            return Result<Guid>.Fail("MEMBER.EXISTS", "This person is already a member of that flat.");
 
         var membership = Membership.Create(
             user.Id,
             _currentUser.SocietyId.Value,
             "resident",
-            _currentUser.FlatId.Value,
+            flatId.Value,
             cmd.MemberType);
 
         _db.Memberships.Add(membership);
@@ -116,17 +132,20 @@ public sealed class RemoveFamilyMemberHandler : IRequestHandler<RemoveFamilyMemb
 
     public async Task<Result> Handle(RemoveFamilyMemberCommand cmd, CancellationToken ct)
     {
-        if (_currentUser.FlatId is null || _currentUser.SocietyId is null)
+        var isAdmin = _currentUser.IsInRole("admin");
+        if (_currentUser.SocietyId is null || (_currentUser.FlatId is null && !isAdmin))
             return Result.Fail("CONTEXT.REQUIRED", "Society and flat context are required.");
 
         if (_currentUser.UserId == cmd.MemberUserId)
             return Result.Fail("MEMBER.SELF_REMOVE", "Cannot remove yourself.");
 
+        // Residents remove people from their own flat; an admin can remove a resident of any flat.
         var membership = await _db.Memberships
             .FirstOrDefaultAsync(m =>
                 m.UserId    == cmd.MemberUserId &&
                 m.SocietyId == _currentUser.SocietyId.Value &&
-                m.FlatId    == _currentUser.FlatId.Value &&
+                m.Role      == "resident" &&
+                (isAdmin || m.FlatId == _currentUser.FlatId) &&
                 m.IsActive  &&
                 !m.IsDeleted, ct);
 
