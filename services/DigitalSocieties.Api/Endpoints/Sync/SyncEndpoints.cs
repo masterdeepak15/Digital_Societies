@@ -138,9 +138,17 @@ public static class SyncEndpoints
                     var flatKey = S("flat_number")?.Trim();
                     var flat = labels.FirstOrDefault(l => string.Equals(l.Value, flatKey, StringComparison.OrdinalIgnoreCase));
                     if (flat.Key == Guid.Empty || S("name") is not { Length: > 0 } name) continue;
+                    List<DigitalSocieties.Visitor.Application.Commands.VisitorCompanion>? companions = null;
+                    if (S("companions") is { Length: > 0 } companionsJson)
+                    {
+                        try { companions = JsonSerializer.Deserialize<List<DigitalSocieties.Visitor.Application.Commands.VisitorCompanion>>(companionsJson, new JsonSerializerOptions(JsonSerializerDefaults.Web)); }
+                        catch (JsonException) { /* a malformed list is dropped, the entry itself still goes through */ }
+                    }
                     var result = await mediator.Send(new DigitalSocieties.Visitor.Application.Commands.AddVisitorCommand(
                         cu.SocietyId.Value, flat.Key, name, S("phone"), S("purpose") ?? "Guest",
-                        S("vehicle_number"), S("photo_url")), ct);
+                        S("vehicle_number"), S("photo_url"), null,
+                        PhotoMediaId: S("photo_media_id"), IdType: S("id_type"), IdNumber: S("id_last4"),
+                        IdPhotoMediaId: S("id_photo_media_id"), VehicleType: S("vehicle_type"), Companions: companions), ct);
                     if (result.IsSuccess) applied++;
                 }
             }

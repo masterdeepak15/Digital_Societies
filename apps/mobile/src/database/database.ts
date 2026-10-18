@@ -1,6 +1,7 @@
 import { Database } from '@nozbe/watermelondb';
 import SQLiteAdapter from '@nozbe/watermelondb/adapters/sqlite';
 import { schema }   from './schema';
+import { migrations } from './migrations';
 import {
   UserModel, SocietyModel, MembershipModel,
   BillModel, VisitorModel, ComplaintModel, NoticeModel,
@@ -14,6 +15,7 @@ import {
  */
 const adapter = new SQLiteAdapter({
   schema,
+  migrations,
   // SQLCipher key injected at runtime from secure storage
   // See: src/services/auth/DatabaseKeyService.ts
   dbName: 'digital_societies',

@@ -9,6 +9,7 @@ import { apiClient } from '../../services/api/apiClient';
 import { useAuthStore } from '../../store/authStore';
 import { Colors } from '../../theme/colors';
 import { Spacing } from '../../theme/spacing';
+import { MediaImage } from '../../ui/MediaImage';
 import { useHubUrl } from '../../config/useHubUrl';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -22,6 +23,9 @@ interface Visitor {
   purpose: string;
   status: VisitorStatus;
   vehicleNumber?: string;
+  vehicleType?: string;
+  photoMediaId?: string | null;
+  companions?: { name: string; phone?: string }[];
   createdAt: string;
   entryTime?: string;
   exitTime?: string;
@@ -143,11 +147,15 @@ export default function VisitorsScreen() {
   const renderItem = ({ item }: { item: Visitor }) => (
     <View style={styles.card}>
       <View style={styles.cardTop}>
+        {item.photoMediaId ? <MediaImage id={item.photoMediaId} size={64} style={{ marginRight: Spacing.sm }} /> : null}
         <View style={styles.cardInfo}>
-          <Text style={styles.name}>{item.visitorName}</Text>
+          <Text style={styles.name}>{item.visitorName}{item.companions?.length ? ` +${item.companions.length}` : ''}</Text>
           <Text style={styles.meta}>{item.visitorPhone} · {item.purpose}</Text>
           {item.vehicleNumber ? (
-            <Text style={styles.meta}>🚗 {item.vehicleNumber}</Text>
+            <Text style={styles.meta}>🚗 {item.vehicleNumber}{item.vehicleType ? ` (${item.vehicleType})` : ''}</Text>
+          ) : null}
+          {item.companions?.length ? (
+            <Text style={styles.meta}>With: {item.companions.map((c) => c.name).join(', ')}</Text>
           ) : null}
           <Text style={styles.time}>
             {new Date(item.createdAt).toLocaleTimeString('en-IN', {

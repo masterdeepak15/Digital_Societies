@@ -2,7 +2,7 @@ import { appSchema, tableSchema } from '@nozbe/watermelondb';
 
 /** SQLite schema — version-controlled; migrations below. */
 export const schema = appSchema({
-  version: 1,
+  version: 2,
   tables: [
     tableSchema({ name: 'users', columns: [
       { name: 'server_id',    type: 'string', isIndexed: true },
@@ -54,6 +54,14 @@ export const schema = appSchema({
       { name: 'entry_time',     type: 'number' },
       { name: 'exit_time',      type: 'number', isOptional: true },
       { name: 'approved_at',    type: 'number', isOptional: true },
+      { name: 'photo_uri',          type: 'string', isOptional: true },
+      { name: 'photo_media_id',     type: 'string', isOptional: true },
+      { name: 'id_type',            type: 'string', isOptional: true },
+      { name: 'id_last4',           type: 'string', isOptional: true },
+      { name: 'id_photo_uri',       type: 'string', isOptional: true },
+      { name: 'id_photo_media_id',  type: 'string', isOptional: true },
+      { name: 'vehicle_type',       type: 'string', isOptional: true },
+      { name: 'companions',         type: 'string', isOptional: true },
     ]}),
     tableSchema({ name: 'complaints', columns: [
       { name: 'server_id',   type: 'string', isOptional: true },

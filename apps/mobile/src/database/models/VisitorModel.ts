@@ -13,6 +13,15 @@ export default class VisitorModel extends Model {
   @field('status')        status!:      'pending' | 'approved' | 'rejected' | 'exited';
   @field('vehicle_number') vehicleNumber!: string | null;
   @field('photo_url')     photoUrl!:    string | null;
+  // Gate details. Pictures are taken offline as local files (…Uri) and uploaded on sync, which fills the …MediaId.
+  @field('photo_uri')         photoUri!:        string | null;
+  @field('photo_media_id')    photoMediaId!:    string | null;
+  @field('id_type')           idType!:          string | null;
+  @field('id_last4')          idLast4!:         string | null;   // the full ID number is never kept on the phone
+  @field('id_photo_uri')      idPhotoUri!:      string | null;
+  @field('id_photo_media_id') idPhotoMediaId!:  string | null;
+  @field('vehicle_type')      vehicleType!:     string | null;
+  @field('companions')        companions!:      string | null;   // JSON: [{ name, phone? }]
   @field('is_synced')     isSynced!:    boolean;
   @date('entry_time')     entryTime!:   Date;
   @date('exit_time')      exitTime!:    Date | null;

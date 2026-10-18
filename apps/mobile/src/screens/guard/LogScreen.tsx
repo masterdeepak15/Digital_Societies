@@ -3,6 +3,7 @@ import { View, Text } from 'react-native';
 import QueryList, { listStyles as s } from '../shared/QueryList';
 import { toVisitorRow, type VisitorRow } from '../shared/opsModel';
 import { apiFetch } from '../../utils/api';
+import { MediaImage } from '../../ui/MediaImage';
 import { Colors } from '../../theme/colors';
 
 const STATUS_COLOR: Record<string, string> = {
@@ -17,13 +18,16 @@ export const fetchVisitorRows = async (): Promise<VisitorRow[]> => {
 export function VisitorCard({ v }: { v: VisitorRow }) {
   const color = STATUS_COLOR[v.status] ?? Colors.textSecondary;
   return (
-    <View style={s.card}>
-      <View style={s.row}>
-        <Text style={s.primary}>{v.name}</Text>
-        <Text style={[s.pill, { color, backgroundColor: color + '22' }]}>{v.status}</Text>
+    <View style={[s.card, { flexDirection: 'row', gap: 12 }]}>
+      {v.photoMediaId ? <MediaImage id={v.photoMediaId} size={56} /> : null}
+      <View style={{ flex: 1, gap: 4 }}>
+        <View style={s.row}>
+          <Text style={s.primary}>{v.name}{v.people > 1 ? ` +${v.people - 1}` : ''}</Text>
+          <Text style={[s.pill, { color, backgroundColor: color + '22' }]}>{v.status}</Text>
+        </View>
+        <Text style={s.secondary}>To {v.flat} · {v.purpose}{v.vehicle ? ` · ${v.vehicle}` : ''}</Text>
+        {!!v.time && <Text style={s.secondary}>{v.time}</Text>}
       </View>
-      <Text style={s.secondary}>To {v.flat} · {v.purpose}</Text>
-      {!!v.time && <Text style={s.secondary}>{v.time}</Text>}
     </View>
   );
 }

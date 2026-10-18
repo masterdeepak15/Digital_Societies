@@ -15,6 +15,13 @@ describe('toVisitorRow', () => {
     const r = toVisitorRow({ id: 'v1', visitorName: 'Ravi', visitorPhone: '+9198', purpose: 'Delivery', status: 'Entered', hostFlatDisplay: 'A-101', entryTime: '2026-10-17T16:08:46+00:00' });
     expect(r).toMatchObject({ id: 'v1', name: 'Ravi', flat: 'A-101', purpose: 'Delivery', status: 'Entered' });
   });
+  it('carries the picture id, vehicle and people count', () => {
+    const r = toVisitorRow({ id: 'v3', visitorName: 'A', purpose: 'Guest', status: 'Pending', photoMediaId: 'abc', vehicleNumber: 'MH12AB1234', vehicleType: 'Car', companions: [{ name: 'B' }, { name: 'C' }] });
+    expect(r).toMatchObject({ photoMediaId: 'abc', vehicle: 'MH12AB1234 (Car)', people: 3 });
+  });
+  it('counts a lone visitor as one person and omits the vehicle', () => {
+    expect(toVisitorRow({ id: 'v4', visitorName: 'A', purpose: 'Guest', status: 'Pending' })).toMatchObject({ people: 1, vehicle: '', photoMediaId: null });
+  });
   it('falls back to a dash when the flat is unknown', () => {
     expect(toVisitorRow({ id: 'v2', visitorName: 'X', purpose: 'Guest', status: 'Pending' }).flat).toBe('—');
   });

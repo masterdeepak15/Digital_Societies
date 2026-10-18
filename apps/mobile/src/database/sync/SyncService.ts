@@ -2,6 +2,7 @@ import { synchronize } from '@nozbe/watermelondb/sync';
 import { database }    from '../database';
 import { apiClient }   from '../../services/api/apiClient';
 import NetInfo         from '@react-native-community/netinfo';
+import { uploadImage } from '../../services/media/mediaService';
 
 /**
  * Pull-based WatermelonDB ↔ server sync.
@@ -33,8 +34,18 @@ export class SyncService {
 
         // Push: send locally-created records (offline writes) to server
         pushChanges: async ({ changes, lastPulledAt }) => {
-          const created: Array<{ id: string }> = (changes as any).visitors?.created ?? [];
-          const { data } = await apiClient.post('/sync/push', { changes, lastPulledAt });
+          const created: Array<Record<string, any>> = (changes as any).visitors?.created ?? [];
+          // Pictures taken at the gate (maybe offline) are uploaded first; the server then only gets their ids.
+          // If an upload fails the whole push fails, so the entry stays queued and is retried later.
+          const withPictures = [];
+          for (const rec of created) {
+            const next = { ...rec };
+            if (rec.photo_uri && !rec.photo_media_id) next.photo_media_id = (await uploadImage(rec.photo_uri)).id;
+            if (rec.id_photo_uri && !rec.id_photo_media_id) next.id_photo_media_id = (await uploadImage(rec.id_photo_uri)).id;
+            withPictures.push(next);
+          }
+          const payload = { ...(changes as any), visitors: { ...(changes as any).visitors, created: withPictures } };
+          const { data } = await apiClient.post('/sync/push', { changes: payload, lastPulledAt });
           // The server keeps its own copy under a new id and the next pull brings it back, so once every
           // offline visitor is applied the local stand-ins are removed (otherwise the log shows them twice).
           if (created.length > 0 && data?.applied === created.length) pushedVisitorIds = created.map((r) => r.id);
