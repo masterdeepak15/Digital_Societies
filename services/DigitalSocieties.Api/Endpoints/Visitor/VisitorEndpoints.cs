@@ -24,13 +24,20 @@ public static class VisitorEndpoints
         // Body: { "societyId":"...", "flatId":"...", "visitorName":"...",
         //         "visitorPhone":"...", "purpose":"Guest", "vehicleNumber":"MH12AB1234" }
         group.MapPost("/", async (
-            AddVisitorCommand cmd,
+            AddVisitorCommand body,
             IMediator mediator,
+            ICurrentUser currentUser,
+            IFlatQueryService flats,
             CancellationToken ct) =>
         {
+            if (currentUser.SocietyId is null) return Results.BadRequest("Society context required.");
+            // The society comes from the session, and the flat must belong to it.
+            var labels = await flats.GetFlatLabelsAsync(currentUser.SocietyId.Value, ct);
+            if (!labels.ContainsKey(body.FlatId)) return Results.BadRequest("Unknown flat for this society.");
+            var cmd = body with { SocietyId = currentUser.SocietyId.Value };
             var result = await mediator.Send(cmd, ct);
             return result.IsSuccess
-                ? Results.Created($"/api/v1/visitors/{result.Value}", new { visitorId = result.Value })
+                ? Results.Created($"/api/v1/visitors/{result.Value!.VisitorId}", new { visitorId = result.Value.VisitorId })
                 : Results.BadRequest(result.Error);
         })
         .RequireAuthorization("GuardOrAdmin")
