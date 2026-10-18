@@ -1,0 +1,32 @@
+# Demo stack for trying the apps on a real phone: API + Postgres + Redis + MinIO + Mailpit.
+# Sign-in codes land in Mailpit (http://localhost:8025). Demo data is seeded on first start (Development mode).
+# Usage: docker compose -p dsdemo -f docker-compose.yml -f docker-compose.demo.yml --env-file <your .env> up -d --build api mailpit
+name: digital-societies-demo
+
+services:
+  api:
+    environment:
+      ASPNETCORE_ENVIRONMENT:           Development
+      Notification__Email__Host:        mailpit
+      Notification__Email__Port:        "1025"
+      Notification__Email__Security:    None
+      Notification__Email__FromAddress: no-reply@digitalsocieties.local
+      # Seed once with DEMO_ENABLED=true, then restart with it off: demo mode gives any caller an admin token.
+      Demo__Enabled:                    ${DEMO_ENABLED:-false}
+      Calling__Provider:                JitsiMeet
+      Calling__Jitsi__ServerUrl:        https://meet.jit.si
+      Calling__Jitsi__AppSecret:        ${JITSI_APP_SECRET}
+    ports:
+      - "8080:8080"
+    # No MinIO in the demo (photo uploads are off); keep the database, cache and mail catcher.
+    depends_on: !override
+      postgres: { condition: service_healthy }
+      redis:    { condition: service_healthy }
+      mailpit:  { condition: service_started }
+
+  mailpit:
+    image: axllent/mailpit:latest
+    restart: unless-stopped
+    ports:
+      - "8025:8025"
+    networks: [ds-net]

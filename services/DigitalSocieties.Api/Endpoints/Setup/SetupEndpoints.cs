@@ -51,8 +51,12 @@ public static class SetupEndpoints
     private static async Task<IResult> ActivateDemoMode(
         DataSeeder seeder,
         IMediator  mediator,
+        IConfiguration config,
         CancellationToken ct)
     {
+        // Demo mode hands out an admin token to any caller, so it is off unless Demo:Enabled is set.
+        if (!config.GetValue<bool>("Demo:Enabled")) return Results.NotFound();
+
         // SeedAsync is idempotent — safe to call multiple times
         var seeded = await seeder.SeedAsync(ct);
         if (!seeded.IsSuccess)
