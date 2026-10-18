@@ -37,6 +37,7 @@ using DigitalSocieties.Wallet.Infrastructure;
 using DigitalSocieties.Api.Endpoints.Wallet;
 using DigitalSocieties.Api.Endpoints.Setup;
 using DigitalSocieties.Api.Endpoints.Settings;
+using DigitalSocieties.Api.Endpoints.Sync;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
 using OpenTelemetry.Metrics;
@@ -269,6 +270,7 @@ try
     app.MapGroup("/api/v1/marketplace").MapMarketplaceEndpoints();
     app.MapGroup("/api/v1/wallet").MapWalletEndpoints();
     app.MapGroup("/api/v1/settings").MapSettingsEndpoints();
+    app.MapGroup("/api/v1/sync").MapSyncEndpoints();
 
     // MCP server tools registered via AddMcpModule() in services above.
     // HTTP SSE transport (MapMcp) requires ModelContextProtocol >= 0.2.0 — upgrade in P6.
