@@ -1,4 +1,4 @@
-﻿using MediatR;
+using MediatR;
 using Microsoft.EntityFrameworkCore;
 using DigitalSocieties.Shared.Contracts;
 using DigitalSocieties.Shared.Results;
@@ -37,7 +37,7 @@ public sealed record BookingDto(
     bool           CanReview);
 
 // ── Browse listings (resident) ─────────────────────────────────────────────
-public sealed record GetListingsQuery(string? Category, int Page, int PageSize)
+public sealed record GetListingsQuery(string? Category, int Page, int PageSize, bool IncludeInactive = false)
     : IRequest<Result<List<ListingDto>>>;
 
 public sealed class GetListingsHandler
@@ -53,7 +53,11 @@ public sealed class GetListingsHandler
             return Result<List<ListingDto>>.Fail("AUTH.REQUIRED", "Society context required.");
 
         var query = _db.ServiceListings
-            .AsNoTracking().Where(l => l.SocietyId == _cu.SocietyId.Value && l.IsActive && !l.IsDeleted);
+            .AsNoTracking().Where(l => l.SocietyId == _cu.SocietyId.Value && !l.IsDeleted);
+
+        // Switched-off listings are for admins to manage; residents only ever see active ones.
+        if (!(q.IncludeInactive && _cu.IsInRole("admin")))
+            query = query.Where(l => l.IsActive);
 
         if (!string.IsNullOrWhiteSpace(q.Category) &&
             Enum.TryParse<ServiceCategory>(q.Category, true, out var cat))

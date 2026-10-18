@@ -27,6 +27,22 @@ public static class MemberEndpoints
             return result.IsSuccess ? Results.Ok(result.Value) : Results.BadRequest(result.Error);
         }).RequireAuthorization();
 
+        // ── Admin: add anyone (resident, guard, staff, accountant, admin) ──
+        g.MapPost("/", async (IMediator mediator, AddSocietyMemberCommand cmd) =>
+        {
+            var result = await mediator.Send(cmd);
+            return result.IsSuccess
+                ? Results.Created($"/api/v1/members/{result.Value}", result.Value)
+                : Results.BadRequest(result.Error);
+        }).RequireAuthorization("AdminOnly");
+
+        // ── Admin: remove a person from the society ─────────────────────────
+        g.MapDelete("/{userId:guid}", async (IMediator mediator, Guid userId) =>
+        {
+            var result = await mediator.Send(new RemoveSocietyMemberCommand(userId));
+            return result.IsSuccess ? Results.NoContent() : Results.BadRequest(result.Error);
+        }).RequireAuthorization("AdminOnly");
+
         // ── Add family member ──────────────────────────────────────────────
         g.MapPost("/family", async (IMediator mediator, AddFamilyMemberCommand cmd) =>
         {

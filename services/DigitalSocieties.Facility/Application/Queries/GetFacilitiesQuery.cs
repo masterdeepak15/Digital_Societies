@@ -17,7 +17,9 @@ public sealed record FacilityDto(
     int     SlotDurationMinutes,
     string  OpenTime,
     string  CloseTime,
-    bool    IsActive);
+    bool    IsActive,
+    int     AdvanceBookingDays,
+    int     MaxBookingsPerFlat);
 
 public sealed record BookingDto(
     Guid   Id,
@@ -55,7 +57,8 @@ public sealed class GetFacilitiesHandler
             .OrderBy(f => f.Name)
             .Select(f => new FacilityDto(f.Id, f.Name, f.Description, f.ImageUrl,
                 f.CapacityPersons, f.SlotDurationMinutes,
-                f.OpenTime.ToString("HH:mm"), f.CloseTime.ToString("HH:mm"), f.IsActive))
+                f.OpenTime.ToString("HH:mm"), f.CloseTime.ToString("HH:mm"), f.IsActive,
+                f.AdvanceBookingDays, f.MaxBookingsPerFlat))
             .ToListAsync(ct);
 
         return Result<List<FacilityDto>>.Ok(items);

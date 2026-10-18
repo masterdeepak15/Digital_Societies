@@ -2,163 +2,145 @@
 
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Search, Plus, Users } from 'lucide-react'
+import { Search, Plus, Users, UserMinus } from 'lucide-react'
 import { toast } from 'sonner'
 import { api } from '@/lib/api'
-import { initialsOf, formatDate } from '@/lib/utils'
+import { getUser } from '@/lib/auth'
+import { initialsOf, formatDate, cn } from '@/lib/utils'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { Badge } from '@/components/ui/Badge'
+import { Button } from '@/components/ui/Button'
+import { Input } from '@/components/ui/Input'
+import { Modal, Field } from '@/components/ui/Modal'
 import { Table, Thead, Tbody, Th, Td, Tr } from '@/components/ui/Table'
 import { EmptyState } from '@/components/ui/EmptyState'
-import { cn } from '@/lib/utils'
-import { demo } from '@/lib/demo'
+import {
+  EMPTY_MEMBER_FORM, MEMBER_ROLES, RELATIONSHIPS, flatText, memberFormError, roleLabel, sortedFlats, toMemberPayload,
+  type MemberFormValues,
+} from '@/lib/memberForm'
 
-// ── Types — aligned with API MemberDto ────────────────────────────────────────
-// API GET /members → { items: MemberDto[], total, page, pageSize }
-// MemberDto: { userId, name, email, phone?, role, memberType, flatNumber, wing, joinedAt }
+// GET /members → [{ userId, name, email, phone?, role, memberType, flatNumber, wing, joinedAt }]
 interface Member {
-  userId:       string
-  name:         string
-  email?:       string
-  phone?:       string | null
-  role:         string
-  flatId?:      string
-  flatNumber?:  string
-  wing?:        string
-  memberType?:  string
-  joinedAt?:    string
-  isActive?:    boolean
-  avatarUrl?:   string
+  userId:      string
+  name:        string
+  email?:      string
+  phone?:      string | null
+  role:        string
+  flatNumber?: string
+  wing?:       string
+  memberType?: string
+  joinedAt?:   string
+  avatarUrl?:  string
 }
 
-interface MembersPage { items: Member[]; total: number; page: number; pageSize: number }
+interface MembersPage { items: Member[] }
 
-/** Compute a human-readable flat label from the API fields. */
-function flatLabel(m: Member): string {
-  if (!m.flatNumber) return '—'
-  return m.wing ? `${m.wing}-${m.flatNumber}` : m.flatNumber
-}
+type RoleFilter = 'all' | (typeof MEMBER_ROLES)[number]['value']
 
-type RoleFilter = 'all' | 'admin' | 'resident' | 'guard' | 'accountant'
+const selectClass =
+  'min-h-[40px] w-full rounded-lg border border-line bg-surface px-3 text-sm text-ink focus:outline-none focus:ring-2 focus:ring-saffron'
 
 export default function MembersPage() {
   const qc = useQueryClient()
-  const [search,    setSearch]    = useState('')
-  const [role,      setRole]      = useState<RoleFilter>('all')
-  const [showAdd,   setShowAdd]   = useState(false)
+  const me = getUser()
+  const [search,  setSearch]  = useState('')
+  const [role,    setRole]    = useState<RoleFilter>('all')
+  const [showAdd, setShowAdd] = useState(false)
 
-  // API: GET /members?role=&wing=&page=&pageSize= — `search` is NOT a server filter.
-  const { data } = useQuery<MembersPage>({
+  const { data, isLoading } = useQuery<MembersPage>({
     queryKey: ['members', role],
-    queryFn:  () => api.get(role === 'all' ? '/members' : `/members?role=${role}`),
+    queryFn:  () => api.get(role === 'all' ? '/members?pageSize=200' : `/members?role=${role}&pageSize=200`),
   })
-  const members: Member[] = data?.items ?? demo(DEMO_MEMBERS)
+  const members: Member[] = data?.items ?? []
 
+  const remove = useMutation({
+    mutationFn: (userId: string) => api.delete(`/members/${userId}`),
+    onSuccess: () => { toast.success('Removed from the society'); qc.invalidateQueries({ queryKey: ['members'] }) },
+    onError:   (e: Error) => toast.error(e.message),
+  })
+
+  const q = search.toLowerCase()
   const filtered = members.filter(m =>
-    (role === 'all' || m.role === role) &&
-    (search === '' || m.name.toLowerCase().includes(search.toLowerCase()) ||
-     (m.email ?? '').toLowerCase().includes(search.toLowerCase()) ||
-     (m.phone ?? '').includes(search) || (m.flatNumber ?? '').toLowerCase().includes(search.toLowerCase()))
-  )
+    search === '' ||
+    m.name.toLowerCase().includes(q) ||
+    (m.email ?? '').toLowerCase().includes(q) ||
+    (m.phone ?? '').includes(search) ||
+    flatText(m.wing, m.flatNumber).toLowerCase().includes(q))
 
   return (
     <div className="space-y-5">
       <PageHeader
         title="Members"
-        description="Residents, staff, and all society members"
-        action={
-          <button
-            onClick={() => setShowAdd(true)}
-            className="flex items-center gap-1.5 bg-brand-600 hover:bg-brand-700 text-white px-4 py-2 rounded-lg text-sm font-medium"
-          >
-            <Plus className="w-4 h-4" /> Add Member
-          </button>
-        }
+        description="Residents, guards, staff and the management"
+        action={<Button onClick={() => setShowAdd(true)}><Plus className="h-4 w-4" /> Add person</Button>}
       />
 
-      {/* Filters */}
-      <div className="bg-white border border-gray-100 rounded-xl p-4 shadow-sm flex gap-3 flex-wrap">
-        <div className="relative flex-1 min-w-48">
-          <Search className="absolute left-3 top-2.5 w-4 h-4 text-gray-400" />
-          <input
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            placeholder="Search name, email, phone, flat…"
-            className="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500"
-          />
+      <div className="flex flex-wrap gap-3 rounded-xl border border-line bg-surface p-4">
+        <div className="relative min-w-48 flex-1">
+          <Search className="absolute left-3 top-3 h-4 w-4 text-mute" aria-hidden="true" />
+          <Input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search name, email, phone, flat" className="pl-9" aria-label="Search members" />
         </div>
-        <div className="flex gap-1 bg-gray-100 p-1 rounded-lg">
-          {(['all', 'resident', 'admin', 'guard', 'accountant'] as RoleFilter[]).map(r => (
-            <button
-              key={r}
-              onClick={() => setRole(r)}
-              className={cn(
-                'px-3 py-1.5 rounded-md text-sm font-medium capitalize transition',
-                role === r ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'
-              )}
-            >
-              {r}
+        <div className="flex flex-wrap gap-1 rounded-lg bg-surface-alt p-1">
+          {[{ value: 'all', label: 'All' }, ...MEMBER_ROLES].map(r => (
+            <button key={r.value} onClick={() => setRole(r.value as RoleFilter)}
+              className={cn('rounded-md px-3 py-1.5 text-sm font-medium transition',
+                role === r.value ? 'bg-surface text-ink shadow-sm' : 'text-mute hover:text-ink')}>
+              {r.label}
             </button>
           ))}
         </div>
       </div>
 
-      {/* Add Member modal */}
       {showAdd && (
-        <AddMemberModal
+        <AddPersonModal
           onClose={() => setShowAdd(false)}
           onCreated={() => { qc.invalidateQueries({ queryKey: ['members'] }); setShowAdd(false) }}
         />
       )}
 
-      {/* Table */}
-      <div className="bg-white border border-gray-100 rounded-xl shadow-sm overflow-hidden">
-        {filtered.length === 0 ? (
-          <EmptyState icon={Users} title="No members found" description="Try adjusting your search or filter." />
+      <div className="overflow-hidden rounded-xl border border-line bg-surface">
+        {filtered.length === 0 && !isLoading ? (
+          <EmptyState icon={Users} title="No one here yet" description="Add residents, guards and staff with the Add person button." />
         ) : (
           <Table>
             <Thead>
               <Tr>
-                <Th>Member</Th>
-                <Th>Contact</Th>
+                <Th>Person</Th>
+                <Th>Phone</Th>
                 <Th>Flat</Th>
                 <Th>Role</Th>
                 <Th>Type</Th>
                 <Th>Joined</Th>
-                <Th>Status</Th>
+                <Th><span className="sr-only">Actions</span></Th>
               </Tr>
             </Thead>
             <Tbody>
               {filtered.map(m => (
-                <Tr key={m.userId}>
+                <Tr key={`${m.userId}-${m.role}-${m.flatNumber ?? ''}`}>
                   <Td>
                     <div className="flex items-center gap-3">
-                      {m.avatarUrl ? (
-                        <img src={m.avatarUrl} alt={m.name} className="w-8 h-8 rounded-full object-cover" />
-                      ) : (
-                        <div className="w-8 h-8 rounded-full bg-brand-100 text-brand-700 flex items-center justify-center text-xs font-bold">
-                          {initialsOf(m.name)}
-                        </div>
-                      )}
+                      <div className="flex h-8 w-8 items-center justify-center rounded-full bg-brand-100 text-xs font-bold text-brand-700">
+                        {initialsOf(m.name)}
+                      </div>
                       <div>
-                        <p className="font-medium text-gray-800 text-sm">{m.name}</p>
-                        {m.email && <p className="text-xs text-gray-400">{m.email}</p>}
+                        <p className="text-sm font-medium text-ink">{m.name}</p>
+                        {m.email && <p className="text-xs text-mute">{m.email}</p>}
                       </div>
                     </div>
                   </Td>
                   <Td>{m.phone ?? '—'}</Td>
-                  <Td>{flatLabel(m)}</Td>
-                  <Td><Badge label={m.role} /></Td>
-                  <Td className="capitalize text-gray-500 text-sm">{m.memberType}</Td>
+                  <Td>{flatText(m.wing, m.flatNumber)}</Td>
+                  <Td><Badge label={roleLabel(m.role)} /></Td>
+                  <Td className="text-sm capitalize text-mute">{m.memberType ?? '—'}</Td>
                   <Td>{formatDate(m.joinedAt ?? '')}</Td>
                   <Td>
-                    <span className={cn(
-                      'inline-flex items-center gap-1 text-xs font-medium',
-                      m.isActive ? 'text-green-600' : 'text-gray-400'
-                    )}>
-                      <span className={cn('w-1.5 h-1.5 rounded-full', m.isActive ? 'bg-green-500' : 'bg-gray-300')} />
-                      {m.isActive ? 'Active' : 'Inactive'}
-                    </span>
+                    {m.userId !== me?.userId && (
+                      <Button variant="ghost" className="min-h-[32px] px-2 text-xs text-bad"
+                        aria-label={`Remove ${m.name}`}
+                        onClick={() => { if (confirm(`Remove ${m.name} from the society? They lose access to the app.`)) remove.mutate(m.userId) }}>
+                        <UserMinus className="h-4 w-4" />
+                      </Button>
+                    )}
                   </Td>
                 </Tr>
               ))}
@@ -170,114 +152,59 @@ export default function MembersPage() {
   )
 }
 
-// ── Add Member Modal ──────────────────────────────────────────────────────────
-// API: POST /members/family — { email, name, memberType, phone? }
-// An admin names the flat (wing + number); the API ignores those fields for residents.
-interface AddMemberForm {
-  name:         string
-  email:        string
-  phone:        string
-  wing:         string
-  flatNumber:   string
-  relationship: 'Owner' | 'Tenant' | 'Family'
-}
+function AddPersonModal({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
+  const [v, setV] = useState<MemberFormValues>(EMPTY_MEMBER_FORM)
+  const [showError, setShowError] = useState(false)
+  const error = memberFormError(v)
+  const set = (k: keyof MemberFormValues) => (e: { target: { value: string } }) => setV({ ...v, [k]: e.target.value })
+  const needsFlat = MEMBER_ROLES.find(r => r.value === v.role)?.needsFlat ?? false
 
-function AddMemberModal({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
-  const [form, setForm] = useState<AddMemberForm>({
-    name: '', email: '', phone: '', wing: '', flatNumber: '', relationship: 'Owner',
+  const { data: labels } = useQuery<Record<string, string>>({
+    queryKey: ['flat-labels'],
+    queryFn:  () => api.get('/billing/flat-labels'),
   })
-  const set = <K extends keyof AddMemberForm>(k: K, v: AddMemberForm[K]) =>
-    setForm(prev => ({ ...prev, [k]: v }))
+  const flats = sortedFlats(labels ?? {})
 
-  const mutation = useMutation({
-    mutationFn: () => api.post('/members/family', {
-      email:      form.email.trim(),
-      name:       form.name.trim(),
-      memberType: form.relationship.toLowerCase(),
-      phone:      form.phone.trim() || null,
-      wing:       form.wing.trim() || null,
-      flatNumber: form.flatNumber.trim(),
-    }),
-    onSuccess:  () => { toast.success('Member added successfully'); onCreated() },
-    onError:    (e: Error) => toast.error(e.message),
+  const save = useMutation({
+    mutationFn: () => api.post('/members', toMemberPayload(v)),
+    onSuccess: () => { toast.success(`${roleLabel(v.role)} added. They can sign in with their email.`); onCreated() },
+    onError:   (e: Error) => toast.error(e.message),
   })
-
-  const inputClass = 'w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500'
-  const isValid = form.name.trim().length >= 2 && form.flatNumber.trim().length > 0 && /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(form.email.trim())
 
   return (
-    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 space-y-4">
-        <h2 className="font-semibold text-lg">Add Member</h2>
-
-        <div>
-          <label className="block text-sm font-medium mb-1">Full Name</label>
-          <input value={form.name} onChange={e => set('name', e.target.value)}
-            placeholder="Rajesh Sharma" className={inputClass} />
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium mb-1">Email</label>
-          <input value={form.email} onChange={e => set('email', e.target.value)}
-            placeholder="name@example.com" type="email" autoCapitalize="none" className={inputClass} />
-          <p className="text-xs text-gray-400 mt-0.5">They sign in with this address.</p>
-        </div>
-
-        <div className="flex gap-3">
-          <div className="w-24">
-            <label className="block text-sm font-medium mb-1">Wing</label>
-            <input value={form.wing} onChange={e => set('wing', e.target.value)} placeholder="A" className={inputClass} />
-          </div>
-          <div className="flex-1">
-            <label className="block text-sm font-medium mb-1">Flat number</label>
-            <input value={form.flatNumber} onChange={e => set('flatNumber', e.target.value)} placeholder="101" className={inputClass} />
-          </div>
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium mb-1">Phone <span className="text-gray-400 font-normal">— optional</span></label>
-          <input value={form.phone} onChange={e => set('phone', e.target.value)}
-            placeholder="+919876543210" type="tel" className={inputClass} />
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium mb-1">Relationship</label>
-          <select value={form.relationship} onChange={e => set('relationship', e.target.value as AddMemberForm['relationship'])}
-            className={inputClass}>
-            <option value="Owner">Owner</option>
-            <option value="Tenant">Tenant</option>
-            <option value="Family">Family member</option>
+    <Modal title="Add person" onClose={onClose}>
+      <form className="space-y-3" onSubmit={e => { e.preventDefault(); if (error) setShowError(true); else save.mutate() }}>
+        <Field label="Role">
+          <select className={selectClass} value={v.role} onChange={set('role')}>
+            {MEMBER_ROLES.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
           </select>
+        </Field>
+        <Field label="Full name"><Input value={v.name} onChange={set('name')} placeholder="Ramu Singh" maxLength={200} autoFocus /></Field>
+        <Field label="Email" hint="They sign in with a code sent to this address.">
+          <Input type="email" autoCapitalize="none" value={v.email} onChange={set('email')} placeholder="name@example.com" />
+        </Field>
+        <Field label="Phone (optional)"><Input type="tel" value={v.phone} onChange={set('phone')} placeholder="9975001173" /></Field>
+        {needsFlat && (
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Flat">
+              <select className={selectClass} value={v.flatId} onChange={set('flatId')}>
+                <option value="">Choose a flat</option>
+                {flats.map(f => <option key={f.id} value={f.id}>{f.label}</option>)}
+              </select>
+            </Field>
+            <Field label="Relationship">
+              <select className={selectClass} value={v.relationship} onChange={set('relationship')}>
+                {RELATIONSHIPS.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
+              </select>
+            </Field>
+          </div>
+        )}
+        {showError && error && <p role="alert" className="text-sm text-bad">{error}</p>}
+        <div className="flex justify-end gap-2 pt-2">
+          <Button variant="secondary" onClick={onClose}>Cancel</Button>
+          <Button type="submit" loading={save.isPending}>Add {roleLabel(v.role).toLowerCase()}</Button>
         </div>
-
-        <div className="flex gap-3 pt-1">
-          <button onClick={onClose} className="flex-1 border border-gray-300 py-2 rounded-lg text-sm font-medium hover:bg-gray-50">
-            Cancel
-          </button>
-          <button
-            onClick={() => mutation.mutate()}
-            disabled={mutation.isPending || !isValid}
-            className="flex-1 bg-brand-600 hover:bg-brand-700 text-white py-2 rounded-lg text-sm font-medium disabled:opacity-60"
-          >
-            {mutation.isPending ? 'Adding…' : 'Add Member'}
-          </button>
-        </div>
-      </div>
-    </div>
+      </form>
+    </Modal>
   )
 }
-
-// ── Demo data — shape matches API MemberDto ───────────────────────────────────
-// Optional UI fields (email, memberType, joinedAt, isActive) are shown when present.
-const DEMO_MEMBERS: Member[] = [
-  { userId: 'u1',  name: 'Rajesh Sharma',  phone: '+919999999999', email: 'rajesh@example.com', wing: 'A', flatNumber: '101', role: 'admin',      memberType: 'owner',  joinedAt: '2024-01-15', isActive: true  },
-  { userId: 'u2',  name: 'Priya Mehta',    phone: '+919999999998', wing: 'A', flatNumber: '102', role: 'resident', memberType: 'owner',  joinedAt: '2024-02-10', isActive: true  },
-  { userId: 'u3',  name: 'Suresh Iyer',    phone: '+919999999997', wing: 'A', flatNumber: '103', role: 'resident', memberType: 'tenant', joinedAt: '2024-03-01', isActive: true  },
-  { userId: 'u4',  name: 'Anita Desai',    phone: '+919888888881', wing: 'A', flatNumber: '104', role: 'resident', memberType: 'owner',  joinedAt: '2024-01-20', isActive: true  },
-  { userId: 'u5',  name: 'Vikram Nair',    phone: '+919888888882', wing: 'A', flatNumber: '105', role: 'resident', memberType: 'owner',  joinedAt: '2024-01-25', isActive: true  },
-  { userId: 'u6',  name: 'Sanjay Gupta',   phone: '+919777777771', role: 'guard',      memberType: 'staff',  joinedAt: '2024-01-05', isActive: true  },
-  { userId: 'u7',  name: 'Pooja Verma',    phone: '+919777777772', role: 'accountant', memberType: 'staff',  joinedAt: '2024-01-10', isActive: true  },
-  { userId: 'u8',  name: 'Meena Patel',    phone: '+919666666661', wing: 'B', flatNumber: '101', role: 'resident', memberType: 'owner',  joinedAt: '2024-04-01', isActive: true  },
-  { userId: 'u9',  name: 'Arvind Joshi',   phone: '+919666666662', wing: 'B', flatNumber: '102', role: 'resident', memberType: 'tenant', joinedAt: '2024-05-01', isActive: false },
-  { userId: 'u10', name: 'Kavitha Rao',    phone: '+919666666663', wing: 'B', flatNumber: '103', role: 'resident', memberType: 'owner',  joinedAt: '2024-04-15', isActive: true  },
-]

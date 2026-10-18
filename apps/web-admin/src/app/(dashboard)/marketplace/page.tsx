@@ -1,211 +1,197 @@
 'use client'
 
 import { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
-import { ShoppingBag, Search, AlertTriangle } from 'lucide-react'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { ShoppingBag, Search, Plus, Power, Phone } from 'lucide-react'
+import { toast } from 'sonner'
 import { api } from '@/lib/api'
-import { formatDate, cn } from '@/lib/utils'
+import { cn } from '@/lib/utils'
 import { PageHeader } from '@/components/ui/PageHeader'
 import { Badge } from '@/components/ui/Badge'
+import { Button } from '@/components/ui/Button'
+import { Input } from '@/components/ui/Input'
 import { EmptyState } from '@/components/ui/EmptyState'
-import { demo } from '@/lib/demo'
+import { Modal, Field } from '@/components/ui/Modal'
+import {
+  EMPTY_LISTING_FORM, RATE_UNITS, SERVICE_CATEGORIES, categoryLabel, listingFormError, rateUnitLabel, toListingPayload,
+  type ListingFormValues,
+} from '@/lib/listingForm'
 
-// ── Types — aligned with API ListingDto ───────────────────────────────────────
-// API: { id, providerName, title, category, price, rating, isActive }
-// Backend has no admin moderation endpoints (approve/reject/delete) yet —
-// the page is intentionally read-only until those endpoints land. See AUDIT-WEB-ADMIN.md.
+// GET /marketplace/listings?includeInactive=true → [{ id, providerName, phone, category, title, description,
+//   baseRateRupees, rateUnit, commissionPct, averageRating, reviewCount, isActive }]   (adapted: price, rating)
 interface Listing {
-  id:           string
-  title:        string
-  description?: string
-  price:        number
-  category:     string
-  isActive:     boolean
-  rating?:      number
-  providerName: string
-  // UI-only optional fields (kept so demo data still renders nicely)
-  postedBy?:    string
-  flatDisplay?: string
-  createdAt?:   string
-  reportCount?: number
-  status?:      'pending' | 'active' | 'sold' | 'rejected'
+  id:            string
+  providerName:  string
+  phone?:        string
+  category:      string
+  title:         string
+  description?:  string
+  price:         number
+  rateUnit?:     string
+  commissionPct?: number
+  rating?:       number
+  reviewCount?:  number
+  isActive:      boolean
 }
 
-interface ListingsPage { items: Listing[]; total: number; page: number; pageSize: number }
+interface ListingsPage { items: Listing[] }
 
-type Tab = 'listings' | 'reported'
-type CategoryFilter = 'all' | 'Cleaning' | 'Plumbing' | 'Electrical' | 'Painting' | 'Gardening' | 'Repairs' | 'Other'
-
-const CATEGORY_EMOJI: Record<string, string> = {
-  Cleaning:   '🧹',
-  Plumbing:   '🔧',
-  Electrical: '💡',
-  Painting:   '🎨',
-  Gardening:  '🌿',
-  Repairs:    '🛠️',
-  Other:      '🏷️',
-}
-
-const CATEGORY_COLOR: Record<string, string> = {
-  Cleaning:   'bg-blue-100 text-blue-700',
-  Plumbing:   'bg-purple-100 text-purple-700',
-  Electrical: 'bg-orange-100 text-orange-700',
-  Painting:   'bg-pink-100 text-pink-700',
-  Gardening:  'bg-green-100 text-green-700',
-  Repairs:    'bg-amber-100 text-amber-700',
-  Other:      'bg-gray-100 text-gray-700',
-}
+const selectClass =
+  'min-h-[40px] w-full rounded-lg border border-line bg-surface px-3 text-sm text-ink focus:outline-none focus:ring-2 focus:ring-saffron'
 
 export default function MarketplacePage() {
-  const [tab,      setTab]      = useState<Tab>('listings')
-  const [category, setCategory] = useState<CategoryFilter>('all')
+  const qc = useQueryClient()
+  const [category, setCategory] = useState('all')
   const [search,   setSearch]   = useState('')
+  const [adding,   setAdding]   = useState(false)
 
-  const { data } = useQuery<ListingsPage>({
-    queryKey: ['marketplace-listings', tab],
-    queryFn:  () => api.get('/marketplace/listings'),
+  const { data, isLoading } = useQuery<ListingsPage>({
+    queryKey: ['marketplace-listings'],
+    queryFn:  () => api.get('/marketplace/listings?includeInactive=true&pageSize=100'),
   })
-  const listings: Listing[] = data?.items ?? demo(DEMO_LISTINGS)
+  const listings: Listing[] = data?.items ?? []
 
-  // NOTE: backend has no admin moderation endpoints for listings yet.
-  // Approve / reject / delete buttons removed until PATCH/DELETE /marketplace/listings/{id}
-  // is implemented. See AUDIT-WEB-ADMIN.md for the planned API.
+  const activeMutation = useMutation({
+    mutationFn: (v: { id: string; isActive: boolean }) => api.put(`/marketplace/listings/${v.id}/active`, { isActive: v.isActive }),
+    onSuccess: (_d, v) => { toast.success(v.isActive ? 'Service switched on' : 'Service switched off'); qc.invalidateQueries({ queryKey: ['marketplace-listings'] }) },
+    onError:   (e: Error) => toast.error(e.message),
+  })
 
-  const displayed = listings.filter(l => {
-    const matchesTab      = tab === 'reported' ? (l.reportCount ?? 0) > 0 : true
-    const matchesCategory = category === 'all' || l.category === category
-    const matchesSearch   = search === '' ||
+  const displayed = listings.filter(l =>
+    (category === 'all' || l.category === category) &&
+    (search === '' ||
       l.title.toLowerCase().includes(search.toLowerCase()) ||
-      (l.providerName ?? l.postedBy ?? '').toLowerCase().includes(search.toLowerCase()) ||
-      (l.flatDisplay ?? '').toLowerCase().includes(search.toLowerCase())
-    return matchesTab && matchesCategory && matchesSearch
-  })
+      l.providerName.toLowerCase().includes(search.toLowerCase())))
 
-  const activeCount   = listings.filter(l => l.isActive).length
-  const inactiveCount = listings.filter(l => !l.isActive).length
-  const reportedCount = listings.filter(l => (l.reportCount ?? 0) > 0).length
+  const usedCategories = SERVICE_CATEGORIES.filter(c => listings.some(l => l.category === c.value))
 
   return (
     <div className="space-y-5">
       <PageHeader
         title="Marketplace"
-        description="Society classifieds — approve listings and moderate reports"
+        description="Trusted service providers your residents can book"
+        action={<Button onClick={() => setAdding(true)}><Plus className="h-4 w-4" /> Add service</Button>}
       />
 
-      {/* Stats */}
-      <div className="grid grid-cols-3 gap-4">
-        <div className="bg-white border border-gray-100 rounded-xl p-4 shadow-sm">
-          <p className="text-xs text-gray-500">Active Listings</p>
-          <p className="text-2xl font-bold text-gray-900 mt-1">{activeCount}</p>
-        </div>
-        <div className="bg-white border border-gray-100 rounded-xl p-4 shadow-sm">
-          <p className="text-xs text-gray-500">Inactive</p>
-          <p className="text-2xl font-bold text-gray-400 mt-1">{inactiveCount}</p>
-        </div>
-        <div className="bg-white border border-gray-100 rounded-xl p-4 shadow-sm">
-          <p className="text-xs text-gray-500">Reported</p>
-          <p className={`text-2xl font-bold mt-1 ${reportedCount > 0 ? 'text-red-500' : 'text-gray-900'}`}>{reportedCount}</p>
-        </div>
+      <div className="grid grid-cols-2 gap-4">
+        <Stat label="Active services" value={listings.filter(l => l.isActive).length} />
+        <Stat label="Switched off" value={listings.filter(l => !l.isActive).length} />
       </div>
 
-      {/* Tab nav */}
-      <div className="flex gap-1 bg-gray-100 p-1 rounded-xl w-fit">
-        {(['listings', 'reported'] as Tab[]).map(t => (
-          <button key={t} onClick={() => setTab(t)}
-            className={cn('px-4 py-2 rounded-lg text-sm font-medium capitalize transition',
-              tab === t ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700')}>
-            {t === 'reported' ? `Reported${reportedCount > 0 ? ` (${reportedCount})` : ''}` : 'All Listings'}
-          </button>
-        ))}
-      </div>
-
-      {/* Filters */}
-      <div className="bg-white border border-gray-100 rounded-xl p-3 shadow-sm flex gap-3 flex-wrap">
-        <div className="relative flex-1 min-w-40">
-          <Search className="absolute left-3 top-2.5 w-4 h-4 text-gray-400" />
-          <input value={search} onChange={e => setSearch(e.target.value)}
-            placeholder="Search title, resident, flat…"
-            className="w-full pl-9 pr-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500" />
+      <div className="flex flex-wrap gap-3 rounded-xl border border-line bg-surface p-3">
+        <div className="relative min-w-40 flex-1">
+          <Search className="absolute left-3 top-3 h-4 w-4 text-mute" aria-hidden="true" />
+          <Input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search service or provider" className="pl-9" aria-label="Search services" />
         </div>
-        <div className="flex gap-1 bg-gray-100 p-1 rounded-lg flex-wrap">
-          {(['all', 'Cleaning', 'Plumbing', 'Electrical', 'Painting', 'Gardening', 'Repairs', 'Other'] as CategoryFilter[]).map(c => (
-            <button key={c} onClick={() => setCategory(c)}
-              className={cn('px-3 py-1.5 rounded-md text-xs font-medium transition',
-                category === c ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700')}>
-              {c === 'all' ? 'All' : `${CATEGORY_EMOJI[c] ?? ''} ${c}`}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Listings */}
-      {displayed.length === 0
-        ? <div className="bg-white border border-gray-100 rounded-xl shadow-sm">
-            <EmptyState icon={ShoppingBag} title="No listings match this filter" />
-          </div>
-        : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {displayed.map(listing => (
-              <div key={listing.id} className={cn(
-                'bg-white border rounded-xl shadow-sm overflow-hidden',
-                (listing.reportCount ?? 0) > 0 ? 'border-red-200' : 'border-gray-100'
-              )}>
-                {/* Image placeholder */}
-                <div className="h-36 bg-gray-100 flex items-center justify-center text-4xl">
-                  {CATEGORY_EMOJI[listing.category]}
-                </div>
-
-                <div className="p-4 space-y-3">
-                  <div className="flex items-start justify-between gap-2">
-                    <h3 className="font-semibold text-gray-800 leading-tight">{listing.title}</h3>
-                    {(listing.reportCount ?? 0) > 0 && (
-                      <span className="flex items-center gap-1 text-xs text-red-600 bg-red-50 border border-red-200 px-2 py-0.5 rounded-full shrink-0">
-                        <AlertTriangle className="w-3 h-3" /> {listing.reportCount ?? 0}
-                      </span>
-                    )}
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    <span className={cn('text-xs px-2 py-0.5 rounded-full font-medium', CATEGORY_COLOR[listing.category] ?? 'bg-gray-100 text-gray-700')}>
-                      {listing.category}
-                    </span>
-                    <Badge label={listing.isActive ? 'Active' : 'Inactive'} />
-                    {listing.rating != null && (
-                      <span className="text-xs text-amber-600">★ {listing.rating.toFixed(1)}</span>
-                    )}
-                  </div>
-
-                  {listing.description && <p className="text-sm text-gray-500 line-clamp-2">{listing.description}</p>}
-
-                  {listing.price > 0
-                    ? <p className="text-lg font-bold text-gray-900">₹{listing.price.toLocaleString('en-IN')}</p>
-                    : <p className="text-sm font-medium text-green-600">Free</p>
-                  }
-
-                  <div className="text-xs text-gray-400">
-                    {listing.providerName ?? listing.postedBy}
-                    {listing.flatDisplay ? ` · ${listing.flatDisplay}` : ''}
-                    {listing.createdAt   ? ` · ${formatDate(listing.createdAt)}` : ''}
-                  </div>
-
-                  {/* Admin moderation API for marketplace listings is not yet implemented. */}
-                  <p className="text-xs text-gray-300 italic pt-1">Read-only — moderation API pending</p>
-                </div>
-              </div>
+        {usedCategories.length > 1 && (
+          <div className="flex flex-wrap gap-1 rounded-lg bg-surface-alt p-1">
+            {[{ value: 'all', label: 'All' }, ...usedCategories].map(c => (
+              <button key={c.value} onClick={() => setCategory(c.value)}
+                className={cn('rounded-md px-3 py-1.5 text-xs font-medium transition',
+                  category === c.value ? 'bg-surface text-ink shadow-sm' : 'text-mute hover:text-ink')}>
+                {c.label}
+              </button>
             ))}
           </div>
-        )
-      }
+        )}
+      </div>
+
+      {displayed.length === 0 && !isLoading
+        ? <div className="rounded-xl border border-line bg-surface">
+            <EmptyState
+              icon={ShoppingBag}
+              title={listings.length === 0 ? 'No services yet' : 'No services match this filter'}
+              description={listings.length === 0 ? 'Add the plumbers, electricians and other helpers your society trusts.' : undefined}
+            />
+          </div>
+        : <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+            {displayed.map(l => (
+              <div key={l.id} className={cn('space-y-3 rounded-xl border border-line bg-surface p-4', !l.isActive && 'opacity-70')}>
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <h3 className="font-semibold leading-tight text-ink">{l.title}</h3>
+                    <p className="text-sm text-mute">{l.providerName}</p>
+                  </div>
+                  <Badge label={l.isActive ? 'Active' : 'Switched off'} />
+                </div>
+                <p className="text-xs font-medium text-mute">{categoryLabel(l.category)}</p>
+                {l.description && <p className="line-clamp-2 text-sm text-mute">{l.description}</p>}
+                <p className="text-lg font-bold text-ink">
+                  ₹{l.price.toLocaleString('en-IN')} <span className="text-sm font-normal text-mute">{rateUnitLabel(l.rateUnit ?? '')}</span>
+                </p>
+                <div className="flex items-center justify-between text-xs text-mute">
+                  {l.phone ? <span className="flex items-center gap-1"><Phone className="h-3 w-3" />{l.phone}</span> : <span />}
+                  {l.reviewCount ? <span>★ {(l.rating ?? 0).toFixed(1)} ({l.reviewCount})</span> : <span>No reviews yet</span>}
+                </div>
+                <Button variant={l.isActive ? 'danger' : 'secondary'} className="min-h-[32px] px-3 text-xs"
+                  loading={activeMutation.isPending && activeMutation.variables?.id === l.id}
+                  onClick={() => activeMutation.mutate({ id: l.id, isActive: !l.isActive })}>
+                  <Power className="h-3.5 w-3.5" /> {l.isActive ? 'Switch off' : 'Switch on'}
+                </Button>
+              </div>
+            ))}
+          </div>}
+
+      {adding && (
+        <AddServiceModal
+          onClose={() => setAdding(false)}
+          onSaved={() => { setAdding(false); qc.invalidateQueries({ queryKey: ['marketplace-listings'] }) }}
+        />
+      )}
     </div>
   )
 }
 
-// ── Demo data ─────────────────────────────────────────────────────────────────
-const DEMO_LISTINGS: Listing[] = [
-  { id:'1', title:'Quick Fix — Tap & pipe repairs', description:'Same-day fixes for leaks and clogs', price:250,   category:'Plumbing',   isActive:true,  rating:4.6, providerName:'Quick Fix',     flatDisplay:'A-101', createdAt:'2026-04-20', reportCount:0 },
-  { id:'2', title:'BrightSpark Electrical',         description:'Wiring, fan installation, switch repairs', price:300, category:'Electrical', isActive:true, rating:4.4, providerName:'BrightSpark',    flatDisplay:'A-102', createdAt:'2026-04-22', reportCount:1 },
-  { id:'3', title:'Maths Home Tutor (Class 9-10)',  description:'Experienced maths tutor. Online/offline. Weekends available.', price:2000, category:'Other', isActive:true, rating:4.8, providerName:'Anita Desai', flatDisplay:'A-104', createdAt:'2026-04-24', reportCount:0 },
-  { id:'4', title:'Greenery Garden Care',           description:'Weekly garden trimming + watering for balconies and lawns.', price:600, category:'Gardening', isActive:false, rating:4.1, providerName:'Greenery Co.',  flatDisplay:'B-101', createdAt:'2026-04-27', reportCount:0 },
-  { id:'5', title:'CleanSweep Deep Clean',          description:'2-3 BHK deep clean, eco-friendly chemicals, 4-hour service.', price:1500, category:'Cleaning', isActive:true, rating:4.7, providerName:'CleanSweep',  flatDisplay:'A-105', createdAt:'2026-04-28', reportCount:0 },
-  { id:'6', title:'PaintRight — interior',          description:'Wall painting and texture work. Material extra.', price:8000, category:'Painting', isActive:true, rating:4.2, providerName:'PaintRight',  flatDisplay:'C-201', createdAt:'2026-04-18', reportCount:2 },
-]
+function Stat({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="rounded-xl border border-line bg-surface p-4">
+      <p className="text-xs text-mute">{label}</p>
+      <p className="mt-1 text-2xl font-bold text-ink">{value}</p>
+    </div>
+  )
+}
+
+function AddServiceModal({ onClose, onSaved }: { onClose: () => void; onSaved: () => void }) {
+  const [v, setV] = useState<ListingFormValues>(EMPTY_LISTING_FORM)
+  const [showError, setShowError] = useState(false)
+  const error = listingFormError(v)
+  const set = (k: keyof ListingFormValues) => (e: { target: { value: string } }) => setV({ ...v, [k]: e.target.value })
+
+  const save = useMutation({
+    mutationFn: () => api.post('/marketplace/listings', toListingPayload(v)),
+    onSuccess: () => { toast.success('Service added'); onSaved() },
+    onError:   (e: Error) => toast.error(e.message),
+  })
+
+  return (
+    <Modal title="Add service" onClose={onClose}>
+      <form className="space-y-3" onSubmit={e => { e.preventDefault(); if (error) setShowError(true); else save.mutate() }}>
+        <Field label="Service provider"><Input value={v.providerName} onChange={set('providerName')} placeholder="Ramesh Kale" maxLength={100} autoFocus /></Field>
+        <Field label="Phone number"><Input type="tel" value={v.phone} onChange={set('phone')} placeholder="9975001173" /></Field>
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Category">
+            <select className={selectClass} value={v.category} onChange={set('category')}>
+              {SERVICE_CATEGORIES.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
+            </select>
+          </Field>
+          <Field label="Service"><Input value={v.title} onChange={set('title')} placeholder="Leak repair" maxLength={120} /></Field>
+        </div>
+        <Field label="Details (optional)"><Input value={v.description} onChange={set('description')} placeholder="Taps, pipes and water tanks" maxLength={1000} /></Field>
+        <div className="grid grid-cols-3 gap-3">
+          <Field label="Rate (₹)"><Input inputMode="decimal" value={v.rate} onChange={set('rate')} placeholder="350" /></Field>
+          <Field label="Charged">
+            <select className={selectClass} value={v.rateUnit} onChange={set('rateUnit')}>
+              {RATE_UNITS.map(u => <option key={u.value} value={u.value}>{u.label}</option>)}
+            </select>
+          </Field>
+          <Field label="Society cut (%)" hint="0 if none"><Input inputMode="decimal" value={v.commission} onChange={set('commission')} /></Field>
+        </div>
+        {showError && error && <p role="alert" className="text-sm text-bad">{error}</p>}
+        <div className="flex justify-end gap-2 pt-2">
+          <Button variant="secondary" onClick={onClose}>Cancel</Button>
+          <Button type="submit" loading={save.isPending}>Add service</Button>
+        </div>
+      </form>
+    </Modal>
+  )
+}

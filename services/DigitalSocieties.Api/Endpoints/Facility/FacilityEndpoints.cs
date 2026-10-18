@@ -18,6 +18,36 @@ public static class FacilityEndpoints
             return result.IsSuccess ? Results.Ok(result.Value) : Results.BadRequest(result.Error);
         }).RequireAuthorization();
 
+        // ── Admin: add / edit / switch off a facility ───────────────────────
+        g.MapPost("/", async (IMediator mediator, FacilityDetails details) =>
+        {
+            var result = await mediator.Send(new CreateFacilityCommand(details));
+            return result.IsSuccess
+                ? Results.Created($"/api/v1/facilities/{result.Value}", result.Value)
+                : Results.BadRequest(result.Error);
+        })
+        .RequireAuthorization("AdminOnly")
+        .WithName("AdminCreateFacility")
+        .WithTags("Facilities");
+
+        g.MapPut("/{id:guid}", async (IMediator mediator, Guid id, FacilityDetails details) =>
+        {
+            var result = await mediator.Send(new UpdateFacilityCommand(id, details));
+            return result.IsSuccess ? Results.NoContent() : Results.BadRequest(result.Error);
+        })
+        .RequireAuthorization("AdminOnly")
+        .WithName("AdminUpdateFacility")
+        .WithTags("Facilities");
+
+        g.MapPut("/{id:guid}/active", async (IMediator mediator, Guid id, SetActiveRequest req) =>
+        {
+            var result = await mediator.Send(new SetFacilityActiveCommand(id, req.IsActive));
+            return result.IsSuccess ? Results.NoContent() : Results.BadRequest(result.Error);
+        })
+        .RequireAuthorization("AdminOnly")
+        .WithName("AdminSetFacilityActive")
+        .WithTags("Facilities");
+
         // ── Admin: all bookings for a given date ───────────────────────────
         // GET /api/v1/facilities/bookings?date=2026-04-28
         g.MapGet("/bookings", async (
@@ -104,4 +134,5 @@ public static class FacilityEndpoints
     }
 
     private sealed record CancelBookingRequest(string Reason);
+    private sealed record SetActiveRequest(bool IsActive);
 }

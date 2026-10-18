@@ -42,6 +42,19 @@ public sealed class Facility : AuditableEntity
         int capacity, int slotMinutes, TimeOnly open, TimeOnly close)
         => new(Guid.NewGuid(), societyId, name, description, capacity, slotMinutes, open, close);
 
+    public void Update(string name, string description, int capacity, int slotMinutes,
+        TimeOnly open, TimeOnly close, int advanceBookingDays, int maxBookingsPerFlat)
+    {
+        Name                = name;
+        Description         = description;
+        CapacityPersons     = capacity;
+        SlotDurationMinutes = slotMinutes;
+        OpenTime            = open;
+        CloseTime           = close;
+        AdvanceBookingDays  = advanceBookingDays;
+        MaxBookingsPerFlat  = maxBookingsPerFlat;
+    }
+
     public void SetImage(string url) => ImageUrl = url;
     public void Deactivate()         => IsActive  = false;
     public void Activate()           => IsActive  = true;

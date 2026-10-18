@@ -1,4 +1,5 @@
 using MediatR;
+using FluentValidation;
 using Microsoft.EntityFrameworkCore;
 using DigitalSocieties.Shared.Contracts;
 using DigitalSocieties.Shared.Results;
@@ -18,6 +19,19 @@ public sealed record CreateListingCommand(
     decimal  BaseRateRupees,
     string   RateUnit,
     decimal  CommissionPct) : IRequest<Result<Guid>>;
+
+public sealed class CreateListingValidator : AbstractValidator<CreateListingCommand>
+{
+    public CreateListingValidator()
+    {
+        RuleFor(x => x.ProviderName).NotEmpty().MaximumLength(100);
+        RuleFor(x => x.Phone).Matches(@"^\+?[0-9]{10,13}$").WithMessage("Enter a valid phone number.");
+        RuleFor(x => x.Title).NotEmpty().MaximumLength(120);
+        RuleFor(x => x.Description).MaximumLength(1000);
+        RuleFor(x => x.BaseRateRupees).GreaterThan(0);
+        RuleFor(x => x.CommissionPct).InclusiveBetween(0, 100);
+    }
+}
 
 public sealed class CreateListingHandler
     : IRequestHandler<CreateListingCommand, Result<Guid>>
@@ -50,6 +64,31 @@ public sealed class CreateListingHandler
         _db.ServiceListings.Add(listing);
         await _db.SaveChangesAsync(ct);
         return Result<Guid>.Ok(listing.Id);
+    }
+}
+
+// ── Switch a listing on / off (admin) ──────────────────────────────────────
+// Switching off hides it from residents; existing bookings are untouched.
+public sealed record SetListingActiveCommand(Guid ListingId, bool IsActive) : IRequest<Result>;
+
+public sealed class SetListingActiveHandler : IRequestHandler<SetListingActiveCommand, Result>
+{
+    private readonly MarketplaceDbContext _db;
+    private readonly ICurrentUser         _cu;
+    public SetListingActiveHandler(MarketplaceDbContext db, ICurrentUser cu) => (_db, _cu) = (db, cu);
+
+    public async Task<Result> Handle(SetListingActiveCommand cmd, CancellationToken ct)
+    {
+        if (_cu.SocietyId is not { } societyId)
+            return Result.Fail("AUTH.REQUIRED", "Society context required.");
+
+        var listing = await _db.ServiceListings
+            .FirstOrDefaultAsync(l => l.Id == cmd.ListingId && l.SocietyId == societyId && !l.IsDeleted, ct);
+        if (listing is null) return Result.Fail("LISTING.NOT_FOUND", "Listing not found.");
+
+        if (cmd.IsActive) listing.Activate(); else listing.Deactivate();
+        await _db.SaveChangesAsync(ct);
+        return Result.Ok();
     }
 }
 

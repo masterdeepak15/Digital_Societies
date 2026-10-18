@@ -1,4 +1,5 @@
 using MediatR;
+using Microsoft.EntityFrameworkCore;
 using DigitalSocieties.Identity.Application.Commands;
 using DigitalSocieties.Api.Infrastructure.Seeding;
 
@@ -19,6 +20,11 @@ public static class SetupEndpoints
              .WithSummary("First-run: create society, admin account, and integration keys")
              .AllowAnonymous();
 
+        group.MapGet("/status", GetStatus)
+             .WithName("SetupStatus")
+             .WithSummary("Has this installation been set up already? The setup screen only shows when it has not.")
+             .AllowAnonymous();
+
         group.MapPost("/demo", ActivateDemoMode)
              .WithName("ActivateDemoMode")
              .WithSummary("Instant demo: seeds sample residents/bills/visitors and returns admin JWT")
@@ -26,6 +32,12 @@ public static class SetupEndpoints
 
         return group;
     }
+
+    // ── GET /api/v1/setup/status ──────────────────────────────────────────────
+    private static async Task<IResult> GetStatus(
+        DigitalSocieties.Identity.Infrastructure.Persistence.IdentityDbContext db,
+        CancellationToken ct)
+        => Results.Ok(new { configured = await db.Societies.IgnoreQueryFilters().AnyAsync(ct) });
 
     // ── POST /api/v1/setup/initialize ─────────────────────────────────────────
     private static async Task<IResult> Initialize(

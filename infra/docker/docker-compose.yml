@@ -66,6 +66,8 @@ services:
     restart: unless-stopped
     environment:
       PORT:     3000
+      # Server-side only: lets the setup screen ask the API whether first-run setup is already done.
+      API_URL:  http://api:8080
       HOSTNAME: 0.0.0.0
     ports:
       - "3000:3000"

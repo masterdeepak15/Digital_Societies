@@ -9,9 +9,9 @@ public static class MarketplaceEndpoints
     public static RouteGroupBuilder MapMarketplaceEndpoints(this RouteGroupBuilder g)
     {
         // ── Browse & search (resident) ────────────────────────────────────
-        g.MapGet("/listings", async (IMediator mediator, string? category, int page = 1, int pageSize = 20) =>
+        g.MapGet("/listings", async (IMediator mediator, string? category, int page = 1, int pageSize = 20, bool includeInactive = false) =>
         {
-            var r = await mediator.Send(new GetListingsQuery(category, page, pageSize));
+            var r = await mediator.Send(new GetListingsQuery(category, page, pageSize, includeInactive));
             return r.IsSuccess ? Results.Ok(r.Value) : Results.BadRequest(r.Error);
         }).RequireAuthorization();
 
@@ -34,7 +34,13 @@ public static class MarketplaceEndpoints
             return r.IsSuccess
                 ? Results.Created($"/api/v1/marketplace/listings/{r.Value}", r.Value)
                 : Results.BadRequest(r.Error);
-        }).RequireAuthorization();
+        }).RequireAuthorization("AdminOnly");
+
+        g.MapPut("/listings/{id:guid}/active", async (IMediator mediator, Guid id, SetListingActiveRequest req) =>
+        {
+            var r = await mediator.Send(new SetListingActiveCommand(id, req.IsActive));
+            return r.IsSuccess ? Results.NoContent() : Results.BadRequest(r.Error);
+        }).RequireAuthorization("AdminOnly");
 
         g.MapPost("/bookings/{bookingId:guid}/confirm", async (IMediator mediator, Guid bookingId) =>
         {
@@ -78,4 +84,6 @@ public static class MarketplaceEndpoints
     private sealed record CompleteBody(decimal FinalAmountRupees);
     private sealed record CancelBody(string Reason);
     private sealed record ReviewBody(int Rating, string Comment);
+
+    private sealed record SetListingActiveRequest(bool IsActive);
 }

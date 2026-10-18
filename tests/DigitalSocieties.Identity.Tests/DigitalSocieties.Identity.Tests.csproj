@@ -12,6 +12,8 @@
     <ProjectReference Include="..\..\services\DigitalSocieties.Visitor\DigitalSocieties.Visitor.csproj" />
     <ProjectReference Include="..\..\services\DigitalSocieties.Complaint\DigitalSocieties.Complaint.csproj" />
     <ProjectReference Include="..\..\services\DigitalSocieties.Social\DigitalSocieties.Social.csproj" />
+    <ProjectReference Include="..\..\services\DigitalSocieties.Facility\DigitalSocieties.Facility.csproj" />
+    <ProjectReference Include="..\..\services\DigitalSocieties.Marketplace\DigitalSocieties.Marketplace.csproj" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.NET.Test.Sdk"      Version="17.9.0" />
