@@ -41,6 +41,26 @@ public static class AccountingEndpoints
             return result.IsSuccess ? Results.Ok() : Results.BadRequest(result.Error);
         }).RequireAuthorization("FinanceStaff");
 
+        // ── Admin: correct, take back a decision on, or delete an entry ────
+        g.MapPut("/entries/{id:guid}", async (IMediator mediator, Guid id, EditEntryRequest body) =>
+        {
+            var result = await mediator.Send(new EditLedgerEntryCommand(
+                id, body.Category, body.Description, body.AmountPaise, body.EntryDate));
+            return result.IsSuccess ? Results.NoContent() : Results.BadRequest(result.Error);
+        }).RequireAuthorization("AdminOnly");
+
+        g.MapPost("/entries/{id:guid}/reopen", async (IMediator mediator, Guid id) =>
+        {
+            var result = await mediator.Send(new ReopenLedgerEntryCommand(id));
+            return result.IsSuccess ? Results.NoContent() : Results.BadRequest(result.Error);
+        }).RequireAuthorization("AdminOnly");
+
+        g.MapDelete("/entries/{id:guid}", async (IMediator mediator, Guid id) =>
+        {
+            var result = await mediator.Send(new DeleteLedgerEntryCommand(id));
+            return result.IsSuccess ? Results.NoContent() : Results.BadRequest(result.Error);
+        }).RequireAuthorization("AdminOnly");
+
         // ── Monthly report ─────────────────────────────────────────────────
         g.MapGet("/report", async (IMediator mediator, int month = 0, int year = 0) =>
         {
@@ -50,4 +70,6 @@ public static class AccountingEndpoints
 
         return g;
     }
+
+    private sealed record EditEntryRequest(string Category, string Description, long AmountPaise, DateOnly EntryDate);
 }

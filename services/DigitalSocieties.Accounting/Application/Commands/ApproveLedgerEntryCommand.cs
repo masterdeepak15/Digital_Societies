@@ -1,4 +1,6 @@
 using MediatR;
+using FluentValidation;
+using DigitalSocieties.Accounting.Domain.Entities;
 using Microsoft.EntityFrameworkCore;
 using DigitalSocieties.Shared.Contracts;
 using DigitalSocieties.Shared.Results;
@@ -28,6 +30,10 @@ public sealed class ApproveLedgerEntryHandler : IRequestHandler<ApproveLedgerEnt
 
         if (entry is null) return Result.Fail("ENTRY.NOT_FOUND", "Ledger entry not found.");
 
+        if (entry.Status != ApprovalStatus.PendingApproval)
+            return Result.Fail("ENTRY.NOT_PENDING",
+                $"This entry is already {entry.Status.ToString().ToLowerInvariant()}. Reopen it first to decide again.");
+
         entry.Approve(_currentUser.UserId.Value);
         await _db.SaveChangesAsync(ct);
         return Result.Ok();
@@ -36,6 +42,12 @@ public sealed class ApproveLedgerEntryHandler : IRequestHandler<ApproveLedgerEnt
 
 // ── Reject ─────────────────────────────────────────────────────────────────
 public sealed record RejectLedgerEntryCommand(Guid EntryId, string Reason) : IRequest<Result>;
+
+public sealed class RejectLedgerEntryValidator : AbstractValidator<RejectLedgerEntryCommand>
+{
+    public RejectLedgerEntryValidator()
+        => RuleFor(x => x.Reason).NotEmpty().WithMessage("Say why this expense is rejected.").MaximumLength(500);
+}
 
 public sealed class RejectLedgerEntryHandler : IRequestHandler<RejectLedgerEntryCommand, Result>
 {
@@ -56,7 +68,11 @@ public sealed class RejectLedgerEntryHandler : IRequestHandler<RejectLedgerEntry
 
         if (entry is null) return Result.Fail("ENTRY.NOT_FOUND", "Ledger entry not found.");
 
-        entry.Reject(_currentUser.UserId.Value, cmd.Reason);
+        if (entry.Status != ApprovalStatus.PendingApproval)
+            return Result.Fail("ENTRY.NOT_PENDING",
+                $"This entry is already {entry.Status.ToString().ToLowerInvariant()}. Reopen it first to decide again.");
+
+        entry.Reject(_currentUser.UserId.Value, cmd.Reason.Trim());
         await _db.SaveChangesAsync(ct);
         return Result.Ok();
     }

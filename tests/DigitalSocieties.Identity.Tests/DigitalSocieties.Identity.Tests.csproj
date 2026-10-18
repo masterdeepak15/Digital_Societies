@@ -12,6 +12,7 @@
     <ProjectReference Include="..\..\services\DigitalSocieties.Visitor\DigitalSocieties.Visitor.csproj" />
     <ProjectReference Include="..\..\services\DigitalSocieties.Complaint\DigitalSocieties.Complaint.csproj" />
     <ProjectReference Include="..\..\services\DigitalSocieties.Social\DigitalSocieties.Social.csproj" />
+    <ProjectReference Include="..\..\services\DigitalSocieties.Accounting\DigitalSocieties.Accounting.csproj" />
     <ProjectReference Include="..\..\services\DigitalSocieties.Facility\DigitalSocieties.Facility.csproj" />
     <ProjectReference Include="..\..\services\DigitalSocieties.Marketplace\DigitalSocieties.Marketplace.csproj" />
   </ItemGroup>

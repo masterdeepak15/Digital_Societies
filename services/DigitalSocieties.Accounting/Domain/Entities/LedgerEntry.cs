@@ -23,7 +23,7 @@ public sealed class LedgerEntry : AuditableEntity
         Amount      = amount;
         EntryDate   = entryDate;
         PostedBy    = postedBy;
-        Status      = type == EntryType.Expense && amount.Paise > 1_000_000  // >₹10,000
+        Status      = RequiresApproval(type, amount)
                       ? ApprovalStatus.PendingApproval
                       : ApprovalStatus.Approved;   // income + small expenses auto-approved
     }
@@ -40,6 +40,10 @@ public sealed class LedgerEntry : AuditableEntity
     public DateTimeOffset? ApprovedAt    { get; private set; }
     public string?       RejectionReason { get; private set; }
     public string?       ReceiptUrl      { get; private set; }  // MinIO pre-signed ref
+
+    /// <summary>Expenses above ₹10,000 wait for approval; everything else is approved at once.</summary>
+    public static bool RequiresApproval(EntryType type, Money amount)
+        => type == EntryType.Expense && amount.Paise > 1_000_000;
 
     // ── Factory ────────────────────────────────────────────────────────────
     public static LedgerEntry Create(Guid societyId, EntryType type, string category,
@@ -72,6 +76,40 @@ public sealed class LedgerEntry : AuditableEntity
         ApprovedAt      = DateTimeOffset.UtcNow;
         RejectionReason = reason;
         Raise(new LedgerEntryRejectedEvent(Id, SocietyId, rejectedBy, reason));
+    }
+
+    /// <summary>Takes back an approval or rejection so the expense can be decided again.</summary>
+    public void Reopen()
+    {
+        if (Type != EntryType.Expense)
+            throw new InvalidOperationException("Only expenses go through approval.");
+        if (Status == ApprovalStatus.PendingApproval)
+            throw new InvalidOperationException("Entry is already waiting for approval.");
+        Status          = ApprovalStatus.PendingApproval;
+        ApprovedBy      = null;
+        ApprovedAt      = null;
+        RejectionReason = null;
+    }
+
+    /// <summary>
+    /// Corrects the entry. A changed amount, or a rejected entry being fixed, goes back through the normal
+    /// approval rule (so a bigger expense cannot slip past approval by being edited after the fact).
+    /// </summary>
+    public void Edit(string category, string description, Money amount, DateOnly entryDate)
+    {
+        var amountChanged = amount.Paise != Amount.Paise;
+        Category    = category;
+        Description = description;
+        Amount      = amount;
+        EntryDate   = entryDate;
+
+        if (amountChanged || Status == ApprovalStatus.Rejected)
+        {
+            Status          = RequiresApproval(Type, amount) ? ApprovalStatus.PendingApproval : ApprovalStatus.Approved;
+            ApprovedBy      = null;
+            ApprovedAt      = null;
+            RejectionReason = null;
+        }
     }
 
     public void AttachReceipt(string url) => ReceiptUrl = url;

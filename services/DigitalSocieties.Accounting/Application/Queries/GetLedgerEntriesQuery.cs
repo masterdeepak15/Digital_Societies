@@ -17,7 +17,8 @@ public sealed record LedgerEntryDto(
     DateOnly EntryDate,
     string   Status,
     string?  ReceiptUrl,
-    DateTimeOffset CreatedAt);
+    DateTimeOffset CreatedAt,
+    string?  RejectionReason = null);
 
 // ── Query: paginated ledger list ───────────────────────────────────────────
 public sealed record GetLedgerEntriesQuery(
@@ -46,10 +47,11 @@ public sealed class GetLedgerEntriesHandler
         var year  = q.Year  > 0 ? q.Year  : DateTimeOffset.UtcNow.Year;
 
         var query = _db.LedgerEntries
-            .Where(e => e.SocietyId == _currentUser.SocietyId
-                     && e.EntryDate.Month == month
-                     && e.EntryDate.Year  == year
-                     && !e.IsDeleted);
+            .Where(e => e.SocietyId == _currentUser.SocietyId && !e.IsDeleted);
+
+        // Waiting-for-approval entries are shown whatever month they are dated; otherwise an old one is never found.
+        if (!q.PendingOnly)
+            query = query.Where(e => e.EntryDate.Month == month && e.EntryDate.Year == year);
 
         if (q.Type is not null && Enum.TryParse<EntryType>(q.Type, out var t))
             query = query.Where(e => e.Type == t);
@@ -67,7 +69,7 @@ public sealed class GetLedgerEntriesHandler
             .Take(q.PageSize)
             .Select(e => new LedgerEntryDto(e.Id, e.Type.ToString(), e.Category,
                 e.Description, e.Amount.Paise, e.EntryDate,
-                e.Status.ToString(), e.ReceiptUrl, e.CreatedAt))
+                e.Status.ToString(), e.ReceiptUrl, e.CreatedAt, e.RejectionReason))
             .ToListAsync(ct);
 
         return Result<PagedResult<LedgerEntryDto>>.Ok(
