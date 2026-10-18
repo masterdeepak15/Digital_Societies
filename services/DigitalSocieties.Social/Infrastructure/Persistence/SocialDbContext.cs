@@ -93,6 +93,8 @@ public sealed class SocialDbContext(DbContextOptions<SocialDbContext> options)
 
         model.Entity<PollVote>(e =>
         {
+            // Ids are assigned in the domain; without this EF treats a vote added through poll.Votes as an existing row.
+            e.Property(v => v.Id).ValueGeneratedNever();
             e.ToTable("poll_votes");
             e.HasKey(v => v.Id);
             e.HasIndex(v => new { v.PollId, v.UserId }).IsUnique();
