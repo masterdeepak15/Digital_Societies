@@ -1,0 +1,33 @@
+# Run a whole society server from one image: the API, admin website, MinIO, Postgres, Redis and proxy are all inside it.
+#
+#   1. Copy .env.example to .env and fill in the email settings (optional but needed for sign-in codes).
+#   2. docker compose up -d
+#   3. Open http://localhost:8080  ->  first-run setup creates your society and admin.
+#
+# Everything that must survive lives in ./data (database, pictures, secrets, backups).
+name: digital-societies
+
+services:
+  societies:
+    image: ghcr.io/masterdeepak15/digital-societies:latest
+    # To build it yourself from this repo instead:   docker compose build   (needs ../../../apk/digital-societies.apk to show the app link)
+    build:
+      context: ../../..
+      dockerfile: infra/docker/allinone/Dockerfile
+    restart: unless-stopped
+    ports:
+      - "${DS_PORT:-8080}:8080"
+    env_file:
+      - path: .env
+        required: false
+    volumes:
+      - ${DS_DATA_DIR:-./data}:/data
+
+  # Optional: a free public HTTPS address with no domain (Cloudflare quick tunnel). The address changes each time.
+  #   docker compose --profile tunnel up -d tunnel   then   docker compose logs tunnel | grep trycloudflare
+  tunnel:
+    image: cloudflare/cloudflared:latest
+    profiles: ["tunnel"]
+    restart: unless-stopped
+    command: tunnel --no-autoupdate --url http://societies:8080
+    depends_on: [societies]

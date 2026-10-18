@@ -1,0 +1,17 @@
+# Build context for the all-in-one image (infra/docker/allinone/Dockerfile): keep it small.
+.git
+**/node_modules
+**/bin
+**/obj
+**/.next
+**/dist
+**/*.log
+tests
+docs
+apps/mobile
+infra/selfhost
+infra/docker/grafana
+infra/docker/prometheus
+.claude
+*.md
+!apk/.gitkeep

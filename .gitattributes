@@ -1,0 +1,8 @@
+
+# Scripts that run inside Linux containers must keep Unix line endings
+infra/docker/allinone/entrypoint.sh text eol=lf
+infra/docker/allinone/run-api.sh text eol=lf
+infra/docker/allinone/ds-backup text eol=lf
+infra/docker/allinone/ds-restore text eol=lf
+infra/docker/allinone/supervisord.conf text eol=lf
+infra/docker/allinone/Caddyfile text eol=lf

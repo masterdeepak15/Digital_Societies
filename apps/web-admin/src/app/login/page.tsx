@@ -9,6 +9,7 @@ import { toast } from 'sonner'
 import { Building2 } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
+import { AppDownload } from '@/components/AppDownload'
 import { api } from '@/lib/api'
 import { saveSession, profileToAdminUser, type ApiProfile } from '@/lib/auth'
 
@@ -234,6 +235,8 @@ export default function LoginPage() {
               <Button variant="ghost" onClick={() => { setStep('email'); setPendingUserId(null) }} className="w-full">Start over</Button>
             </form>
           )}
+
+          <AppDownload />
         </div>
       </main>
     </div>

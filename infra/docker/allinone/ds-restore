@@ -1,0 +1,10 @@
+#!/bin/bash
+# Replaces the database with a backup made by ds-backup (or any plain pg_dump .sql / .sql.gz), then restart the container.
+#   docker exec <container> ds-restore /data/backups/ds-2026-10-18-1832.sql.gz
+set -euo pipefail
+file=${1:?usage: ds-restore <backup file>}
+[ -f "$file" ] || { echo "No such file: $file" >&2; exit 1; }
+psql -h /var/run/postgresql -U ds_app -d postgres -q -c "DROP DATABASE IF EXISTS digital_societies WITH (FORCE)" -c "CREATE DATABASE digital_societies"
+psql -h /var/run/postgresql -U ds_app -d digital_societies -q -c "ALTER DATABASE digital_societies SET app.current_society_id = ''"
+case "$file" in *.gz) gunzip -c "$file" ;; *) cat "$file" ;; esac | psql -h /var/run/postgresql -U ds_app -d digital_societies -q -v ON_ERROR_STOP=1 >/dev/null
+echo "Restored from $file. Restart the container now:  docker restart <container>"

@@ -1,39 +1,97 @@
-# Run your own society from this PC
+# Run your own society server
 
-Everything below uses Docker Desktop. All data lives in one folder (default `D:\ClaudeWorkspace\ds-data`):
+One Docker image holds everything: the API, the admin website, MinIO (pictures), Postgres, Redis and the web proxy. It also carries the Android app, which people download from the sign-in page. All data lives in one folder.
 
-| Folder | What it holds |
+Image: `ghcr.io/masterdeepak15/digital-societies:latest` (rebuilt on every push to `main`, after the tests pass).
+
+## Quick start
+
+With Docker only:
+
+```bash
+docker run -d --name societies -p 8080:8080 -v ds-data:/data \
+  -e SMTP_USERNAME=you@gmail.com -e SMTP_PASSWORD="your app password" \
+  ghcr.io/masterdeepak15/digital-societies:latest
+```
+
+With Compose (recommended, keeps the settings in a file):
+
+```bash
+cd infra/docker/allinone
+cp .env.example .env        # fill in the email settings
+docker compose up -d
+```
+
+Then open <http://localhost:8080>. The first visit shows the setup screen, where you create your society and the first admin (a 6-digit code is emailed to confirm the address). After that the setup screen never appears again; everything is changed later from **Settings**, **Flats**, **Members**.
+
+## What you get
+
+| Where | What |
 |---|---|
-| `postgres\` | the database (residents, bills, visitors, complaints, posts) |
-| `minio\` | uploaded pictures (stored once per identical file) |
-| `redis\` | short-lived sign-in state |
-| `backups\` | database copies made by `backup.ps1` |
-| `selfhost.env` | passwords and the email account. **Never put this in git or share it.** |
+| `http://localhost:8080` | Admin website (sign in with an email code) |
+| `http://localhost:8080/download/digital-societies.apk` | Android app. The sign-in page shows a "Get the Android app" link when the file is present |
+| `http://localhost:8080/api/v1/...` | The API the phone app uses |
 
-## First time
+On the phone, open the app, choose **Server**, and enter the HTTPS address of this server.
 
-1. Copy `infra\docker\selfhost.env.example` to `ds-data\selfhost.env` and fill every empty value.
-   For sign-in emails with Gmail, create an *App password* (Google Account, Security, 2-Step Verification, App passwords) and put it in `SMTP_PASSWORD`.
-2. `infra\selfhost\start.ps1` — builds and starts the server (first build takes a few minutes).
-3. `infra\selfhost\tunnel.ps1` — prints a public `https://….trycloudflare.com` address for the phone app.
-4. Create the society and its admin (see "Create the society" below).
+## Your data
 
-## Every day
+Everything that must survive is in the `/data` volume:
 
-- Start: `start.ps1` (data is still there). Stop: `stop.ps1` (nothing is deleted).
-- Phone address: run `tunnel.ps1` again. The free tunnel gets a **new address each time it starts**, so re-enter it in the app (Server screen). A fixed address needs your own domain (a named Cloudflare tunnel or any reverse proxy).
-- `tunnel.ps1 -Stop` closes the public address.
-- Backup: `backup.ps1` writes a dated `.sql` file into `ds-data\backups`. Copy that folder somewhere safe now and then.
+| Folder / file | What it holds |
+|---|---|
+| `postgres/` | the database (residents, bills, visitors, complaints, posts) |
+| `minio/` | uploaded pictures, stored once per identical file |
+| `config/secrets.env` | passwords and keys, generated on the first start (keep private) |
+| `backups/` | database copies made by `ds-backup` |
 
-## Create the society
+Use a folder you can find instead of a named volume by setting `DS_DATA_DIR` (Compose) or `-v /path/on/your/pc:/data` (docker run).
 
-The server starts empty. Open the sign-in code flow once to create your society and admin: the app or web console's setup screen asks for the society name, address, registration number, number of flats and your name and email, then emails you a 6-digit code to confirm the address.
+Updating is safe: `docker compose pull && docker compose up -d`. The database is upgraded automatically and your data stays.
 
-## Moving to another PC
+### Backup and restore
 
-Copy the whole `ds-data` folder and this repository, install Docker Desktop, run `start.ps1`.
+```bash
+docker exec societies ds-backup                                   # writes /data/backups/ds-<date>.sql.gz
+docker exec societies ds-restore /data/backups/ds-<date>.sql.gz   # replaces the database with that copy
+docker restart societies
+```
+
+Copy the `backups/` folder somewhere safe now and then. Moving to another computer means copying the whole data folder (or restoring a backup) and starting the image there.
+
+## Settings (environment variables)
+
+| Variable | Meaning |
+|---|---|
+| `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURITY`, `SMTP_USERNAME`, `SMTP_PASSWORD`, `SMTP_FROM_ADDRESS`, `SMTP_FROM_NAME` | The email account that sends sign-in codes. For Gmail use an App Password |
+| `DS_PUBLIC_URL` | The address people open the site at, for example `https://societies.example.com` |
+| `DS_SITE` | Your domain, to get automatic HTTPS (see below). Default: plain HTTP on 8080 |
+| `DS_PORT` | Port on your computer (Compose only). Default 8080 |
+| `JITSI_SERVER_URL` | Video calls server. Default `https://meet.jit.si` (free) |
+| `POSTGRES_PASSWORD`, `JWT_SECRET_KEY`, `QR_TOKEN_SECRET_KEY`, `MINIO_ACCESS_KEY`, `MINIO_SECRET_KEY` | Normally left empty: they are generated once and kept in `config/secrets.env` |
+
+## Reaching it from a phone
+
+- **No domain (free):** `docker compose --profile tunnel up -d tunnel`, then `docker compose logs tunnel | grep trycloudflare` prints a public HTTPS address. It changes every time the tunnel starts, so re-enter it in the app's Server screen. Close it with `docker compose stop tunnel`. While it runs, anyone with the address can reach your server.
+- **Your own domain:** point the domain at the computer, set `DS_SITE=societies.example.com` and `DS_PUBLIC_URL=https://societies.example.com`, and publish ports 80 and 443 (`-p 80:80 -p 443:443`). The certificate is fetched automatically.
+
+## About the Android app
+
+CI builds the app and puts it inside the image. Without your own signing key it is signed with the standard debug key, which installs fine but cannot be updated in place by an app signed with a different key. To sign with your own key, add the repository secrets `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD`. To change the server the app starts with, set the repository variable `API_BASE_URL`. iPhone apps cannot be built this way (they need a Mac and an Apple developer account).
+
+## Building the image yourself
+
+```bash
+mkdir -p apk && cp /path/to/your.apk apk/digital-societies.apk      # optional: enables the download link
+docker build -f infra/docker/allinone/Dockerfile -t digital-societies .
+```
 
 ## Good to know
 
-- Only this PC can reach the server directly (`127.0.0.1:8080`); the database and cache are not exposed at all.
-- Change the email account or password in `selfhost.env`, then run `start.ps1` again.
+- Only port 8080 is open. The database, cache and file store are inside the container and are not reachable from outside.
+- It is one container: if you stop it, everything stops. Use `restart: unless-stopped` (already in the Compose file) so it comes back after a reboot.
+- The image is for one society on one server. It is not a high-availability setup.
+
+## Older multi-container setup
+
+`infra/docker/docker-compose.yml`, `docker-compose.prod.yml` and `infra/selfhost/*.ps1` run the parts as separate containers and build them from this repo (the separate `digital-societies-api` and `digital-societies-web-admin` images are no longer published).

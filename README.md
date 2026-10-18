@@ -4,7 +4,7 @@
 > Role-based · Offline-first · Self-hostable · SOLID · MCP-ready
 
 [![CI](https://github.com/masterdeepak15/Digital_Societies/actions/workflows/ci.yml/badge.svg)](https://github.com/masterdeepak15/Digital_Societies/actions/workflows/ci.yml)
-[![Docker Image](https://ghcr.io/masterdeepak15/digital-societies-api)](https://github.com/masterdeepak15/Digital_Societies/pkgs/container/digital-societies-api)
+[![Docker Image](https://img.shields.io/badge/docker-ghcr.io%2Fmasterdeepak15%2Fdigital--societies-blue)](https://github.com/masterdeepak15/Digital_Societies/pkgs/container/digital-societies)
 
 ---
 
@@ -211,10 +211,11 @@ All screens use WatermelonDB for offline-first data. Sync runs on app foreground
 
 Every push to `main` automatically:
 
-1. **Backend Release** — `dotnet restore` + `dotnet publish` → builds Docker image → pushes to `ghcr.io/masterdeepak15/digital-societies-api:latest` (and `:sha`) via GHCR
-2. **Android APK Release** — `expo prebuild` → `gradlew assembleRelease` with keystore secrets → uploads signed APK artifact
+1. **Tests** — backend and admin-website tests; nothing is published if they fail.
+2. **Android APK** — `expo prebuild` → `gradlew assembleRelease` (signed with your keystore secrets when set, otherwise the debug key).
+3. **One Docker image** — API, admin website, MinIO, Postgres, Redis and proxy in a single image, with the APK inside for download from the sign-in page → `ghcr.io/masterdeepak15/digital-societies:latest` (and `:sha-<commit>`).
 
-The production server only needs `docker compose pull && docker compose up -d` to deploy a new build.
+Run it anywhere with Docker: `docker run -d -p 8080:8080 -v ds-data:/data ghcr.io/masterdeepak15/digital-societies:latest`, or use `infra/docker/allinone/docker-compose.yml`. See `docs/SELFHOST.md`.
 
 ### Secrets required in GitHub repository settings
 

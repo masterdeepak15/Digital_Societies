@@ -65,3 +65,7 @@ COMMIT_MSG.txt
 /commit*.bat
 /*.out
 *.err.log
+
+# Android app for the all-in-one image (CI puts it here; never commit the file)
+/apk/*
+!/apk/.gitkeep

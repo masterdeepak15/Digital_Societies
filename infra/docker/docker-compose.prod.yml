@@ -11,7 +11,9 @@ services:
 
   # ── API (ASP.NET Core 8) ───────────────────────────────────────────────────
   api:
-    image: ghcr.io/masterdeepak15/digital-societies-api:latest
+    build:
+      context: ../../services
+      dockerfile: DigitalSocieties.Api/Dockerfile
     restart: unless-stopped
     environment:
       ASPNETCORE_ENVIRONMENT:       Production
@@ -93,9 +95,16 @@ services:
       - "9001:9001"   # MinIO console (access at http://localhost:9001)
     networks: [ds-net]
 
-  # ── Web Admin (Next.js 14 — pulled from GHCR) ────────────────────────────
+  # ── Web Admin (Next.js 14 — built from this repo) ────────────────────────────
   web-admin:
-    image: ghcr.io/masterdeepak15/digital-societies-web-admin:latest
+    build:
+      context: ../../apps/web-admin
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL:      ${NEXT_PUBLIC_API_URL:-/api/v1}
+        NEXT_PUBLIC_HUB_URL:      ${NEXT_PUBLIC_HUB_URL:-/hubs}
+        NEXT_PUBLIC_MAP_TILE_URL: ${NEXT_PUBLIC_MAP_TILE_URL:-https://demotiles.maplibre.org/style.json}
+        NEXT_PUBLIC_APP_NAME:     ${NEXT_PUBLIC_APP_NAME:-Society Admin}
     restart: unless-stopped
     environment:
       PORT:     3000

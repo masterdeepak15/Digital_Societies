@@ -1,0 +1,8 @@
+#!/bin/bash
+# Saves the whole database to /data/backups as a dated .sql.gz file.
+#   docker exec <container> ds-backup
+set -euo pipefail
+mkdir -p /data/backups
+file=/data/backups/ds-$(date +%Y-%m-%d-%H%M%S).sql.gz
+pg_dump -h /var/run/postgresql -U ds_app --no-owner digital_societies | gzip > "$file"
+echo "Backup written: $file ($(du -h "$file" | cut -f1))"

@@ -1,0 +1,40 @@
+# The one public door. Inside the container: API on 5000, website on 3000. Nothing else is reachable.
+# Set DS_SITE to your domain (for example societies.example.com) to get automatic HTTPS; the default is plain HTTP on 8080.
+{
+	admin off
+	auto_https disable_redirects
+}
+
+{$DS_SITE::8080} {
+	encode gzip
+
+	# Phone app and website talk to the API here; live updates (SignalR) use /hubs
+	handle /api/* {
+		reverse_proxy 127.0.0.1:5000
+	}
+	handle /hubs/* {
+		reverse_proxy 127.0.0.1:5000
+	}
+	handle /health {
+		reverse_proxy 127.0.0.1:5000
+	}
+
+	# The Android app, served as a file download
+	handle /download/* {
+		uri strip_prefix /download
+		root * /app/downloads
+		header Content-Disposition attachment
+		file_server
+	}
+
+	# Everything else is the admin website
+	handle {
+		reverse_proxy 127.0.0.1:3000
+	}
+
+	header {
+		X-Content-Type-Options nosniff
+		Referrer-Policy strict-origin-when-cross-origin
+		-Server
+	}
+}
