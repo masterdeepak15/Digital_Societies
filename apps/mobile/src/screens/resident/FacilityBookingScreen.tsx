@@ -349,5 +349,5 @@ const styles = StyleSheet.create({
   modalCancelText:{ ...typography.body },
   modalConfirm:   { flex: 1, padding: spacing.md, borderRadius: 8,
                     backgroundColor: colors.primary, alignItems: 'center' },
-  modalConfirmText:{ color: '#fff', fontWeight: '600', ...typography.body },
+  modalConfirmText:{ ...typography.body, color: '#fff', fontWeight: '600' },
 });

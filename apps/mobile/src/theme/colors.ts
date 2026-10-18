@@ -16,6 +16,14 @@ export const Colors = {
   border:     '#DEE2E6',
   divider:    '#E9ECEF',
 
+  // Aliases and soft tints used by list rows and badges
+  text:                '#212529',
+  backgroundSecondary: '#E9ECEF',
+  successLight:        '#E3F6EA',
+  warningLight:        '#FDF1DC',
+  errorLight:          '#FBE6E3',
+  infoLight:           '#E1EEF8',
+
   // Text
   textPrimary:   '#212529',
   textSecondary: '#6C757D',

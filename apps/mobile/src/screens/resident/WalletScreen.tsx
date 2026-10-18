@@ -15,6 +15,7 @@ import {
 } from 'react-native';
 import { Colors, Typography, Spacing } from '../../theme';
 import { apiFetch } from '../../utils/api';
+import { toWalletBalance, toWalletTransaction, type WalletBalance, type WalletTransaction } from './walletModel';
 
 // ── Extended tokens not in design system ────────────────────────────────────
 const colors = {
@@ -31,22 +32,6 @@ const colors = {
 };
 
 // ── Types ────────────────────────────────────────────────────────────────────
-interface WalletBalance {
-  walletId:    string;
-  flatId:      string;
-  balanceInr:  number;
-  balancePaise: number;
-}
-
-interface WalletTransaction {
-  id:          string;
-  type:        'Credit' | 'Debit';
-  amountInr:   number;
-  description: string;
-  referenceId?: string;
-  createdAt:   string;
-}
-
 interface TopUpInitiateResponse {
   razorpayOrderId: string;
   amountPaise:     number;
@@ -269,8 +254,8 @@ export default function WalletScreen() {
   const ensureAndLoad = useCallback(async () => {
     try {
       await apiFetch('/wallet/ensure', { method: 'POST' });
-      const bal = await apiFetch<WalletBalance>('/wallet/balance');
-      setBalance(bal);
+      const bal = await apiFetch<Record<string, any>>('/wallet/balance');
+      setBalance(toWalletBalance(bal));
     } catch (e: any) {
       Alert.alert('Error', e.message ?? 'Failed to load wallet');
     }
@@ -281,9 +266,10 @@ export default function WalletScreen() {
     if (txLoading) return;
     setTxLoading(true);
     try {
-      const data = await apiFetch<WalletTransaction[]>(
+      const raw = await apiFetch<Record<string, any>[]>(
         `/wallet/transactions?page=${page}&pageSize=${PAGE_SIZE}`,
       );
+      const data = raw.map(toWalletTransaction);
       if (append) {
         setTransactions(prev => [...prev, ...data]);
       } else {

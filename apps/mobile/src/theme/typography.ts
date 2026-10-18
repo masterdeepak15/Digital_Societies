@@ -1,6 +1,6 @@
 import { StyleSheet } from 'react-native';
 
-export const Typography = StyleSheet.create({
+const textStyles = StyleSheet.create({
   h1: { fontSize: 28, fontWeight: '700', lineHeight: 36 },
   h2: { fontSize: 22, fontWeight: '700', lineHeight: 30 },
   h3: { fontSize: 18, fontWeight: '600', lineHeight: 26 },
@@ -12,3 +12,13 @@ export const Typography = StyleSheet.create({
   guardAction: { fontSize: 20, fontWeight: '700', lineHeight: 28 },
   guardLabel:  { fontSize: 16, fontWeight: '500', lineHeight: 22 },
 });
+
+/** Text styles (spread into a style) plus a plain font-size scale for `fontSize: Typography.sm`. */
+export const Typography = {
+  ...textStyles,
+  xs: 12,
+  sm: 14,
+  base: 16,
+  lg: 18,
+  xl: 22,
+} as const;

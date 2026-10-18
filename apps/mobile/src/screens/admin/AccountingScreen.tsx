@@ -350,8 +350,5 @@ const styles = StyleSheet.create({
   cancelBtnText: { ...typography.body },
   submitBtn:     { flex: 1, padding: spacing.md, borderRadius: 8,
                    backgroundColor: colors.primary, alignItems: 'center' },
-  submitBtnText: { color: '#fff', fontWeight: '600', ...typography.body },
-  successLight:  colors.successLight,
-  warningLight:  colors.warningLight,
-  errorLight:    colors.errorLight,
+  submitBtnText: { ...typography.body, color: '#fff', fontWeight: '600' },
 });
