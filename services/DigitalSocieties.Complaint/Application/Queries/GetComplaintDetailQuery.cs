@@ -37,7 +37,9 @@ internal sealed class GetComplaintDetailQueryHandler(ComplaintDbContext db)
     public async Task<Result<ComplaintDetailDto>> Handle(
         GetComplaintDetailQuery request, CancellationToken ct)
     {
+        // The timeline lives in a child table; without Include it always came back empty.
         var complaint = await db.Complaints
+            .Include(c => c.Updates)
             .FirstOrDefaultAsync(c => c.Id == request.ComplaintId && !c.IsDeleted, ct);
 
         if (complaint is null)
@@ -59,7 +61,7 @@ internal sealed class GetComplaintDetailQueryHandler(ComplaintDbContext db)
             complaint.RaisedBy,
             complaint.AssignedTo,
             complaint.ImageUrls,
-            complaint.Updates.Select(u =>
+            complaint.Updates.OrderBy(u => u.CreatedAt).Select(u =>
                 new ComplaintUpdateDto(
                     u.Comment,
                     u.Status.ToString(),
