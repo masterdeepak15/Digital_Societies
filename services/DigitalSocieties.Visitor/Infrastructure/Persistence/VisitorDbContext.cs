@@ -26,6 +26,13 @@ public sealed class VisitorDbContext : DbContext
             b.Property(e => e.Purpose).HasMaxLength(50).IsRequired();
             b.Property(e => e.VehicleNumber).HasMaxLength(20);
             b.Property(e => e.PhotoUrl).HasMaxLength(500);
+            b.Property(e => e.PhotoMediaId).HasMaxLength(64);
+            b.Property(e => e.IdType).HasMaxLength(20);
+            b.Property(e => e.IdLast4).HasMaxLength(4);
+            b.Property(e => e.IdPhotoMediaId).HasMaxLength(64);
+            b.Property(e => e.VehicleType).HasMaxLength(20);
+            b.Property(e => e.CompanionsJson).HasColumnType("text");
+            b.HasIndex(e => new { e.SocietyId, e.Phone });
             b.Property(e => e.Status).HasConversion<string>().HasMaxLength(20);
             b.Property(e => e.RejectionReason).HasMaxLength(500);
             b.Property(e => e.QrToken).HasMaxLength(1000);

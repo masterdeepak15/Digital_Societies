@@ -33,6 +33,13 @@ public sealed class Visitor : AuditableEntity
     public string          Purpose        { get; private set; } = default!;
     public string?         VehicleNumber  { get; private set; }
     public string?         PhotoUrl       { get; private set; }
+    // Gate details. Pictures are media ids (SHA-256 of the image), never URLs.
+    public string?         PhotoMediaId   { get; private set; }
+    public string?         IdType         { get; private set; }   // aadhaar | driving_licence | voter_id | passport | pan | other
+    public string?         IdLast4        { get; private set; }   // only the last 4 characters of the number are kept
+    public string?         IdPhotoMediaId { get; private set; }
+    public string?         VehicleType    { get; private set; }
+    public string?         CompanionsJson { get; private set; }   // [{"name":"..","phone":".."}] people arriving with the visitor
     public Guid            GuardId        { get; private set; }
     public VisitorStatus   Status         { get; private set; }
     public DateTimeOffset  EntryTime      { get; private set; }
@@ -89,6 +96,17 @@ public sealed class Visitor : AuditableEntity
 
     public void AttachPhoto(string photoUrl) => PhotoUrl = photoUrl;
     public void SetVehicle(string plate)     => VehicleNumber = plate;
+
+    public void SetGateDetails(string? photoMediaId, string? idType, string? idLast4, string? idPhotoMediaId,
+                               string? vehicleType, string? companionsJson)
+    {
+        PhotoMediaId   = photoMediaId;
+        IdType         = idType;
+        IdLast4        = idLast4;
+        IdPhotoMediaId = idPhotoMediaId;
+        VehicleType    = vehicleType;
+        CompanionsJson = companionsJson;
+    }
 }
 
 public enum VisitorStatus { Pending, Approved, Rejected, Entered, Exited }

@@ -35,6 +35,9 @@ namespace DigitalSocieties.Visitor.Infrastructure.Persistence.Migrations
                     b.Property<Guid?>("ApprovedBy")
                         .HasColumnType("uuid");
 
+                    b.Property<string>("CompanionsJson")
+                        .HasColumnType("text");
+
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -53,6 +56,18 @@ namespace DigitalSocieties.Visitor.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("GuardId")
                         .HasColumnType("uuid");
 
+                    b.Property<string>("IdLast4")
+                        .HasMaxLength(4)
+                        .HasColumnType("character varying(4)");
+
+                    b.Property<string>("IdPhotoMediaId")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("IdType")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("boolean");
 
@@ -64,6 +79,10 @@ namespace DigitalSocieties.Visitor.Infrastructure.Persistence.Migrations
                     b.Property<string>("Phone")
                         .HasMaxLength(20)
                         .HasColumnType("character varying(20)");
+
+                    b.Property<string>("PhotoMediaId")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
 
                     b.Property<string>("PhotoUrl")
                         .HasMaxLength(500)
@@ -100,11 +119,17 @@ namespace DigitalSocieties.Visitor.Infrastructure.Persistence.Migrations
                         .HasMaxLength(20)
                         .HasColumnType("character varying(20)");
 
+                    b.Property<string>("VehicleType")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
                     b.HasKey("Id");
 
                     b.HasIndex("EntryTime");
 
                     b.HasIndex("FlatId");
+
+                    b.HasIndex("SocietyId", "Phone");
 
                     b.HasIndex("SocietyId", "Status");
 

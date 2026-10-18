@@ -45,6 +45,31 @@ public static class VisitorEndpoints
         .WithSummary("Log a visitor at the gate — triggers real-time approval notification to resident")
         .WithTags("Visitor");
 
+        // ── Guard: has this person been here before? (by mobile number) ───────────
+        // GET /api/v1/visitors/lookup?phone=+919876543210
+        group.MapGet("/lookup", async (
+            [FromQuery] string? phone,
+            IMediator mediator,
+            ICurrentUser currentUser,
+            IFlatQueryService flats,
+            CancellationToken ct) =>
+        {
+            if (currentUser.SocietyId is null) return Results.BadRequest("Society context required.");
+            var result = await mediator.Send(new LookupVisitorQuery(currentUser.SocietyId.Value, phone ?? ""), ct);
+            if (!result.IsSuccess) return Results.BadRequest(result.Error);
+            var h = result.Value!;
+            var labels = await flats.GetFlatLabelsAsync(currentUser.SocietyId.Value, ct);
+            return Results.Ok(new
+            {
+                h.Found, h.Name, h.VisitCount, h.LastVisitAt, h.LastFlatId,
+                LastFlat = h.LastFlatId is { } f ? labels.GetValueOrDefault(f) : null,
+                h.LastPurpose, h.VehicleNumber, h.VehicleType, h.PhotoMediaId, h.IdType, h.IdLast4, h.Companions,
+            });
+        })
+        .RequireAuthorization("GuardOrAdmin")
+        .WithName("LookupVisitor")
+        .WithTags("Visitor");
+
         // ── Resident: approve a pending visitor ───────────────────────────────
         // POST /api/v1/visitors/{visitorId}/approve
         group.MapPost("/{visitorId:guid}/approve", async (

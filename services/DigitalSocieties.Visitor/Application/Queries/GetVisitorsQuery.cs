@@ -1,4 +1,6 @@
+using System.Text.Json;
 using MediatR;
+using DigitalSocieties.Visitor.Application.Commands;
 using DigitalSocieties.Shared.Results;
 using DigitalSocieties.Visitor.Domain.Entities;
 using DigitalSocieties.Visitor.Infrastructure.Persistence;
@@ -24,7 +26,11 @@ public record VisitorDto(
     string? QrToken,
     DateTimeOffset CreatedAt,
     DateTimeOffset EntryTime,
-    DateTimeOffset? ExitTime);
+    DateTimeOffset? ExitTime,
+    string? PhotoMediaId = null,
+    string? IdType = null,
+    string? VehicleType = null,
+    IReadOnlyList<VisitorCompanion>? Companions = null);
 
 public record PagedResult<T>(IReadOnlyList<T> Items, int TotalCount, int Page, int PageSize);
 
@@ -65,10 +71,21 @@ internal sealed class GetVisitorsQueryHandler(VisitorDbContext db)
             v.QrToken,
             v.CreatedAt,
             v.EntryTime,
-            v.ExitTime
+            v.ExitTime,
+            v.PhotoMediaId,
+            v.IdType,
+            v.VehicleType,
+            ParseCompanions(v.CompanionsJson)
         )).ToList();
 
         return Result<PagedResult<VisitorDto>>.Ok(
             new PagedResult<VisitorDto>(items, total, request.Page, request.PageSize));
+    }
+
+    private static IReadOnlyList<VisitorCompanion> ParseCompanions(string? json)
+    {
+        if (string.IsNullOrEmpty(json)) return [];
+        try { return JsonSerializer.Deserialize<List<VisitorCompanion>>(json) ?? []; }
+        catch (JsonException) { return []; }
     }
 }

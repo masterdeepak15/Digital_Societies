@@ -6,6 +6,8 @@ using DigitalSocieties.Visitor.Domain.Entities;
 using VisitorEntity = DigitalSocieties.Visitor.Domain.Entities.Visitor;
 using DigitalSocieties.Visitor.Infrastructure.Persistence;
 using DigitalSocieties.Visitor.Infrastructure.Hubs;
+using DigitalSocieties.Shared.Media;
+using System.Text.Json;
 
 namespace DigitalSocieties.Visitor.Application.Commands;
 
@@ -21,13 +23,24 @@ public sealed record AddVisitorCommand(
     string  Purpose,
     string? VehicleNumber,
     string? PhotoUrl,
-    string? HostPhone      = null   // flat owner phone for SMS fallback notification
+    string? HostPhone      = null,  // flat owner phone for SMS fallback notification
+    // Gate details (all optional except the visitor's own name, flat and purpose)
+    string? PhotoMediaId   = null,  // picture of the visitor, uploaded through /media
+    string? IdType         = null,  // aadhaar | driving_licence | voter_id | passport | pan | other
+    string? IdNumber       = null,  // only the last 4 characters are stored
+    string? IdPhotoMediaId = null,  // picture of the ID card, optional
+    string? VehicleType    = null,
+    List<VisitorCompanion>? Companions = null  // anyone arriving with the visitor
 ) : IRequest<Result<AddVisitorResponse>>;
+
+public sealed record VisitorCompanion(string Name, string? Phone = null);
 
 public sealed record AddVisitorResponse(Guid VisitorId, string Status, string Message);
 
 public sealed class AddVisitorCommandValidator : AbstractValidator<AddVisitorCommand>
 {
+    private static readonly string[] ValidIdTypes = ["aadhaar", "driving_licence", "voter_id", "passport", "pan", "other"];
+
     private static readonly string[] ValidPurposes =
         ["Guest", "Delivery", "Service", "Cab", "Vendor", "Other"];
 
@@ -44,6 +57,21 @@ public sealed class AddVisitorCommandValidator : AbstractValidator<AddVisitorCom
             .Must(p => ValidPurposes.Contains(p))
             .WithMessage($"Purpose must be one of: {string.Join(", ", ValidPurposes)}.");
         RuleFor(x => x.VehicleNumber).MaximumLength(20).When(x => x.VehicleNumber is not null);
+        RuleFor(x => x.IdType).Must(t => ValidIdTypes.Contains(t!)).When(x => !string.IsNullOrEmpty(x.IdType))
+            .WithMessage($"ID type must be one of: {string.Join(", ", ValidIdTypes)}.");
+        RuleFor(x => x.IdNumber).Matches("^[A-Za-z0-9 -]{4,20}$").When(x => !string.IsNullOrEmpty(x.IdNumber))
+            .WithMessage("Enter the ID number (4 to 20 letters or digits).");
+        RuleFor(x => x.PhotoMediaId).Must(MediaRules.IsValidId).When(x => !string.IsNullOrEmpty(x.PhotoMediaId))
+            .WithMessage("Visitor photo is not a valid picture id.");
+        RuleFor(x => x.IdPhotoMediaId).Must(MediaRules.IsValidId).When(x => !string.IsNullOrEmpty(x.IdPhotoMediaId))
+            .WithMessage("ID photo is not a valid picture id.");
+        RuleFor(x => x.VehicleType).MaximumLength(20);
+        RuleFor(x => x.Companions).Must(c => c is null || c.Count <= 10).WithMessage("At most 10 people can arrive together.");
+        RuleForEach(x => x.Companions).ChildRules(c =>
+        {
+            c.RuleFor(p => p.Name).NotEmpty().MaximumLength(200);
+            c.RuleFor(p => p.Phone).Matches(@"^(\+91)?[6-9]\d{9}$").When(p => !string.IsNullOrEmpty(p.Phone));
+        });
     }
 }
 
@@ -54,17 +82,20 @@ public sealed class AddVisitorCommandHandler
     private readonly ICurrentUser            _currentUser;
     private readonly ISocietyHubNotifier     _hub;
     private readonly INotificationDispatcher _dispatcher;
+    private readonly IStorageProvider        _storage;
 
     public AddVisitorCommandHandler(
         VisitorDbContext        db,
         ICurrentUser            currentUser,
         ISocietyHubNotifier     hub,
-        INotificationDispatcher dispatcher)
+        INotificationDispatcher dispatcher,
+        IStorageProvider        storage)
     {
         _db          = db;
         _currentUser = currentUser;
         _hub         = hub;
         _dispatcher  = dispatcher;
+        _storage     = storage;
     }
 
     public async Task<Result<AddVisitorResponse>> Handle(
@@ -79,6 +110,21 @@ public sealed class AddVisitorCommandHandler
                                      guardId);
 
         if (cmd.VehicleNumber is not null) visitor.SetVehicle(cmd.VehicleNumber);
+
+        // Pictures must already be uploaded for this society (so an id can never point at someone else's file).
+        foreach (var mediaId in new[] { cmd.PhotoMediaId, cmd.IdPhotoMediaId })
+            if (!string.IsNullOrEmpty(mediaId) && _currentUser.SocietyId is { } society
+                && !await _storage.ExistsAsync(MediaRules.KeyFor(society, mediaId), ct))
+                return Result<AddVisitorResponse>.Fail("MEDIA.NOT_FOUND", "A picture was not uploaded. Upload it first and try again.");
+
+        var idNumber = cmd.IdNumber?.Replace(" ", "").Replace("-", "");
+        visitor.SetGateDetails(
+            cmd.PhotoMediaId,
+            string.IsNullOrEmpty(cmd.IdType) ? null : cmd.IdType,
+            string.IsNullOrEmpty(idNumber) ? null : idNumber[^4..],
+            cmd.IdPhotoMediaId,
+            string.IsNullOrWhiteSpace(cmd.VehicleType) ? null : cmd.VehicleType,
+            cmd.Companions is { Count: > 0 } ? JsonSerializer.Serialize(cmd.Companions) : null);
         if (cmd.PhotoUrl      is not null) visitor.AttachPhoto(cmd.PhotoUrl);
 
         _db.Visitors.Add(visitor);

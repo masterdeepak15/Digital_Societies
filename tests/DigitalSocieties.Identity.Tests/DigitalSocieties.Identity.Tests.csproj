@@ -9,6 +9,7 @@
     <ProjectReference Include="..\..\services\DigitalSocieties.Identity\DigitalSocieties.Identity.csproj" />
     <ProjectReference Include="..\..\services\DigitalSocieties.Shared\DigitalSocieties.Shared.csproj" />
     <ProjectReference Include="..\..\services\DigitalSocieties.Communication\DigitalSocieties.Communication.csproj" />
+    <ProjectReference Include="..\..\services\DigitalSocieties.Visitor\DigitalSocieties.Visitor.csproj" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.NET.Test.Sdk"      Version="17.9.0" />
