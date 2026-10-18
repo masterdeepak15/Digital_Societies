@@ -13,15 +13,20 @@ services:
       Notification__Email__FromAddress: no-reply@digitalsocieties.local
       # Seed once with DEMO_ENABLED=true, then restart with it off: demo mode gives any caller an admin token.
       Demo__Enabled:                    ${DEMO_ENABLED:-false}
+      # Pictures go to MinIO, stored once per identical file.
+      Storage__Minio__Endpoint:         minio:9000
+      Storage__Minio__AccessKey:        ${MINIO_ACCESS_KEY}
+      Storage__Minio__SecretKey:        ${MINIO_SECRET_KEY}
+      Storage__Minio__UseSSL:           "false"
       Calling__Provider:                JitsiMeet
       Calling__Jitsi__ServerUrl:        https://meet.jit.si
       Calling__Jitsi__AppSecret:        ${JITSI_APP_SECRET}
     ports:
       - "8080:8080"
-    # No MinIO in the demo (photo uploads are off); keep the database, cache and mail catcher.
     depends_on: !override
       postgres: { condition: service_healthy }
       redis:    { condition: service_healthy }
+      minio:    { condition: service_started }
       mailpit:  { condition: service_started }
 
   mailpit:
@@ -30,3 +35,9 @@ services:
     ports:
       - "8025:8025"
     networks: [ds-net]
+
+  # The official minio/minio image is not pullable anonymously from here; Chainguard's build is free and public.
+  minio:
+    image: chainguard/minio:latest
+    healthcheck:
+      disable: true

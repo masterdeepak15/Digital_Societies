@@ -114,6 +114,35 @@ public sealed class MinioStorageProvider : IStorageProvider
             objectKey, _settings.BucketName);
     }
 
+    // ── Exists / Read (small objects: images are capped at a few MB) ──────────
+    public async Task<bool> ExistsAsync(string objectKey, CancellationToken ct = default)
+    {
+        await EnsureBucketExistsAsync(ct);
+        try
+        {
+            await _minio.StatObjectAsync(new StatObjectArgs().WithBucket(_settings.BucketName).WithObject(objectKey), ct);
+            return true;
+        }
+        catch (Minio.Exceptions.ObjectNotFoundException) { return false; }
+    }
+
+    public async Task<StoredObject?> ReadAsync(string objectKey, CancellationToken ct = default)
+    {
+        await EnsureBucketExistsAsync(ct);
+        try
+        {
+            using var buffer = new MemoryStream();
+            string contentType = "application/octet-stream";
+            await _minio.GetObjectAsync(new GetObjectArgs()
+                .WithBucket(_settings.BucketName).WithObject(objectKey)
+                .WithCallbackStream(stream => stream.CopyTo(buffer)), ct);
+            var stat = await _minio.StatObjectAsync(new StatObjectArgs().WithBucket(_settings.BucketName).WithObject(objectKey), ct);
+            if (!string.IsNullOrWhiteSpace(stat.ContentType)) contentType = stat.ContentType;
+            return new StoredObject(buffer.ToArray(), contentType);
+        }
+        catch (Minio.Exceptions.ObjectNotFoundException) { return null; }
+    }
+
     // ── Helpers ───────────────────────────────────────────────────────────────
 
     private bool _bucketChecked = false;

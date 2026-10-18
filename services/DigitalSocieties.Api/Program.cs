@@ -38,6 +38,7 @@ using DigitalSocieties.Api.Endpoints.Wallet;
 using DigitalSocieties.Api.Endpoints.Setup;
 using DigitalSocieties.Api.Endpoints.Settings;
 using DigitalSocieties.Api.Endpoints.Sync;
+using DigitalSocieties.Api.Endpoints.Media;
 using OpenTelemetry.Resources;
 using OpenTelemetry.Trace;
 using OpenTelemetry.Metrics;
@@ -171,7 +172,11 @@ try
 
     // ── IStorageProvider — MinIO S3-compatible (OCP: swap to AWS S3 by changing this line)
     builder.Services.Configure<MinioSettings>(config.GetSection(MinioSettings.SectionName));
-    builder.Services.AddScoped<DigitalSocieties.Shared.Contracts.IStorageProvider, MinioStorageProvider>();
+    // MinIO when credentials are configured, otherwise a folder on the API host (same contract, works out of the box).
+    if (!string.IsNullOrWhiteSpace(config["Storage:Minio:AccessKey"]))
+        builder.Services.AddScoped<DigitalSocieties.Shared.Contracts.IStorageProvider, MinioStorageProvider>();
+    else
+        builder.Services.AddSingleton<DigitalSocieties.Shared.Contracts.IStorageProvider, LocalFileStorageProvider>();
 
     // ── DataSeeder — instance-based for /setup/demo; scoped so it gets the right DbContexts
     builder.Services.AddScoped<DigitalSocieties.Api.Infrastructure.Seeding.DataSeeder>();
@@ -272,6 +277,7 @@ try
     app.MapGroup("/api/v1/wallet").MapWalletEndpoints();
     app.MapGroup("/api/v1/settings").MapSettingsEndpoints();
     app.MapGroup("/api/v1/sync").MapSyncEndpoints();
+    app.MapGroup("/api/v1/media").MapMediaEndpoints();
 
     // MCP server tools registered via AddMcpModule() in services above.
     // HTTP SSE transport (MapMcp) requires ModelContextProtocol >= 0.2.0 — upgrade in P6.
