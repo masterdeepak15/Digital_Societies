@@ -78,6 +78,9 @@ If SMTP is not configured in production, `POST /auth/otp/send` returns `503 EMAI
 
 1. EAS cloud build (free tier, queued): `npm i -g eas-cli`, `eas login`, then in `apps/mobile`: `eas build -p android --profile preview` and download the `.apk` link it prints.
 2. Local build (no account): install Android Studio / the Android SDK and a JDK 17, then in `apps/mobile`: `npx expo prebuild -p android` followed by `cd android && ./gradlew assembleRelease`. The APK is written to `android/app/build/outputs/apk/release/`.
+3. Local build with Docker only (no Android Studio or JDK needed; this is how the first APK was built, about 45 minutes the first time). In `apps/mobile`: `npm ci`, `npx expo prebuild -p android --no-install`, then
+   `docker run --rm -v "$PWD:/app" -v apk-gradle-cache:/root/.gradle -w /app/android reactnativecommunity/react-native-android:latest bash -c "chmod +x gradlew && ./gradlew assembleRelease --no-daemon -x lint -PreactNativeArchitectures=arm64-v8a"`.
+   Release builds are signed with Expo's default debug key: fine for installing directly on a phone, not for the Play Store (use EAS with your own keystore for that).
 
 ## Local Development
 
