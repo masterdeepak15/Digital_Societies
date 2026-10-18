@@ -13,6 +13,9 @@ const BillingScreen            = React.lazy(() => import('../screens/admin/Billi
 const ComplaintsScreen         = React.lazy(() => import('../screens/admin/ComplaintsScreen'));
 const MembersScreen            = React.lazy(() => import('../screens/admin/MembersScreen'));
 const ParkingManagementScreen  = React.lazy(() => import('../screens/admin/ParkingManagementScreen'));
+const FeedScreen               = React.lazy(() => import('../screens/resident/FeedScreen'));
+const PostDetailScreen         = React.lazy(() => import('../screens/resident/PostDetailScreen'));
+const CreatePostScreen         = React.lazy(() => import('../screens/resident/CreatePostScreen'));
 const SettingsScreen           = React.lazy(() => import('../screens/admin/SettingsScreen'));
 
 function Tabs() {
@@ -24,7 +27,7 @@ function Tabs() {
         <Tab.Screen name="Billing"    component={BillingScreen}           options={{ title: 'Billing',    tabBarIcon: tabIcon('file-text') }} />
         <Tab.Screen name="Complaints" component={ComplaintsScreen}        options={{ title: 'Complaints', tabBarIcon: tabIcon('tool') }} />
         <Tab.Screen name="Members"    component={MembersScreen}           options={{ title: 'Members',    tabBarIcon: tabIcon('users') }} />
-        <Tab.Screen name="Parking"    component={ParkingManagementScreen} options={{ title: 'Parking',    tabBarIcon: tabIcon('layers') }} />
+        <Tab.Screen name="Community"  component={FeedScreen}              options={{ title: 'Community',  tabBarIcon: tabIcon('message-circle') }} />
         <Tab.Screen name="Settings"   component={SettingsScreen}          options={{ title: 'Settings',   tabBarIcon: tabIcon('settings') }} />
       </Tab.Navigator>
     </Suspense>
@@ -38,6 +41,9 @@ export default function AdminTabs() {
       <Stack.Navigator>
         <Stack.Screen name="Tabs" component={Tabs} options={{ headerShown: false }} />
         <Stack.Screen name="ComplaintDetail" component={ComplaintDetailScreen} options={{ title: 'Complaint' }} />
+        <Stack.Screen name="Parking" component={ParkingManagementScreen} options={{ title: 'Parking' }} />
+        <Stack.Screen name="PostDetail" component={PostDetailScreen} options={{ title: 'Post' }} />
+        <Stack.Screen name="CreatePost" component={CreatePostScreen} options={{ title: 'New post' }} />
       </Stack.Navigator>
     </Suspense>
   );

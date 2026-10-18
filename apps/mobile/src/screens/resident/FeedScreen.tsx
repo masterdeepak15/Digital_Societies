@@ -11,6 +11,8 @@ import { useAuthStore } from '../../store/authStore';
 import { Colors } from '../../theme/colors';
 import { Spacing } from '../../theme/spacing';
 import { useHubUrl } from '../../config/useHubUrl';
+import { MediaImage } from '../../ui/MediaImage';
+import { showPostMenu } from './postActions';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -25,6 +27,8 @@ interface FeedPost {
   imageUrls: string[];
   isPinned: boolean;
   isLocked: boolean;
+  isHidden?: boolean;
+  likedByMe?: boolean;
   authorUserId: string;
   authorFlatDisplay: string;
   groupId?: string;
@@ -66,15 +70,18 @@ const fetchFeed = async (category?: string): Promise<PagedResult<FeedPost>> => {
   return data;
 };
 
-const reactToPost = async ({ postId, type }: { postId: string; type: string }) => {
-  await apiClient.post(`/social/posts/${postId}/react`, { type });
+// A like is the "thumbsup" reaction; tapping again takes it back.
+const toggleLike = async ({ postId, liked }: { postId: string; liked: boolean }) => {
+  if (liked) await apiClient.delete(`/social/posts/${postId}/react`);
+  else await apiClient.post(`/social/posts/${postId}/react`, { type: 'thumbsup' });
 };
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export default function FeedScreen() {
   const navigation = useNavigation<any>();
-  const { accessToken, activeSocietyId } = useAuthStore();
+  const { accessToken, activeSocietyId, userId, activeRole } = useAuthStore();
+  const isAdmin = activeRole === 'admin';
   const hubUrl = useHubUrl();
   const queryClient = useQueryClient();
   const [category, setCategory] = useState<string | undefined>(undefined);
@@ -88,7 +95,7 @@ export default function FeedScreen() {
 
   // ── React mutation ──────────────────────────────────────────────────────────
   const reactMutation = useMutation({
-    mutationFn: reactToPost,
+    mutationFn: toggleLike,
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['feed'] }),
   });
 
@@ -134,7 +141,15 @@ export default function FeedScreen() {
           <View style={[styles.categoryDot, { backgroundColor: cfg.color }]} />
           <Text style={styles.categoryLabel}>{cfg.icon} {cfg.label}</Text>
           {item.isPinned && <Text style={styles.pinBadge}>📌 Pinned</Text>}
+          {item.isHidden && <Text style={styles.pinBadge}>🙈 Hidden</Text>}
+          {item.isLocked && <Text style={styles.pinBadge}>🔒</Text>}
           <Text style={styles.flatLabel}>{item.authorFlatDisplay}</Text>
+          {(isAdmin || item.authorUserId === userId) && (
+            <TouchableOpacity accessibilityLabel="Post options" hitSlop={10}
+              onPress={() => showPostMenu(item, { isAdmin, isAuthor: item.authorUserId === userId }, () => queryClient.invalidateQueries())}>
+              <Text style={{ fontSize: 20, paddingHorizontal: 6 }}>⋯</Text>
+            </TouchableOpacity>
+          )}
         </View>
 
         {/* Body */}
@@ -146,8 +161,8 @@ export default function FeedScreen() {
         {item.imageUrls.length > 0 && (
           <ScrollView horizontal showsHorizontalScrollIndicator={false}
             style={styles.imageStrip}>
-            {item.imageUrls.map((uri, i) => (
-              <Image key={i} source={{ uri }} style={styles.thumb} />
+            {item.imageUrls.map((id) => (
+              <MediaImage key={id} id={id} size={96} style={{ marginRight: Spacing.sm }} />
             ))}
           </ScrollView>
         )}
@@ -164,8 +179,8 @@ export default function FeedScreen() {
         <View style={styles.cardFooter}>
           <TouchableOpacity
             style={styles.footerAction}
-            onPress={() => reactMutation.mutate({ postId: item.id, type: 'thumbsup' })}>
-            <Text style={styles.footerActionText}>👍 {item.reactionCount}</Text>
+            onPress={() => reactMutation.mutate({ postId: item.id, liked: !!item.likedByMe })}>
+            <Text style={[styles.footerActionText, item.likedByMe && { color: Colors.primary, fontWeight: '700' }]}>👍 {item.reactionCount}</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.footerAction}
@@ -180,7 +195,7 @@ export default function FeedScreen() {
         </View>
       </TouchableOpacity>
     );
-  }, [navigation, reactMutation]);
+  }, [navigation, reactMutation, isAdmin, userId, queryClient]);
 
   // ── Category filter tabs ──────────────────────────────────────────────────────
   const tabs: Array<{ label: string; value: string | undefined }> = [

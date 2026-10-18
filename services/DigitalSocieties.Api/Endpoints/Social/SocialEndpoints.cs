@@ -18,6 +18,31 @@ public static class SocialEndpoints
 {
     public static RouteGroupBuilder MapSocialEndpoints(this RouteGroupBuilder group)
     {
+        // Every route that names a post or a poll must name one in the caller's own society, otherwise 404.
+        // (Likes, comments, polls, pins, hides and deletes all arrive by id, so this is checked once, here.)
+        group.AddEndpointFilter(async (ctx, next) =>
+        {
+            var http = ctx.HttpContext;
+            var cu   = http.RequestServices.GetRequiredService<ICurrentUser>();
+            var db   = http.RequestServices.GetRequiredService<DigitalSocieties.Social.Infrastructure.Persistence.SocialDbContext>();
+            var ct   = http.RequestAborted;
+
+            if (http.Request.RouteValues.TryGetValue("postId", out var pid) && Guid.TryParse(pid?.ToString(), out var postId))
+                if (!await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.AnyAsync(
+                        db.Posts.Where(p => p.Id == postId && p.SocietyId == cu.SocietyId), ct))
+                    return Results.NotFound();
+
+            if (http.Request.RouteValues.TryGetValue("pollId", out var plid) && Guid.TryParse(plid?.ToString(), out var pollId))
+            {
+                var poll = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.FirstOrDefaultAsync(
+                    db.Polls.Where(x => x.Id == pollId), ct);
+                if (poll is null || !await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.AnyAsync(
+                        db.Posts.Where(p => p.Id == poll.PostId && p.SocietyId == cu.SocietyId), ct))
+                    return Results.NotFound();
+            }
+            return await next(ctx);
+        });
+
         // ── Feed: list posts ──────────────────────────────────────────────────
         // GET /api/v1/social/posts?groupId=...&category=...&page=1&pageSize=20
         group.MapGet("/posts", async (
