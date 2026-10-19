@@ -10,6 +10,8 @@ public sealed class MarketplaceDbContext : DbContext
     public DbSet<ServiceListing> ServiceListings { get; set; } = null!;
     public DbSet<ServiceBooking> ServiceBookings { get; set; } = null!;
     public DbSet<ServiceReview>  ServiceReviews  { get; set; } = null!;
+    public DbSet<MarketPost>     MarketPosts     { get; set; } = null!;
+    public DbSet<MarketReply>    MarketReplies   { get; set; } = null!;
 
     protected override void OnModelCreating(ModelBuilder m)
     {
@@ -102,6 +104,53 @@ public sealed class MarketplaceDbContext : DbContext
              .WithOne()
              .HasForeignKey<ServiceReview>(r => r.BookingId)
              .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        // The society market: sell / wanted / borrow posts and the public replies under them.
+        m.Entity<MarketPost>(e =>
+        {
+            e.ToTable("market_posts", "marketplace");
+            e.HasKey(x => x.Id);
+            e.HasQueryFilter(x => !x.IsDeleted);
+            e.Property(x => x.Id).HasColumnName("id").HasDefaultValueSql("gen_random_uuid()");
+            e.Property(x => x.SocietyId).HasColumnName("society_id");
+            e.Property(x => x.AuthorUserId).HasColumnName("author_user_id");
+            e.Property(x => x.AuthorFlatId).HasColumnName("author_flat_id");
+            e.Property(x => x.Kind).HasColumnName("kind").HasConversion<string>().HasMaxLength(20);
+            e.Property(x => x.Title).HasColumnName("title").HasMaxLength(120);
+            e.Property(x => x.Description).HasColumnName("description").HasMaxLength(1000);
+            e.Property(x => x.PricePaise).HasColumnName("price_paise");
+            e.Property(x => x.Condition).HasColumnName("condition").HasMaxLength(30);
+            e.Property(x => x.ImageIds).HasColumnName("image_ids");
+            e.Property(x => x.Status).HasColumnName("status").HasConversion<string>().HasMaxLength(20);
+            e.Property(x => x.ClosedWithUserId).HasColumnName("closed_with_user_id");
+            e.Property(x => x.ClosedAt).HasColumnName("closed_at");
+            e.Property("IsDeleted").HasColumnName("is_deleted").HasDefaultValue(false);
+            e.Property("CreatedAt").HasColumnName("created_at").HasDefaultValueSql("NOW()");
+            e.Property("CreatedBy").HasColumnName("created_by");
+            e.Property("UpdatedAt").HasColumnName("updated_at").HasDefaultValueSql("NOW()");
+            e.Property("UpdatedBy").HasColumnName("updated_by");
+            e.HasIndex(x => new { x.SocietyId, x.Status }).HasDatabaseName("ix_market_posts_society_status");
+            e.HasIndex(x => x.AuthorUserId).HasDatabaseName("ix_market_posts_author");
+        });
+
+        m.Entity<MarketReply>(e =>
+        {
+            e.ToTable("market_replies", "marketplace");
+            e.HasKey(x => x.Id);
+            e.HasQueryFilter(x => !x.IsDeleted);
+            e.Property(x => x.Id).HasColumnName("id").HasDefaultValueSql("gen_random_uuid()");
+            e.Property(x => x.SocietyId).HasColumnName("society_id");
+            e.Property(x => x.PostId).HasColumnName("post_id");
+            e.Property(x => x.AuthorUserId).HasColumnName("author_user_id");
+            e.Property(x => x.AuthorFlatId).HasColumnName("author_flat_id");
+            e.Property(x => x.Body).HasColumnName("body").HasMaxLength(1000);
+            e.Property("IsDeleted").HasColumnName("is_deleted").HasDefaultValue(false);
+            e.Property("CreatedAt").HasColumnName("created_at").HasDefaultValueSql("NOW()");
+            e.Property("CreatedBy").HasColumnName("created_by");
+            e.Property("UpdatedAt").HasColumnName("updated_at").HasDefaultValueSql("NOW()");
+            e.Property("UpdatedBy").HasColumnName("updated_by");
+            e.HasIndex(x => x.PostId).HasDatabaseName("ix_market_replies_post");
         });
 
         m.Entity<ServiceReview>(e =>

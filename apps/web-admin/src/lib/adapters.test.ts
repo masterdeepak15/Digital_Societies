@@ -85,6 +85,10 @@ describe('adaptResponse', () => {
     expect(out.items[0]).toMatchObject({ id: 'm1', price: 400, rating: 4.5, providerName: 'Ramesh' })
   })
 
+  it('wraps the society market list', () => {
+    expect(adaptResponse('/marketplace/market?pageSize=50', [{ id: 'k1' }])).toEqual({ items: [{ id: 'k1' }], total: 1 })
+  })
+
   it('maps social posts', () => {
     const out = adaptResponse('/social/posts?page=1', {
       items: [{ id: 'p1', body: 'Hi', authorFlatDisplay: 'A-101', reactionCount: 3, imageUrls: ['x'], commentCount: 2, isPinned: false, isLocked: false, createdAt: '2026-10-01T00:00:00Z' }],

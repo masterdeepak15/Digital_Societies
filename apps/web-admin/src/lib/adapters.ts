@@ -93,6 +93,9 @@ export function adaptResponse(path: string, data: unknown): unknown {
         rating: l.rating ?? l.averageRating,
       }))
 
+    case p === '/marketplace/market':
+      return toPage(data)
+
     case p === '/social/posts':
       return mapItems(toPage(data), post => ({
         ...post,

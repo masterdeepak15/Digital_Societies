@@ -1,4 +1,6 @@
 using MediatR;
+using DigitalSocieties.Billing.Application.Commands;
+using DigitalSocieties.Shared.Contracts;
 using DigitalSocieties.Marketplace.Application.Commands;
 using DigitalSocieties.Marketplace.Application.Queries;
 
@@ -103,8 +105,84 @@ public static class MarketplaceEndpoints
                 return r.IsSuccess ? Results.Ok(r.Value) : Results.BadRequest(r.Error);
             }).RequireAuthorization();
 
+        MapMarket(g);
         return g;
     }
+
+    // ── The society market: sell / wanted / borrow posts and the replies under them ──────────────
+    private static void MapMarket(RouteGroupBuilder g)
+    {
+        // The queries carry the author's flat id; the apps show the label ("A-101").
+        static string Label(string flatId, Dictionary<Guid, string> labels) =>
+            string.IsNullOrEmpty(flatId) ? "Management"
+            : Guid.TryParse(flatId, out var id) && labels.TryGetValue(id, out var l) ? l : "Resident";
+
+        g.MapGet("/market", async (IMediator mediator, ICurrentUser cu, IFlatQueryService flats, CancellationToken ct,
+            string? kind, string? status, bool mine = false, int page = 1, int pageSize = 30) =>
+        {
+            var r = await mediator.Send(new GetMarketPostsQuery(kind, status, mine, page, pageSize), ct);
+            if (!r.IsSuccess) return Results.BadRequest(r.Error);
+            var labels = await flats.GetFlatLabelsAsync(cu.SocietyId!.Value, ct);
+            return Results.Ok(r.Value!.Select(p => p with { AuthorFlatDisplay = Label(p.AuthorFlatDisplay, labels) }));
+        }).RequireAuthorization();
+
+        g.MapGet("/market/{id:guid}", async (IMediator mediator, ICurrentUser cu, IFlatQueryService flats, CancellationToken ct, Guid id) =>
+        {
+            var r = await mediator.Send(new GetMarketPostQuery(id), ct);
+            if (!r.IsSuccess) return Results.NotFound(r.Error);
+            var labels = await flats.GetFlatLabelsAsync(cu.SocietyId!.Value, ct);
+            var d = r.Value!;
+            return Results.Ok(new MarketPostDetailDto(
+                d.Post with { AuthorFlatDisplay = Label(d.Post.AuthorFlatDisplay, labels) },
+                d.Replies.Select(x => x with { AuthorFlatDisplay = Label(x.AuthorFlatDisplay, labels) }).ToList()));
+        }).RequireAuthorization();
+
+        g.MapPost("/market", async (IMediator mediator, CreateMarketPostCommand cmd) =>
+        {
+            var r = await mediator.Send(cmd);
+            return r.IsSuccess ? Results.Created($"/api/v1/marketplace/market/{r.Value}", r.Value) : Results.BadRequest(r.Error);
+        }).RequireAuthorization();
+
+        g.MapPut("/market/{id:guid}", async (IMediator mediator, Guid id, MarketPostBody b) =>
+        {
+            var r = await mediator.Send(new UpdateMarketPostCommand(id, b.Kind, b.Title, b.Description, b.PriceRupees, b.Condition, b.ImageIds));
+            return r.IsSuccess ? Results.NoContent() : Results.BadRequest(r.Error);
+        }).RequireAuthorization();
+
+        g.MapPost("/market/{id:guid}/close", async (IMediator mediator, Guid id, CloseMarketBody? b) =>
+        {
+            var r = await mediator.Send(new CloseMarketPostCommand(id, b?.WithUserId));
+            return r.IsSuccess ? Results.NoContent() : Results.BadRequest(r.Error);
+        }).RequireAuthorization();
+
+        g.MapPost("/market/{id:guid}/reopen", async (IMediator mediator, Guid id) =>
+        {
+            var r = await mediator.Send(new ReopenMarketPostCommand(id));
+            return r.IsSuccess ? Results.NoContent() : Results.BadRequest(r.Error);
+        }).RequireAuthorization();
+
+        g.MapDelete("/market/{id:guid}", async (IMediator mediator, Guid id) =>
+        {
+            var r = await mediator.Send(new DeleteMarketPostCommand(id));
+            return r.IsSuccess ? Results.NoContent() : Results.BadRequest(r.Error);
+        }).RequireAuthorization();
+
+        g.MapPost("/market/{id:guid}/replies", async (IMediator mediator, Guid id, ReplyBody b) =>
+        {
+            var r = await mediator.Send(new AddMarketReplyCommand(id, b.Body));
+            return r.IsSuccess ? Results.Created($"/api/v1/marketplace/market/{id}", r.Value) : Results.BadRequest(r.Error);
+        }).RequireAuthorization();
+
+        g.MapDelete("/market/replies/{replyId:guid}", async (IMediator mediator, Guid replyId) =>
+        {
+            var r = await mediator.Send(new DeleteMarketReplyCommand(replyId));
+            return r.IsSuccess ? Results.NoContent() : Results.BadRequest(r.Error);
+        }).RequireAuthorization();
+    }
+
+    private sealed record MarketPostBody(string Kind, string Title, string Description, decimal? PriceRupees, string? Condition, List<string>? ImageIds);
+    private sealed record CloseMarketBody(Guid? WithUserId);
+    private sealed record ReplyBody(string Body);
 
     private sealed record CompleteBody(decimal FinalAmountRupees);
     private sealed record CancelBody(string Reason);
