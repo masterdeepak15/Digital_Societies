@@ -13,7 +13,8 @@ export function pickPhoto(): Promise<string | null> {
           Alert.alert(source === 'camera' ? 'Camera needed' : 'Photos needed', 'Allow access in Settings to add a picture.');
           return resolve(null);
         }
-        const options = { mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 0.6 } as const;
+        // Cropped to a square while choosing, the shape the feed shows pictures in.
+        const options = { mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 0.7, allowsEditing: true, aspect: [1, 1] as [number, number] };
         const res = source === 'camera' ? await ImagePicker.launchCameraAsync(options) : await ImagePicker.launchImageLibraryAsync(options);
         resolve(res.canceled || !res.assets?.[0]?.uri ? null : res.assets[0].uri);
       } catch {

@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import {
   View, Text, FlatList, TouchableOpacity, StyleSheet,
-  ActivityIndicator, RefreshControl, ScrollView, Image,
+  ActivityIndicator, RefreshControl, ScrollView,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { HubConnectionBuilder, LogLevel } from '@microsoft/signalr';
@@ -11,8 +11,9 @@ import { useAuthStore } from '../../store/authStore';
 import { Colors } from '../../theme/colors';
 import { Spacing } from '../../theme/spacing';
 import { useHubUrl } from '../../config/useHubUrl';
-import { MediaImage } from '../../ui/MediaImage';
+import { PostImages } from '../../ui/PostImages';
 import { showPostMenu } from './postActions';
+import { initialsOf, timeAgo } from './feedModel';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -126,74 +127,62 @@ export default function FeedScreen() {
     const cfg = categoryConfig[item.category] ?? categoryConfig.general;
     const isEmergency = item.category === 'emergency';
 
-    return (
-      <TouchableOpacity
-        style={[
-          styles.card,
-          isEmergency && styles.emergencyCard,
-          item.isPinned && styles.pinnedCard,
-        ]}
-        onPress={() => navigation.navigate('PostDetail', { postId: item.id })}
-        activeOpacity={0.85}>
+    const open = () => navigation.navigate('PostDetail', { postId: item.id });
+    const like = () => { if (!item.likedByMe) reactMutation.mutate({ postId: item.id, liked: false }); };
+    const mine = item.authorUserId === userId;
 
-        {/* Header */}
+    return (
+      <View style={[styles.card, isEmergency && styles.emergencyCard, item.isPinned && styles.pinnedCard]}>
+        {/* Who and what */}
         <View style={styles.cardHeader}>
-          <View style={[styles.categoryDot, { backgroundColor: cfg.color }]} />
-          <Text style={styles.categoryLabel}>{cfg.icon} {cfg.label}</Text>
-          {item.isPinned && <Text style={styles.pinBadge}>📌 Pinned</Text>}
-          {item.isHidden && <Text style={styles.pinBadge}>🙈 Hidden</Text>}
-          {item.isLocked && <Text style={styles.pinBadge}>🔒</Text>}
-          <Text style={styles.flatLabel}>{item.authorFlatDisplay}</Text>
-          {(isAdmin || item.authorUserId === userId) && (
+          <View style={[styles.avatar, { backgroundColor: cfg.color }]}>
+            <Text style={styles.avatarText}>{initialsOf(item.authorFlatDisplay)}</Text>
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.author} numberOfLines={1}>{item.authorFlatDisplay || 'Resident'}</Text>
+            <Text style={styles.subline} numberOfLines={1}>
+              {cfg.icon} {cfg.label}{item.isPinned ? '  ·  📌 Pinned' : ''}{item.isHidden ? '  ·  🙈 Hidden' : ''}{item.isLocked ? '  ·  🔒' : ''}
+            </Text>
+          </View>
+          {(isAdmin || mine) && (
             <TouchableOpacity accessibilityLabel="Post options" hitSlop={10}
-              onPress={() => showPostMenu(item, { isAdmin, isAuthor: item.authorUserId === userId }, () => queryClient.invalidateQueries())}>
-              <Text style={{ fontSize: 20, paddingHorizontal: 6 }}>⋯</Text>
+              onPress={() => showPostMenu(item, { isAdmin, isAuthor: mine }, () => queryClient.invalidateQueries())}>
+              <Text style={styles.more}>⋯</Text>
             </TouchableOpacity>
           )}
         </View>
 
-        {/* Body */}
-        <Text style={[styles.body, isEmergency && styles.emergencyBody]} numberOfLines={4}>
-          {item.body}
-        </Text>
+        {/* Pictures, edge to edge */}
+        <PostImages ids={item.imageUrls ?? []} onDoubleTap={like} />
 
-        {/* Images strip */}
-        {item.imageUrls.length > 0 && (
-          <ScrollView horizontal showsHorizontalScrollIndicator={false}
-            style={styles.imageStrip}>
-            {item.imageUrls.map((id) => (
-              <MediaImage key={id} id={id} size={96} style={{ marginRight: Spacing.sm }} />
-            ))}
-          </ScrollView>
-        )}
-
-        {/* Marketplace badge */}
-        {item.category === 'for_sale' && item.pricePaise !== undefined && (
-          <View style={styles.priceBadge}>
-            <Text style={styles.priceText}>{formatPaise(item.pricePaise)}</Text>
-            {item.isSold && <Text style={styles.soldText}> · SOLD</Text>}
-          </View>
-        )}
-
-        {/* Footer */}
-        <View style={styles.cardFooter}>
-          <TouchableOpacity
-            style={styles.footerAction}
+        {/* Actions */}
+        <View style={styles.actions}>
+          <TouchableOpacity accessibilityLabel={item.likedByMe ? 'Unlike' : 'Like'} hitSlop={8}
             onPress={() => reactMutation.mutate({ postId: item.id, liked: !!item.likedByMe })}>
-            <Text style={[styles.footerActionText, item.likedByMe && { color: Colors.primary, fontWeight: '700' }]}>👍 {item.reactionCount}</Text>
+            <Text style={[styles.actionIcon, item.likedByMe && { color: Colors.error }]}>{item.likedByMe ? '♥' : '♡'}</Text>
           </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.footerAction}
-            onPress={() => navigation.navigate('PostDetail', { postId: item.id })}>
-            <Text style={styles.footerActionText}>💬 {item.commentCount}</Text>
+          <TouchableOpacity accessibilityLabel="Comments" hitSlop={8} onPress={open}>
+            <Text style={styles.actionIcon}>💬</Text>
           </TouchableOpacity>
-          <Text style={styles.timestamp}>
-            {new Date(item.createdAt).toLocaleDateString('en-IN', {
-              day: '2-digit', month: 'short',
-            })}
-          </Text>
+          {item.category === 'for_sale' && item.pricePaise !== undefined && (
+            <Text style={styles.priceText}>{formatPaise(item.pricePaise)}{item.isSold ? ' · SOLD' : ''}</Text>
+          )}
         </View>
-      </TouchableOpacity>
+
+        {/* Caption */}
+        <TouchableOpacity activeOpacity={0.9} onPress={open} style={styles.captionBox}>
+          {item.reactionCount > 0 && (
+            <Text style={styles.likes}>{item.reactionCount} {item.reactionCount === 1 ? 'like' : 'likes'}</Text>
+          )}
+          <Text style={[styles.body, isEmergency && styles.emergencyBody]} numberOfLines={3}>
+            <Text style={styles.captionAuthor}>{item.authorFlatDisplay || 'Resident'}  </Text>{item.body}
+          </Text>
+          {item.commentCount > 0 && (
+            <Text style={styles.viewComments}>View {item.commentCount === 1 ? '1 comment' : `all ${item.commentCount} comments`}</Text>
+          )}
+          <Text style={styles.timestamp}>{timeAgo(item.createdAt)}</Text>
+        </TouchableOpacity>
+      </View>
     );
   }, [navigation, reactMutation, isAdmin, userId, queryClient]);
 
@@ -265,26 +254,26 @@ const styles = StyleSheet.create({
   tabText:       { fontSize: 12, fontWeight: '500', color: Colors.textSecondary },
   tabTextActive: { color: '#fff', fontWeight: '600' },
   loader:        { flex: 1 },
-  list:          { padding: Spacing.md, gap: Spacing.sm, paddingBottom: 80 },
-  card:          { backgroundColor: Colors.surface, borderRadius: 12, padding: Spacing.md, elevation: 2, shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 4, shadowOffset: { width: 0, height: 2 } },
-  emergencyCard: { borderLeftWidth: 4, borderLeftColor: Colors.error, backgroundColor: '#FFF5F5' },
+  list:          { paddingBottom: 90 },
+  card:          { backgroundColor: Colors.surface, marginBottom: 10, borderTopWidth: 1, borderBottomWidth: 1, borderColor: Colors.divider },
+  emergencyCard: { borderLeftWidth: 4, borderLeftColor: Colors.error },
   pinnedCard:    { borderLeftWidth: 4, borderLeftColor: Colors.primary },
-  cardHeader:    { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 },
-  categoryDot:   { width: 8, height: 8, borderRadius: 4 },
-  categoryLabel: { fontSize: 12, fontWeight: '600', color: Colors.textSecondary, flex: 1 },
-  pinBadge:      { fontSize: 11, color: Colors.primary, fontWeight: '600' },
-  flatLabel:     { fontSize: 12, color: Colors.textSecondary },
-  body:          { fontSize: 15, color: Colors.textPrimary, lineHeight: 22 },
+  cardHeader:    { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: Spacing.md, paddingVertical: 10 },
+  avatar:        { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
+  avatarText:    { color: '#fff', fontWeight: '700', fontSize: 13 },
+  author:        { fontSize: 14, fontWeight: '700', color: Colors.textPrimary },
+  subline:       { fontSize: 11, color: Colors.textSecondary, marginTop: 1 },
+  more:          { fontSize: 22, color: Colors.textPrimary, paddingHorizontal: 6 },
+  actions:       { flexDirection: 'row', alignItems: 'center', gap: 18, paddingHorizontal: Spacing.md, paddingTop: 10 },
+  actionIcon:    { fontSize: 26, color: Colors.textPrimary },
+  priceText:     { marginLeft: 'auto', fontSize: 15, fontWeight: '700', color: Colors.success },
+  captionBox:    { paddingHorizontal: Spacing.md, paddingTop: 6, paddingBottom: 12, gap: 3 },
+  likes:         { fontSize: 14, fontWeight: '700', color: Colors.textPrimary },
+  body:          { fontSize: 14, color: Colors.textPrimary, lineHeight: 20 },
+  captionAuthor: { fontWeight: '700' },
   emergencyBody: { fontWeight: '600', color: Colors.error },
-  imageStrip:    { marginTop: Spacing.sm, flexGrow: 0 },
-  thumb:         { width: 80, height: 80, borderRadius: 8, marginRight: 8, backgroundColor: Colors.background },
-  priceBadge:    { flexDirection: 'row', marginTop: Spacing.sm, alignItems: 'center' },
-  priceText:     { fontSize: 15, fontWeight: '700', color: Colors.success },
-  soldText:      { fontSize: 13, color: Colors.textSecondary },
-  cardFooter:    { flexDirection: 'row', alignItems: 'center', marginTop: Spacing.sm, paddingTop: Spacing.sm, borderTopWidth: 1, borderTopColor: Colors.divider },
-  footerAction:  { marginRight: Spacing.md },
-  footerActionText: { fontSize: 13, color: Colors.textSecondary },
-  timestamp:     { marginLeft: 'auto', fontSize: 11, color: Colors.textDisabled },
+  viewComments:  { fontSize: 13, color: Colors.textSecondary, marginTop: 2 },
+  timestamp:     { fontSize: 11, color: Colors.textDisabled, marginTop: 2 },
   empty:         { alignItems: 'center', paddingTop: 80, gap: Spacing.sm, paddingHorizontal: Spacing.xl },
   emptyIcon:     { fontSize: 48 },
   emptyLabel:    { fontSize: 16, fontWeight: '600', color: Colors.textSecondary },

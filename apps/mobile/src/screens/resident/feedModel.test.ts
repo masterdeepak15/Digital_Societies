@@ -22,3 +22,31 @@ describe('postActions', () => {
     expect(del.confirm).toMatch(/delete/i);
   });
 });
+
+import { initialsOf, timeAgo } from './feedModel';
+
+describe('initialsOf', () => {
+  it('uses two letters for the avatar', () => {
+    expect(initialsOf('A-807')).toBe('A8');
+    expect(initialsOf('Govind Rao')).toBe('GR');
+    expect(initialsOf('admin')).toBe('AD');
+  });
+  it('copes with nothing', () => {
+    expect(initialsOf('')).toBe('?');
+    expect(initialsOf(undefined)).toBe('?');
+  });
+});
+
+describe('timeAgo', () => {
+  const now = new Date('2026-10-19T12:00:00Z');
+  it('counts minutes, hours and days', () => {
+    expect(timeAgo('2026-10-19T11:59:40Z', now)).toBe('just now');
+    expect(timeAgo('2026-10-19T11:55:00Z', now)).toBe('5 min ago');
+    expect(timeAgo('2026-10-19T09:00:00Z', now)).toBe('3 h ago');
+    expect(timeAgo('2026-10-17T12:00:00Z', now)).toBe('2 d ago');
+  });
+  it('falls back to a date after a week, and to "just now" for nonsense', () => {
+    expect(timeAgo('2026-09-01T12:00:00Z', now)).toMatch(/Sep/);
+    expect(timeAgo('not a date', now)).toBe('just now');
+  });
+});

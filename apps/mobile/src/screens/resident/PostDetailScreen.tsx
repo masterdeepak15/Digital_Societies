@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, FlatList, ActivityIndicator, Alert, ScrollView } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, FlatList, ActivityIndicator, Alert } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Colors } from '../../theme/colors';
@@ -8,7 +8,7 @@ import { Spacing, Radius } from '../../theme/spacing';
 import { apiFetch } from '../../utils/api';
 import { errorMessage } from '../../utils/errorMessage';
 import { useAuthStore } from '../../store/authStore';
-import { MediaImage } from '../../ui/MediaImage';
+import { PostImages } from '../../ui/PostImages';
 import { showPostMenu } from './postActions';
 
 interface Comment { id: string; authorFlatDisplay: string; body: string; isDeleted: boolean; createdAt: string }
@@ -90,13 +90,12 @@ export default function PostDetailScreen() {
                 </TouchableOpacity>
               )}
             </View>
-            <Text style={styles.body}>{data.body}</Text>
-
             {data.imageUrls?.length > 0 && (
-              <ScrollView horizontal contentContainerStyle={{ gap: Spacing.sm }}>
-                {data.imageUrls.map((m) => <MediaImage key={m} id={m} size={160} />)}
-              </ScrollView>
+              <View style={{ marginHorizontal: -Spacing.md }}>
+                <PostImages ids={data.imageUrls} onDoubleTap={() => { if (!likes?.currentUserReacted) like.mutate(false); }} />
+              </View>
             )}
+            <Text style={styles.body}>{data.body}</Text>
 
             {poll && (
               <View style={styles.poll}>
