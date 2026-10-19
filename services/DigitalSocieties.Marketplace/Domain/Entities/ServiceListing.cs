@@ -33,6 +33,10 @@ public sealed class ServiceListing : AuditableEntity
     public int             ReviewCount   { get; private set; }
     public bool            IsActive      { get; private set; } = true;
 
+    /// <summary>A resident's registration waits here until an admin approves it; only approved listings reach the Services list.</summary>
+    public ListingApproval Approval        { get; private set; } = ListingApproval.Approved;
+    public string?         RejectionReason { get; private set; }
+
     // EF navigation
     public IReadOnlyCollection<ServiceBooking> Bookings => _bookings.AsReadOnly();
     private readonly List<ServiceBooking> _bookings = [];
@@ -49,7 +53,8 @@ public sealed class ServiceListing : AuditableEntity
         string          description,
         Money           baseRate,
         RateUnit        rateUnit,
-        decimal         commissionPct = 10m)
+        decimal         commissionPct = 10m,
+        ListingApproval approval = ListingApproval.Approved)
     {
         if (commissionPct is < 0 or > 100)
             throw new ArgumentOutOfRangeException(nameof(commissionPct), "Commission must be 0–100%.");
@@ -66,6 +71,7 @@ public sealed class ServiceListing : AuditableEntity
             BaseRate      = baseRate,
             RateUnit      = rateUnit,
             CommissionPct = commissionPct,
+            Approval      = approval,
         };
     }
 
@@ -90,6 +96,25 @@ public sealed class ServiceListing : AuditableEntity
         CommissionPct = commissionPct;
     }
 
+    public void Approve()
+    {
+        Approval        = ListingApproval.Approved;
+        RejectionReason = null;
+    }
+
+    public void Reject(string reason)
+    {
+        Approval        = ListingApproval.Rejected;
+        RejectionReason = reason.Trim();
+    }
+
+    /// <summary>After the owner changes an approved or rejected listing, the admin looks at it again.</summary>
+    public void SendForApproval()
+    {
+        Approval        = ListingApproval.Pending;
+        RejectionReason = null;
+    }
+
     public void Deactivate() => IsActive = false;
     public void Activate()   => IsActive = true;
 
@@ -108,3 +133,5 @@ public enum ServiceCategory
 }
 
 public enum RateUnit { PerHour, PerVisit, PerDay }
+
+public enum ListingApproval { Pending, Approved, Rejected }

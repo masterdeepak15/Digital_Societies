@@ -34,6 +34,9 @@ public sealed class MarketplaceDbContext : DbContext
             e.Property(x => x.AverageRating).HasColumnName("average_rating");
             e.Property(x => x.ReviewCount).HasColumnName("review_count");
             e.Property(x => x.IsActive).HasColumnName("is_active").HasDefaultValue(true);
+            // Listings that existed before approval was introduced are approved.
+            e.Property(x => x.Approval).HasColumnName("approval").HasConversion<string>().HasMaxLength(20).HasDefaultValue(ListingApproval.Approved);
+            e.Property(x => x.RejectionReason).HasColumnName("rejection_reason").HasMaxLength(500);
             e.Property("IsDeleted").HasColumnName("is_deleted").HasDefaultValue(false);
             e.Property("CreatedAt").HasColumnName("created_at").HasDefaultValueSql("NOW()");
             e.Property("CreatedBy").HasColumnName("created_by");

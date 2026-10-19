@@ -21,7 +21,10 @@ public sealed record ListingDto(
     decimal CommissionPct,
     float   AverageRating,
     int     ReviewCount,
-    bool    IsActive);
+    bool    IsActive,
+    string  Approval,
+    string? RejectionReason,
+    bool    IsMine);
 
 public sealed record BookingDto(
     Guid           Id,
@@ -37,7 +40,7 @@ public sealed record BookingDto(
     bool           CanReview);
 
 // ── Browse listings (resident) ─────────────────────────────────────────────
-public sealed record GetListingsQuery(string? Category, int Page, int PageSize, bool IncludeInactive = false)
+public sealed record GetListingsQuery(string? Category, int Page, int PageSize, bool IncludeInactive = false, string? Approval = null)
     : IRequest<Result<List<ListingDto>>>;
 
 public sealed class GetListingsHandler
@@ -55,9 +58,17 @@ public sealed class GetListingsHandler
         var query = _db.ServiceListings
             .AsNoTracking().Where(l => l.SocietyId == _cu.SocietyId.Value && !l.IsDeleted);
 
-        // Switched-off listings are for admins to manage; residents only ever see active ones.
-        if (!(q.IncludeInactive && _cu.IsInRole("admin")))
-            query = query.Where(l => l.IsActive);
+        // Residents see approved, switched-on services, plus the ones they registered themselves (whatever their state).
+        // Admins can ask for everything, or for one approval state (for example what is waiting).
+        var isAdmin = _cu.IsInRole("admin");
+        var me      = _cu.UserId;
+        var approval     = default(ListingApproval);
+        var asksApproval = isAdmin && Enum.TryParse(q.Approval, true, out approval);
+        if (!(isAdmin && (q.IncludeInactive || asksApproval)))
+            query = query.Where(l => (l.IsActive && l.Approval == ListingApproval.Approved) || l.ProviderId == me);
+
+        if (asksApproval)
+            query = query.Where(l => l.Approval == approval);
 
         if (!string.IsNullOrWhiteSpace(q.Category) &&
             Enum.TryParse<ServiceCategory>(q.Category, true, out var cat))
@@ -73,7 +84,8 @@ public sealed class GetListingsHandler
                 l.Category.ToString(), l.Title, l.Description,
                 l.ProfilePhotoUrl,
                 l.BaseRate.Amount, l.RateUnit.ToString(),
-                l.CommissionPct, l.AverageRating, l.ReviewCount, l.IsActive))
+                l.CommissionPct, l.AverageRating, l.ReviewCount, l.IsActive,
+                l.Approval.ToString(), l.RejectionReason, l.ProviderId == me))
             .ToListAsync(ct);
 
         return Result<List<ListingDto>>.Ok(listings);

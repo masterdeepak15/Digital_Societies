@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { ShoppingBag, Search, Plus, Power, Phone, Pencil, Trash2 } from 'lucide-react'
+import { ShoppingBag, Search, Plus, Power, Phone, Pencil, Trash2, Check, X } from 'lucide-react'
 import { toast } from 'sonner'
 import { api } from '@/lib/api'
 import { cn } from '@/lib/utils'
@@ -32,6 +32,8 @@ interface Listing {
   rating?:       number
   reviewCount?:  number
   isActive:      boolean
+  approval?:     'Pending' | 'Approved' | 'Rejected'   // a resident's registration waits here until approved
+  rejectionReason?: string | null
 }
 
 interface ListingsPage { items: Listing[] }
@@ -44,6 +46,7 @@ export default function MarketplacePage() {
   const [category, setCategory] = useState('all')
   const [search,   setSearch]   = useState('')
   const [editing,  setEditing]  = useState<Listing | 'new' | null>(null)
+  const [rejecting, setRejecting] = useState<Listing | null>(null)
 
   const { data, isLoading } = useQuery<ListingsPage>({
     queryKey: ['marketplace-listings'],
@@ -57,13 +60,22 @@ export default function MarketplacePage() {
     onError:   (e: Error) => toast.error(e.message),
   })
 
+  const approveMutation = useMutation({
+    mutationFn: (id: string) => api.post(`/marketplace/listings/${id}/approve`, {}),
+    onSuccess: () => { toast.success('Approved. Residents can see it now.'); qc.invalidateQueries({ queryKey: ['marketplace-listings'] }) },
+    onError:   (e: Error) => toast.error(e.message),
+  })
+
   const deleteMutation = useMutation({
     mutationFn: (id: string) => api.delete(`/marketplace/listings/${id}`),
     onSuccess: () => { toast.success('Service deleted'); qc.invalidateQueries({ queryKey: ['marketplace-listings'] }) },
     onError:   (e: Error) => toast.error(e.message),
   })
 
-  const displayed = listings.filter(l =>
+  const waiting  = listings.filter(l => l.approval === 'Pending')
+  const approved = listings.filter(l => l.approval !== 'Pending')
+
+  const displayed = approved.filter(l =>
     (category === 'all' || l.category === category) &&
     (search === '' ||
       l.title.toLowerCase().includes(search.toLowerCase()) ||
@@ -80,9 +92,42 @@ export default function MarketplacePage() {
       />
 
       <div className="grid grid-cols-2 gap-4">
-        <Stat label="Active services" value={listings.filter(l => l.isActive).length} />
-        <Stat label="Switched off" value={listings.filter(l => !l.isActive).length} />
+        <Stat label="Active services" value={approved.filter(l => l.isActive && l.approval !== 'Rejected').length} />
+        <Stat label="Waiting for approval" value={waiting.length} />
       </div>
+
+      {waiting.length > 0 && (
+        <section aria-label="Waiting for approval" className="space-y-3 rounded-xl border border-saffron/40 bg-surface p-4">
+          <div>
+            <h2 className="font-semibold text-ink">Waiting for your approval</h2>
+            <p className="text-sm text-mute">Residents registered these. Residents only see a service after you approve it.</p>
+          </div>
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+            {waiting.map(l => (
+              <div key={l.id} className="space-y-2 rounded-lg border border-line p-3">
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <p className="font-semibold text-ink">{l.title}</p>
+                    <p className="text-sm text-mute">{l.providerName}{l.phone ? ` · ${l.phone}` : ''}</p>
+                  </div>
+                  <p className="font-bold text-ink">₹{l.price.toLocaleString('en-IN')} <span className="text-xs font-normal text-mute">{rateUnitLabel(l.rateUnit ?? '')}</span></p>
+                </div>
+                <p className="text-xs font-medium text-mute">{categoryLabel(l.category)}</p>
+                {l.description && <p className="text-sm text-mute">{l.description}</p>}
+                <div className="flex gap-2">
+                  <Button className="min-h-[32px] px-3 text-xs" loading={approveMutation.isPending && approveMutation.variables === l.id}
+                    onClick={() => approveMutation.mutate(l.id)}>
+                    <Check className="h-3.5 w-3.5" /> Approve
+                  </Button>
+                  <Button variant="danger" className="min-h-[32px] px-3 text-xs" onClick={() => setRejecting(l)}>
+                    <X className="h-3.5 w-3.5" /> Reject
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
       <div className="flex flex-wrap gap-3 rounded-xl border border-line bg-surface p-3">
         <div className="relative min-w-40 flex-1">
@@ -118,10 +163,11 @@ export default function MarketplacePage() {
                     <h3 className="font-semibold leading-tight text-ink">{l.title}</h3>
                     <p className="text-sm text-mute">{l.providerName}</p>
                   </div>
-                  <Badge label={l.isActive ? 'Active' : 'Switched off'} />
+                  <Badge label={l.approval === 'Rejected' ? 'Rejected' : l.isActive ? 'Active' : 'Switched off'} />
                 </div>
                 <p className="text-xs font-medium text-mute">{categoryLabel(l.category)}</p>
                 {l.description && <p className="line-clamp-2 text-sm text-mute">{l.description}</p>}
+                {l.approval === 'Rejected' && l.rejectionReason && <p className="text-sm text-bad">Rejected: {l.rejectionReason}</p>}
                 <p className="text-lg font-bold text-ink">
                   ₹{l.price.toLocaleString('en-IN')} <span className="text-sm font-normal text-mute">{rateUnitLabel(l.rateUnit ?? '')}</span>
                 </p>
@@ -130,6 +176,12 @@ export default function MarketplacePage() {
                   {l.reviewCount ? <span>★ {(l.rating ?? 0).toFixed(1)} ({l.reviewCount})</span> : <span>No reviews yet</span>}
                 </div>
                 <div className="flex flex-wrap gap-2">
+                  {l.approval === 'Rejected' && (
+                    <Button className="min-h-[32px] px-3 text-xs" loading={approveMutation.isPending && approveMutation.variables === l.id}
+                      onClick={() => approveMutation.mutate(l.id)}>
+                      <Check className="h-3.5 w-3.5" /> Approve
+                    </Button>
+                  )}
                   <Button variant="secondary" className="min-h-[32px] px-3 text-xs" onClick={() => setEditing(l)}>
                     <Pencil className="h-3.5 w-3.5" /> Edit
                   </Button>
@@ -148,6 +200,14 @@ export default function MarketplacePage() {
             ))}
           </div>}
 
+      {rejecting && (
+        <RejectModal
+          listing={rejecting}
+          onClose={() => setRejecting(null)}
+          onDone={() => { setRejecting(null); qc.invalidateQueries({ queryKey: ['marketplace-listings'] }) }}
+        />
+      )}
+
       {editing && (
         <ServiceModal
           listing={editing === 'new' ? null : editing}
@@ -156,6 +216,28 @@ export default function MarketplacePage() {
         />
       )}
     </div>
+  )
+}
+
+function RejectModal({ listing, onClose, onDone }: { listing: Listing; onClose: () => void; onDone: () => void }) {
+  const [reason, setReason] = useState('')
+  const reject = useMutation({
+    mutationFn: () => api.post(`/marketplace/listings/${listing.id}/reject`, { reason: reason.trim() }),
+    onSuccess: () => { toast.success('Rejected. The resident can see why.'); onDone() },
+    onError:   (e: Error) => toast.error(e.message),
+  })
+  return (
+    <Modal title={`Reject ${listing.title}`} onClose={onClose}>
+      <form className="space-y-3" onSubmit={e => { e.preventDefault(); if (reason.trim()) reject.mutate() }}>
+        <Field label="Why? (the resident will see this)">
+          <Input value={reason} onChange={e => setReason(e.target.value)} placeholder="Phone number is not reachable" maxLength={500} autoFocus />
+        </Field>
+        <div className="flex justify-end gap-2 pt-2">
+          <Button variant="secondary" onClick={onClose}>Cancel</Button>
+          <Button type="submit" variant="danger" loading={reject.isPending} disabled={!reason.trim()}>Reject</Button>
+        </div>
+      </form>
+    </Modal>
   )
 }
 

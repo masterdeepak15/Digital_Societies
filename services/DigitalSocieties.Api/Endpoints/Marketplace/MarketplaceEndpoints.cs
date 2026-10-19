@@ -9,9 +9,9 @@ public static class MarketplaceEndpoints
     public static RouteGroupBuilder MapMarketplaceEndpoints(this RouteGroupBuilder g)
     {
         // ── Browse & search (resident) ────────────────────────────────────
-        g.MapGet("/listings", async (IMediator mediator, string? category, int page = 1, int pageSize = 20, bool includeInactive = false) =>
+        g.MapGet("/listings", async (IMediator mediator, string? category, int page = 1, int pageSize = 20, bool includeInactive = false, string? approval = null) =>
         {
-            var r = await mediator.Send(new GetListingsQuery(category, page, pageSize, includeInactive));
+            var r = await mediator.Send(new GetListingsQuery(category, page, pageSize, includeInactive, approval));
             return r.IsSuccess ? Results.Ok(r.Value) : Results.BadRequest(r.Error);
         }).RequireAuthorization();
 
@@ -34,18 +34,30 @@ public static class MarketplaceEndpoints
             return r.IsSuccess
                 ? Results.Created($"/api/v1/marketplace/listings/{r.Value}", r.Value)
                 : Results.BadRequest(r.Error);
-        }).RequireAuthorization("AdminOnly");
+        }).RequireAuthorization();
 
         g.MapPut("/listings/{id:guid}", async (IMediator mediator, Guid id, ListingDetails d) =>
         {
             var r = await mediator.Send(new UpdateListingCommand(id, d.ProviderName, d.Phone, d.Category, d.Title,
                 d.Description, d.BaseRateRupees, d.RateUnit, d.CommissionPct));
             return r.IsSuccess ? Results.NoContent() : Results.BadRequest(r.Error);
-        }).RequireAuthorization("AdminOnly");
+        }).RequireAuthorization();
 
         g.MapDelete("/listings/{id:guid}", async (IMediator mediator, Guid id) =>
         {
             var r = await mediator.Send(new DeleteListingCommand(id));
+            return r.IsSuccess ? Results.NoContent() : Results.BadRequest(r.Error);
+        }).RequireAuthorization();
+
+        g.MapPost("/listings/{id:guid}/approve", async (IMediator mediator, Guid id) =>
+        {
+            var r = await mediator.Send(new ApproveListingCommand(id));
+            return r.IsSuccess ? Results.NoContent() : Results.BadRequest(r.Error);
+        }).RequireAuthorization("AdminOnly");
+
+        g.MapPost("/listings/{id:guid}/reject", async (IMediator mediator, Guid id, RejectListingRequest req) =>
+        {
+            var r = await mediator.Send(new RejectListingCommand(id, req.Reason));
             return r.IsSuccess ? Results.NoContent() : Results.BadRequest(r.Error);
         }).RequireAuthorization("AdminOnly");
 
@@ -99,6 +111,7 @@ public static class MarketplaceEndpoints
     private sealed record ReviewBody(int Rating, string Comment);
 
     private sealed record SetListingActiveRequest(bool IsActive);
+    private sealed record RejectListingRequest(string Reason);
     private sealed record ListingDetails(string ProviderName, string Phone, string Category, string Title,
         string Description, decimal BaseRateRupees, string RateUnit, decimal CommissionPct);
 }

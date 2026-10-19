@@ -8,6 +8,10 @@ import { Spacing } from '../../theme/spacing';
 import { Typography } from '../../theme/typography';
 import { apiFetch } from '../../services/api/apiFetch';
 import { errorMessage } from '../../utils/errorMessage';
+import {
+  EMPTY_SERVICE_FORM, RATE_UNITS, SERVICE_CATEGORIES, approvalNote, canBook, serviceFormError, toServicePayload,
+  type ListingApproval, type ServiceFormValues,
+} from './serviceForm';
 
 const colors    = { ...Colors, successLight: '#d4edda', warningLight: '#fff3cd', backgroundSecondary: Colors.divider };
 const spacing   = Spacing;
@@ -19,6 +23,7 @@ interface Listing {
   category: string; title: string; description: string;
   baseRateRupees: number; rateUnit: string;
   averageRating: number; reviewCount: number;
+  approval?: ListingApproval; rejectionReason?: string | null; isMine?: boolean;
 }
 interface Booking {
   id: string; listingId: string; providerName: string; category: string;
@@ -126,6 +131,85 @@ function BookModal({ listing, onClose, onBooked }: {
   );
 }
 
+// ── Register / change a service person (a resident's registration waits for the admin) ──
+function RegisterModal({ visible, listing, onClose, onSaved }: {
+  visible: boolean; listing: Listing | null; onClose: () => void; onSaved: (editing: boolean) => void;
+}) {
+  const fromListing = (l: Listing | null): ServiceFormValues => l
+    ? { providerName: l.providerName, phone: l.phone, category: l.category, title: l.title, description: l.description,
+        rate: String(l.baseRateRupees), rateUnit: l.rateUnit }
+    : EMPTY_SERVICE_FORM;
+  const [v, setV] = useState<ServiceFormValues>(fromListing(listing));
+  const [loading, setLoading] = useState(false);
+  React.useEffect(() => { if (visible) setV(fromListing(listing)); }, [visible, listing]);
+  const set = (k: keyof ServiceFormValues) => (t: string) => setV({ ...v, [k]: t });
+
+  const submit = async () => {
+    const problem = serviceFormError(v);
+    if (problem) { Alert.alert('Check the details', problem); return; }
+    setLoading(true);
+    try {
+      await apiFetch(listing ? `/marketplace/listings/${listing.id}` : '/marketplace/listings',
+        { method: listing ? 'PUT' : 'POST', body: JSON.stringify(toServicePayload(v)) });
+      onSaved(!!listing); onClose();
+    } catch (e: any) { Alert.alert('Could not send', errorMessage(e)); }
+    finally { setLoading(false); }
+  };
+
+  return (
+    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
+      <View style={styles.modalContainer}>
+        <View style={styles.modalHeader}>
+          <Text style={styles.modalTitle}>{listing ? 'Change your service' : 'Register a service person'}</Text>
+          <TouchableOpacity onPress={onClose}><Text style={styles.modalClose}>✕</Text></TouchableOpacity>
+        </View>
+        <ScrollView style={styles.modalBody} keyboardShouldPersistTaps="handled">
+          <Text style={styles.noteBox}>The admin checks every new service before residents can see it.</Text>
+
+          <Text style={styles.inputLabel}>Name *</Text>
+          <TextInput style={styles.textInput} value={v.providerName} onChangeText={set('providerName')} placeholder="Ramesh Kale" placeholderTextColor={colors.textSecondary} maxLength={100} />
+
+          <Text style={styles.inputLabel}>Phone number *</Text>
+          <TextInput style={styles.textInput} value={v.phone} onChangeText={set('phone')} keyboardType="phone-pad" placeholder="9975001173" placeholderTextColor={colors.textSecondary} />
+
+          <Text style={styles.inputLabel}>Kind of work *</Text>
+          <View style={styles.chipWrap}>
+            {SERVICE_CATEGORIES.map(c => (
+              <TouchableOpacity key={c} style={[styles.catChip, v.category === c && styles.catChipActive]} onPress={() => set('category')(c)}>
+                <Text style={[styles.catChipText, v.category === c && styles.catChipTextActive]}>{CATEGORY_ICONS[c] ?? ''} {c}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          <Text style={styles.inputLabel}>Service *</Text>
+          <TextInput style={styles.textInput} value={v.title} onChangeText={set('title')} placeholder="Leak repair" placeholderTextColor={colors.textSecondary} maxLength={120} />
+
+          <Text style={styles.inputLabel}>Details (optional)</Text>
+          <TextInput style={[styles.textInput, { height: 80 }]} value={v.description} onChangeText={set('description')} multiline placeholder="Taps, pipes and water tanks" placeholderTextColor={colors.textSecondary} maxLength={1000} />
+
+          <Text style={styles.inputLabel}>Rate in rupees *</Text>
+          <TextInput style={styles.textInput} value={v.rate} onChangeText={set('rate')} keyboardType="decimal-pad" placeholder="350" placeholderTextColor={colors.textSecondary} />
+          <View style={styles.chipWrap}>
+            {RATE_UNITS.map(u => (
+              <TouchableOpacity key={u.value} style={[styles.catChip, v.rateUnit === u.value && styles.catChipActive]} onPress={() => set('rateUnit')(u.value)}>
+                <Text style={[styles.catChipText, v.rateUnit === u.value && styles.catChipTextActive]}>{u.label}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </ScrollView>
+        <View style={styles.modalFooter}>
+          <TouchableOpacity style={styles.cancelBtn} onPress={onClose} disabled={loading}>
+            <Text style={styles.cancelBtnText}>Cancel</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={[styles.submitBtn, loading && styles.submitBtnDisabled]} onPress={submit} disabled={loading}>
+            {loading ? <ActivityIndicator color="#fff" size="small" /> : <Text style={styles.submitBtnText}>{listing ? 'Send again' : 'Send for approval'}</Text>}
+          </TouchableOpacity>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
 // ── Review Modal ───────────────────────────────────────────────────────────
 function ReviewModal({ bookingId, onClose, onReviewed }: {
   bookingId: string | null; onClose: () => void; onReviewed: () => void;
@@ -194,6 +278,8 @@ export default function MarketplaceScreen() {
   const [refreshing, setRefreshing]   = useState(false);
   const [bookTarget, setBookTarget]   = useState<Listing | null>(null);
   const [reviewTarget, setReviewTarget] = useState<string | null>(null);
+  const [registering, setRegistering] = useState(false);
+  const [editTarget, setEditTarget]   = useState<Listing | null>(null);
 
   const fetchListings = useCallback(async () => {
     try {
@@ -219,6 +305,16 @@ export default function MarketplaceScreen() {
   }, [tab, category]);
 
   const handleRefresh = () => { setRefreshing(true); tab === 'browse' ? fetchListings() : fetchBookings(); };
+
+  const withdraw = (l: Listing) => {
+    Alert.alert('Remove this service?', `${l.title} will be taken off the list.`, [
+      { text: 'Keep it', style: 'cancel' },
+      { text: 'Remove', style: 'destructive', onPress: async () => {
+        try { await apiFetch(`/marketplace/listings/${l.id}`, { method: 'DELETE' }); fetchListings(); }
+        catch (e: any) { Alert.alert('Error', errorMessage(e)); }
+      }},
+    ]);
+  };
 
   const handleCancel = (bookingId: string) => {
     Alert.alert('Cancel Booking', 'Are you sure?', [
@@ -250,6 +346,12 @@ export default function MarketplaceScreen() {
           </TouchableOpacity>
         ))}
       </View>
+
+      {tab === 'browse' && (
+        <TouchableOpacity style={styles.registerBtn} onPress={() => setRegistering(true)}>
+          <Text style={styles.registerBtnText}>➕  Register a service person</Text>
+        </TouchableOpacity>
+      )}
 
       {/* Category chips (browse only) */}
       {tab === 'browse' && (
@@ -295,9 +397,20 @@ export default function MarketplaceScreen() {
                     </View>
                   </View>
                   <Text style={styles.listingDesc} numberOfLines={2}>{l.description}</Text>
-                  <TouchableOpacity style={styles.bookBtn} onPress={() => setBookTarget(l)}>
-                    <Text style={styles.bookBtnText}>Book Now</Text>
-                  </TouchableOpacity>
+                  {approvalNote(l.approval, l.rejectionReason) && (
+                    <Text style={[styles.statusNote, l.approval === 'Rejected' && styles.statusNoteBad]}>{approvalNote(l.approval, l.rejectionReason)}</Text>
+                  )}
+                  {canBook(l) && (
+                    <TouchableOpacity style={styles.bookBtn} onPress={() => setBookTarget(l)}>
+                      <Text style={styles.bookBtnText}>Book Now</Text>
+                    </TouchableOpacity>
+                  )}
+                  {l.isMine && (
+                    <View style={styles.mineRow}>
+                      <TouchableOpacity onPress={() => setEditTarget(l)}><Text style={styles.mineLink}>Change</Text></TouchableOpacity>
+                      <TouchableOpacity onPress={() => withdraw(l)}><Text style={[styles.mineLink, { color: colors.error }]}>Remove</Text></TouchableOpacity>
+                    </View>
+                  )}
                 </View>
               ))
           )}
@@ -343,6 +456,12 @@ export default function MarketplaceScreen() {
 
       <BookModal listing={bookTarget} onClose={() => setBookTarget(null)}
         onBooked={() => { setTab('bookings'); fetchBookings(); }} />
+      <RegisterModal visible={registering || !!editTarget} listing={editTarget}
+        onClose={() => { setRegistering(false); setEditTarget(null); }}
+        onSaved={(editing) => {
+          fetchListings();
+          Alert.alert(editing ? 'Sent again' : 'Sent for approval', 'The admin will check it. You can see its status here.');
+        }} />
       <ReviewModal bookingId={reviewTarget} onClose={() => setReviewTarget(null)}
         onReviewed={fetchBookings} />
     </View>
@@ -363,6 +482,15 @@ const styles = StyleSheet.create({
   tabActive: { borderBottomColor: colors.primary },
   tabText: { ...typography.body, color: colors.textSecondary },
   tabTextActive: { color: colors.primary, fontWeight: '700' },
+
+  registerBtn: { margin: spacing.sm, marginBottom: 0, padding: spacing.sm, borderRadius: 10, borderWidth: 1, borderColor: colors.primary, alignItems: 'center', backgroundColor: colors.surface },
+  registerBtnText: { ...typography.body, color: colors.primary, fontWeight: '700' },
+  statusNote: { ...Typography.caption, color: colors.textSecondary, backgroundColor: colors.warningLight, borderRadius: 8, padding: spacing.xs, marginTop: spacing.xs },
+  statusNoteBad: { backgroundColor: '#f8d7da' },
+  mineRow: { flexDirection: 'row', gap: spacing.lg, marginTop: spacing.sm },
+  mineLink: { ...typography.body, color: colors.primary, fontWeight: '700' },
+  noteBox: { ...Typography.caption, color: colors.textSecondary, backgroundColor: colors.warningLight, borderRadius: 8, padding: spacing.sm, marginBottom: spacing.sm },
+  chipWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.xs, marginTop: spacing.xs },
 
   categoryScroll: { maxHeight: 48, backgroundColor: colors.surface },
   categoryContent: { paddingHorizontal: spacing.sm, paddingVertical: spacing.xs, gap: spacing.xs, alignItems:'center' },

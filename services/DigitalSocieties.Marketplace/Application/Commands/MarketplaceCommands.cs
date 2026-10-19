@@ -9,7 +9,9 @@ using DigitalSocieties.Marketplace.Infrastructure.Persistence;
 
 namespace DigitalSocieties.Marketplace.Application.Commands;
 
-// ── Create listing (provider or admin) ────────────────────────────────────
+// ── Create listing ─────────────────────────────────────────────────────────
+// An admin's listing is live at once. A resident's registration waits for an admin to approve it,
+// and the resident cannot choose the commission.
 public sealed record CreateListingCommand(
     string   ProviderName,
     string   Phone,
@@ -54,12 +56,14 @@ public sealed class CreateListingHandler
         if (!Enum.TryParse<RateUnit>(cmd.RateUnit, true, out var rateUnit))
             return Result<Guid>.Fail("LISTING.INVALID_RATE_UNIT", $"Unknown rate unit: {cmd.RateUnit}");
 
+        var byAdmin = _cu.IsInRole("admin");
         var listing = ServiceListing.Create(
             _cu.SocietyId.Value, _cu.UserId.Value,
             cmd.ProviderName, cmd.Phone,
             category, cmd.Title, cmd.Description,
             rateResult.Value!, rateUnit,
-            commissionPct: Math.Clamp(cmd.CommissionPct, 0m, 100m));
+            commissionPct: byAdmin ? Math.Clamp(cmd.CommissionPct, 0m, 100m) : 10m,
+            approval: byAdmin ? ListingApproval.Approved : ListingApproval.Pending);
 
         _db.ServiceListings.Add(listing);
         await _db.SaveChangesAsync(ct);
@@ -113,7 +117,8 @@ public sealed class BookServiceHandler : IRequestHandler<BookServiceCommand, Res
         var listing = await _db.ServiceListings
             .FirstOrDefaultAsync(l => l.Id == cmd.ListingId
                                    && l.SocietyId == _cu.SocietyId.Value
-                                   && l.IsActive, ct);
+                                   && l.IsActive
+                                   && l.Approval == ListingApproval.Approved, ct);
 
         if (listing is null)
             return Result<Guid>.Fail("LISTING.NOT_FOUND", "Service listing not found or inactive.");

@@ -125,6 +125,14 @@ namespace DigitalSocieties.Marketplace.Infrastructure.Persistence.Migrations
                         .HasColumnName("id")
                         .HasDefaultValueSql("gen_random_uuid()");
 
+                    b.Property<string>("Approval")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasDefaultValue("Approved")
+                        .HasColumnName("approval");
+
                     b.Property<float>("AverageRating")
                         .HasColumnType("real")
                         .HasColumnName("average_rating");
@@ -194,6 +202,11 @@ namespace DigitalSocieties.Marketplace.Infrastructure.Persistence.Migrations
                         .HasMaxLength(20)
                         .HasColumnType("character varying(20)")
                         .HasColumnName("rate_unit");
+
+                    b.Property<string>("RejectionReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("rejection_reason");
 
                     b.Property<int>("ReviewCount")
                         .HasColumnType("integer")
