@@ -83,14 +83,17 @@ public sealed class AddVisitorCommandHandler
     private readonly ISocietyHubNotifier     _hub;
     private readonly INotificationDispatcher _dispatcher;
     private readonly IStorageProvider        _storage;
+    private readonly ISocietySettingsReader  _settings;
 
     public AddVisitorCommandHandler(
         VisitorDbContext        db,
         ICurrentUser            currentUser,
         ISocietyHubNotifier     hub,
         INotificationDispatcher dispatcher,
-        IStorageProvider        storage)
+        IStorageProvider        storage,
+        ISocietySettingsReader  settings)
     {
+        _settings    = settings;
         _db          = db;
         _currentUser = currentUser;
         _hub         = hub;
@@ -130,6 +133,9 @@ public sealed class AddVisitorCommandHandler
         _db.Visitors.Add(visitor);
         await _db.SaveChangesAsync(ct);
 
+        // The society can switch visitor alerts off in Settings: the list still refreshes, but nothing rings.
+        var rules = await _settings.GetAsync(cmd.SocietyId, ct);
+
         var payload = new
         {
             visitorId = visitor.Id,
@@ -137,6 +143,7 @@ public sealed class AddVisitorCommandHandler
             purpose   = visitor.Purpose,
             phone     = visitor.Phone,
             entryTime = visitor.EntryTime,
+            alert     = rules.VisitorAlerts,
         };
 
         // 1. Real-time push via SignalR (works when app is open / foreground)
@@ -148,6 +155,7 @@ public sealed class AddVisitorCommandHandler
         //    recipientPhone used only if push fails — passed from the visitor's host phone
         //    (cmd.HostPhone is populated by the sync endpoint from Identity flat owner lookup).
         // The push goes to every resident of the flat (their phones ring and vibrate). A phone number is only for the SMS fallback.
+        if (rules.VisitorAlerts && rules.PushEnabled)
         {
             var notifMessage = new NotificationMessage(
                 Recipient:  cmd.FlatId.ToString(),

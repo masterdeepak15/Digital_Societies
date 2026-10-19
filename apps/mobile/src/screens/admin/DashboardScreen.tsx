@@ -117,6 +117,14 @@ export default function AdminDashboardScreen() {
     staleTime: 60_000,
   });
 
+  // The monthly maintenance the society saved in Settings > Billing (0 = not set).
+  const { data: defaults } = useQuery({
+    queryKey: ['billing-defaults'],
+    queryFn: async () => (await apiClient.get<{ maintenanceAmount: number }>('/billing/defaults')).data,
+    enabled: !!societyId,
+    staleTime: 60_000,
+  });
+
   const generateMutation = useMutation({
     mutationFn: generateBills,
     onSuccess: (data) => {
@@ -129,7 +137,9 @@ export default function AdminDashboardScreen() {
 
   // Same amount as the current bills (or Rs 1,500 for a society with none yet), confirmed before anything is created.
   const confirmGenerate = () => {
-    const perFlat = billing && billing.totalFlats > 0 ? Math.round(billing.totalDuePaise / billing.totalFlats) : 150000;
+    const configured = Math.round((defaults?.maintenanceAmount ?? 0) * 100);
+    const perFlat = configured > 0 ? configured
+      : billing && billing.totalFlats > 0 ? Math.round(billing.totalDuePaise / billing.totalFlats) : 150000;
     const month = new Date().toLocaleDateString('en-IN', { month: 'long', year: 'numeric' });
     Alert.alert(
       'Generate bills',

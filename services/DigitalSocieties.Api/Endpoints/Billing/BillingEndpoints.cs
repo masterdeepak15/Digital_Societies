@@ -114,10 +114,20 @@ public static class BillingEndpoints
             GenerateMonthlyBillsCommand cmd,
             IMediator mediator,
             ICurrentUser currentUser,
+            ISocietySettingsReader settings,
             CancellationToken ct) =>
         {
             // Never trust a client-supplied society: bills are always generated for the caller's own.
             if (currentUser.SocietyId is null) return Results.BadRequest("Society context required.");
+
+            // No amount given: use the monthly maintenance the society saved in Settings > Billing.
+            if (cmd.AmountPerFlat <= 0)
+            {
+                var rules = await settings.GetAsync(currentUser.SocietyId.Value, ct);
+                if (rules.MaintenanceAmount <= 0)
+                    return Results.BadRequest(new { code = "BILLING.NO_AMOUNT", message = "Enter the amount, or set the monthly maintenance in Settings > Billing." });
+                cmd = cmd with { AmountPerFlat = rules.MaintenanceAmount };
+            }
             var result = await mediator.Send(cmd with { SocietyId = currentUser.SocietyId.Value }, ct);
             return result.IsSuccess
                 ? Results.Ok(new { generated = result.Value })
@@ -126,6 +136,31 @@ public static class BillingEndpoints
         .RequireAuthorization("FinanceStaff")
         .WithName("GenerateMonthlyBills")
         .WithSummary("Generate monthly maintenance bills for all flats in a society")
+        .WithTags("Billing");
+
+        // ── What Settings > Billing holds, for the screens that start a billing run ──
+        // GET /api/v1/billing/defaults
+        group.MapGet("/defaults", async (ICurrentUser currentUser, ISocietySettingsReader settings, CancellationToken ct) =>
+        {
+            if (currentUser.SocietyId is null) return Results.BadRequest("Society context required.");
+            var r = await settings.GetAsync(currentUser.SocietyId.Value, ct);
+            return Results.Ok(new { r.MaintenanceAmount, r.BillingCycleDay, r.GracePeriodDays, r.LatePenaltyPercent });
+        })
+        .RequireAuthorization("FinanceStaff")
+        .WithName("BillingDefaults")
+        .WithTags("Billing");
+
+        // ── Add the late fee to bills past their grace period (once each) ─────
+        // POST /api/v1/billing/late-fees
+        group.MapPost("/late-fees", async (IMediator mediator, CancellationToken ct) =>
+        {
+            var today = DateOnly.FromDateTime(DateTime.UtcNow.AddHours(5.5));   // the society's day, in India
+            var result = await mediator.Send(new ApplyLateFeesCommand(today), ct);
+            return result.IsSuccess ? Results.Ok(result.Value) : Results.BadRequest(result.Error);
+        })
+        .RequireAuthorization("FinanceStaff")
+        .WithName("ApplyLateFees")
+        .WithSummary("Add the late fee set in Settings to every unpaid bill past its grace period")
         .WithTags("Billing");
 
         // ── Admin: get society-wide billing summary ────────────────────────────

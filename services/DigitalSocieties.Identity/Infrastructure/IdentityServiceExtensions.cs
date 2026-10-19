@@ -39,6 +39,7 @@ public static class IdentityServiceExtensions
         services.AddScoped<IOtpService,  OtpService>();
         services.AddScoped<IJwtService,  JwtService>();
         services.AddSingleton<IRateLimiter, RedisRateLimiter>();
+        services.AddScoped<DigitalSocieties.Shared.Contracts.ISocietySettingsReader, DigitalSocieties.Identity.Infrastructure.Settings.IdentitySocietySettingsReader>();
 
         // MediatR handlers (scanned from this assembly)
         services.AddMediatR(cfg =>

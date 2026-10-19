@@ -25,7 +25,7 @@ public sealed class QrTokenService : IQrTokenService
 
     public QrTokenService(IOptions<QrTokenSettings> settings) => _settings = settings.Value;
 
-    public string Generate(Guid visitorId, Guid societyId)
+    public string Generate(Guid visitorId, Guid societyId, TimeSpan? lifetime = null)
     {
         var key    = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_settings.SecretKey));
         var creds  = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
@@ -40,7 +40,7 @@ public sealed class QrTokenService : IQrTokenService
                 new Claim("nonce",      nonce),
             ],
             notBefore: DateTime.UtcNow,
-            expires:   DateTime.UtcNow.AddSeconds(_settings.TtlSeconds),
+            expires:   DateTime.UtcNow.Add(lifetime ?? TimeSpan.FromSeconds(_settings.TtlSeconds)),
             signingCredentials: creds);
 
         return new JwtSecurityTokenHandler().WriteToken(token);

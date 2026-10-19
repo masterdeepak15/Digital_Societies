@@ -6,73 +6,62 @@ using Microsoft.AspNetCore.Mvc;
 namespace DigitalSocieties.Api.Endpoints.Settings;
 
 /// <summary>
-/// Society settings — read and update core society configuration.
-/// GET  /api/v1/settings  → returns society name, address, tier, flat count
-/// PATCH /api/v1/settings → updates name and/or address (admin only)
+/// Society settings: the profile (name, address, registration number) and the society's own rules
+/// (contact, billing, notifications, visitor security). All of it is saved on the server.
+/// GET   /api/v1/settings  → profile + settings
+/// PATCH /api/v1/settings  → change any of them (admin only)
 /// </summary>
 public static class SettingsEndpoints
 {
     public static RouteGroupBuilder MapSettingsEndpoints(this RouteGroupBuilder g)
     {
-        // GET /api/v1/settings
-        g.MapGet("/", async (
-            IdentityDbContext db,
-            ICurrentUser      cu,
-            CancellationToken ct) =>
+        g.MapGet("/", async (IdentityDbContext db, ICurrentUser cu, CancellationToken ct) =>
         {
             if (cu.SocietyId is null) return Results.BadRequest("Society context required.");
-            var society = await db.Societies
-                .AsNoTracking()
-                .FirstOrDefaultAsync(s => s.Id == cu.SocietyId, ct);
+            var society = await db.Societies.AsNoTracking().FirstOrDefaultAsync(s => s.Id == cu.SocietyId, ct);
             if (society is null) return Results.NotFound("Society not found.");
 
-            return Results.Ok(new {
-                society.Id,
-                society.Name,
-                society.Address,
-                society.RegistrationNumber,
-                society.Tier,
-                society.IsActive,
-                society.TotalFlats,
+            return Results.Ok(new
+            {
+                society.Id, society.Name, society.Address, society.RegistrationNumber, society.Tier, society.IsActive, society.TotalFlats,
+                Settings = society.Settings,
             });
         })
         .RequireAuthorization("AdminOnly")
         .WithName("GetSettings")
-        .WithSummary("Get society settings and configuration")
+        .WithSummary("Get the society profile and its settings")
         .WithTags("Settings");
 
-        // PATCH /api/v1/settings
-        g.MapPatch("/", async (
-            [FromBody] UpdateSettingsRequest body,
-            IdentityDbContext db,
-            ICurrentUser      cu,
-            CancellationToken ct) =>
+        g.MapPatch("/", async ([FromBody] UpdateSettingsRequest body, IdentityDbContext db, ICurrentUser cu, CancellationToken ct) =>
         {
             if (cu.SocietyId is null) return Results.BadRequest("Society context required.");
-            var society = await db.Societies
-                .FirstOrDefaultAsync(s => s.Id == cu.SocietyId, ct);
+            var society = await db.Societies.FirstOrDefaultAsync(s => s.Id == cu.SocietyId, ct);
             if (society is null) return Results.NotFound("Society not found.");
 
-            // Use raw SQL update to avoid exposing a public setter on the domain entity
-            if (body.Name is not null)
-                await db.Database.ExecuteSqlRawAsync(
-                    "UPDATE identity.societies SET \"Name\" = {0}, \"UpdatedAt\" = {1} WHERE \"Id\" = {2}",
-                    body.Name, DateTimeOffset.UtcNow, cu.SocietyId);
+            if (body.Settings is { } settings)
+            {
+                var problem = settings.Validate();
+                if (problem is not null) return Results.BadRequest(new { code = "SETTINGS.INVALID", message = problem });
+                society.SaveSettings(settings);
+            }
 
-            if (body.Address is not null)
-                await db.Database.ExecuteSqlRawAsync(
-                    "UPDATE identity.societies SET \"Address\" = {0}, \"UpdatedAt\" = {1} WHERE \"Id\" = {2}",
-                    body.Address, DateTimeOffset.UtcNow, cu.SocietyId);
+            var reg = body.RegistrationNumber?.Trim();
+            if (!string.IsNullOrEmpty(reg) && !string.Equals(reg, society.RegistrationNumber, StringComparison.Ordinal)
+                && await db.Societies.AnyAsync(s => s.Id != society.Id && s.RegistrationNumber == reg, ct))
+                return Results.BadRequest(new { code = "SETTINGS.REG_DUPLICATE", message = "Another society already uses that registration number." });
+
+            society.UpdateProfile(body.Name, body.Address, reg);
+            await db.SaveChangesAsync(ct);
 
             return Results.Ok(new { updated = true });
         })
         .RequireAuthorization("AdminOnly")
         .WithName("UpdateSettings")
-        .WithSummary("Update society name and/or address")
+        .WithSummary("Update the society profile and/or its settings")
         .WithTags("Settings");
 
         return g;
     }
 
-    public sealed record UpdateSettingsRequest(string? Name, string? Address);
+    public sealed record UpdateSettingsRequest(string? Name, string? Address, string? RegistrationNumber, SocietySettings? Settings);
 }

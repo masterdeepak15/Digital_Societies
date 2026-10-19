@@ -1,5 +1,6 @@
 using DigitalSocieties.Shared.Domain.Entities;
 using DigitalSocieties.Identity.Domain.Events;
+using DigitalSocieties.Shared.Contracts;
 
 namespace DigitalSocieties.Identity.Domain.Entities;
 
@@ -30,6 +31,8 @@ public sealed class Society : AuditableEntity
     public string? PrimaryPhone      { get; private set; }
     public string? PrimaryEmail      { get; private set; }
     public int    TotalFlats         { get; private set; }
+    /// <summary>The society's own rules (billing, notifications, visitor security) as JSON; see <see cref="SocietySettings"/>.</summary>
+    public string? SettingsJson      { get; private set; }
 
     private readonly List<Flat> _flats = [];
     public IReadOnlyList<Flat>  Flats  => _flats.AsReadOnly();
@@ -45,6 +48,18 @@ public sealed class Society : AuditableEntity
     {
         Tier = tier;
         Raise(new SocietyTierChangedEvent(Id, tier));
+    }
+
+    public SocietySettings Settings => SocietySettings.Parse(SettingsJson);
+
+    public void SaveSettings(SocietySettings settings) => SettingsJson = settings.ToJson();
+
+    /// <summary>Changes only what is given; a blank value leaves the stored one alone.</summary>
+    public void UpdateProfile(string? name, string? address, string? registrationNumber)
+    {
+        if (!string.IsNullOrWhiteSpace(name))               Name               = name.Trim();
+        if (!string.IsNullOrWhiteSpace(address))            Address            = address.Trim();
+        if (!string.IsNullOrWhiteSpace(registrationNumber)) RegistrationNumber = registrationNumber.Trim();
     }
 
     public void Deactivate()

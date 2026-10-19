@@ -58,7 +58,7 @@ export function useChatHub(): void {
     // A guard added a visitor for this flat: ring and vibrate, and refresh the waiting list.
     conn.on('VisitorPendingApproval', (p) => {
       queryClient.invalidateQueries({ queryKey: ['visitors'] });
-      void showAlert(visitorAlert(p));
+      if (p?.alert !== false) void showAlert(visitorAlert(p));      // the society can switch visitor alerts off in Settings
     });
     conn.on('EmergencyAlert', (p) => void showAlert(emergencyAlert(p)));
 

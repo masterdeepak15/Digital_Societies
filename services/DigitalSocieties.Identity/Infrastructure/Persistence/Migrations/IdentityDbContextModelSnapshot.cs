@@ -219,6 +219,9 @@ namespace DigitalSocieties.Identity.Infrastructure.Persistence.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("character varying(100)");
 
+                    b.Property<string>("SettingsJson")
+                        .HasColumnType("text");
+
                     b.Property<string>("Tier")
                         .IsRequired()
                         .ValueGeneratedOnAdd()

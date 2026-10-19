@@ -18,11 +18,12 @@ public sealed class ApproveVisitorCommandHandler
     private readonly ICurrentUser        _currentUser;
     private readonly ISocietyHubNotifier _hub;
     private readonly IQrTokenService     _qr;
+    private readonly ISocietySettingsReader _settings;
 
     public ApproveVisitorCommandHandler(
         VisitorDbContext db, ICurrentUser currentUser,
-        ISocietyHubNotifier hub, IQrTokenService qr)
-    { _db = db; _currentUser = currentUser; _hub = hub; _qr = qr; }
+        ISocietyHubNotifier hub, IQrTokenService qr, ISocietySettingsReader settings)
+    { _db = db; _currentUser = currentUser; _hub = hub; _qr = qr; _settings = settings; }
 
     private bool CanActFor(Domain.Entities.Visitor v) =>
         _currentUser.FlatId == v.FlatId
@@ -40,8 +41,9 @@ public sealed class ApproveVisitorCommandHandler
                 Error.Unauthorized("You can only approve visitors for your own flat."));
 
         var approvedBy = _currentUser.UserId!.Value;
-        // Generate QR token (signed JWT, 2-min TTL, single-use nonce)
-        var qrToken = _qr.Generate(visitor.Id, visitor.SocietyId);
+        // Generate QR token (signed JWT, single-use nonce) that lives as long as the society chose in Settings
+        var rules   = await _settings.GetAsync(visitor.SocietyId, ct);
+        var qrToken = _qr.Generate(visitor.Id, visitor.SocietyId, rules.VisitorQrTtl);
         visitor.Approve(approvedBy, qrToken);
 
         await _db.SaveChangesAsync(ct);

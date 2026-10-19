@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Plus, Download, Search, RefreshCw } from 'lucide-react'
+import { Plus, Download, Search, RefreshCw, Clock } from 'lucide-react'
 import { toast } from 'sonner'
 import { api } from '@/lib/api'
 import { getUser } from '@/lib/auth'
@@ -87,6 +87,26 @@ export default function BillingPage() {
     dueDate:       string  // YYYY-MM-DD
   }
 
+  // The monthly maintenance, grace period and late penalty the society saved in Settings > Billing.
+  const { data: defaults } = useQuery<{ maintenanceAmount: number; gracePeriodDays: number; latePenaltyPercent: number }>({
+    queryKey: ['billing-defaults'],
+    queryFn:  () => api.get('/billing/defaults'),
+  })
+
+  const lateFeeMutation = useMutation({
+    mutationFn: () => api.post<{ billsCharged: number; totalLateFeeRupees: number }>('/billing/late-fees', {}),
+    onSuccess: r => {
+      toast.success(r.billsCharged === 0 ? 'No bills are past their grace period, so nothing was charged.' : `Late fee added to ${r.billsCharged} bill(s): ₹${r.totalLateFeeRupees.toLocaleString('en-IN')} in total.`)
+      qc.invalidateQueries({ queryKey: ['bills'] })
+    },
+    onError: (e: Error) => toast.error(e.message),
+  })
+
+  const applyLateFees = () => {
+    if (!defaults || defaults.latePenaltyPercent <= 0) { toast.error('No late penalty is set. Set one in Settings > Billing first.'); return }
+    if (confirm(`Add a ${defaults.latePenaltyPercent}% late fee to every unpaid bill that is more than ${defaults.gracePeriodDays} days past its due date? A bill is charged once.`)) lateFeeMutation.mutate()
+  }
+
   const generateMutation = useMutation({
     mutationFn: (input: GenerateBillsInput) => {
       const societyId = getUser()?.societyId
@@ -127,6 +147,13 @@ export default function BillingPage() {
               className="flex items-center gap-1.5 bg-brand-600 hover:bg-brand-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition"
             >
               <Plus className="w-4 h-4" /> Generate Bills
+            </button>
+            <button
+              onClick={applyLateFees}
+              disabled={lateFeeMutation.isPending}
+              className="flex items-center gap-1.5 border border-gray-300 hover:bg-gray-50 disabled:opacity-60 px-3 py-2 rounded-lg text-sm font-medium"
+            >
+              <Clock className="w-4 h-4" /> {lateFeeMutation.isPending ? 'Adding…' : 'Apply late fees'}
             </button>
             <button className="flex items-center gap-1.5 border border-gray-300 hover:bg-gray-50 px-3 py-2 rounded-lg text-sm font-medium">
               <Download className="w-4 h-4" /> Export
@@ -235,6 +262,8 @@ export default function BillingPage() {
       {/* Generate Bills Modal */}
       {showGen && (
         <GenerateBillsModal
+          key={defaults?.maintenanceAmount ?? 'loading'}
+          defaultAmount={defaults?.maintenanceAmount ?? 0}
           onClose={() => setShowGen(false)}
           onGenerate={input => generateMutation.mutate(input)}
           isPending={generateMutation.isPending}
@@ -248,15 +277,16 @@ export default function BillingPage() {
 interface GenerateInput { period: string; amountPerFlat: number; description: string; dueDate: string }
 
 function GenerateBillsModal({
-  onClose, onGenerate, isPending,
-}: { onClose: () => void; onGenerate: (input: GenerateInput) => void; isPending: boolean }) {
+  onClose, onGenerate, isPending, defaultAmount,
+}: { onClose: () => void; onGenerate: (input: GenerateInput) => void; isPending: boolean; defaultAmount: number }) {
   const today      = new Date()
   const defPeriod  = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`
   // Default due date = 10th of the period month
   const defDue     = `${defPeriod}-10`
 
   const [period,        setPeriod]        = useState(defPeriod)
-  const [amount,        setAmount]        = useState(2500)
+  // Starts at the monthly maintenance saved in Settings (empty when none is saved yet), never a made-up figure.
+  const [amount,        setAmount]        = useState(defaultAmount)
   const [description,   setDescription]   = useState(`Maintenance — ${defPeriod}`)
   const [dueDate,       setDueDate]       = useState(defDue)
 

@@ -15,6 +15,8 @@ public sealed class SocietyConfiguration : IEntityTypeConfiguration<Society>
         b.Property(e => e.RegistrationNumber).HasMaxLength(100).IsRequired();
         b.Property(e => e.Tier).HasMaxLength(20).HasDefaultValue("free");
         b.Property(e => e.LogoUrl).HasMaxLength(500);
+        b.Property(e => e.SettingsJson).HasColumnType("text");
+        b.Ignore(e => e.Settings);
         b.HasIndex(e => e.RegistrationNumber).IsUnique();
         b.HasMany(e => e.Flats).WithOne().HasForeignKey(f => f.SocietyId);
         // Soft-delete filter
