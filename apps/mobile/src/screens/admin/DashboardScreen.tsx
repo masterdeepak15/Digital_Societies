@@ -5,6 +5,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
+import { ViewSwitcher } from '../../ui/ViewSwitcher';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '../../services/api/apiClient';
 import { useAuthStore } from '../../store/authStore';
@@ -190,6 +191,8 @@ export default function AdminDashboardScreen() {
           <Text style={{ color: Colors.primary, fontWeight: '700' }}>Parking management →</Text>
         </TouchableOpacity>
       </View>
+
+      <View style={{ paddingHorizontal: Spacing.md, paddingBottom: Spacing.sm }}><ViewSwitcher /></View>
 
       {/* ── Billing summary cards ──────────────────────────────────────────── */}
       <Text style={styles.sectionTitle}>Maintenance Collection</Text>

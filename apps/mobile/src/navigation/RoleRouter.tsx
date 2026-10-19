@@ -1,5 +1,6 @@
 import React from 'react';
 import { useAuthStore } from '../store/authStore';
+import { useChatHub } from '../services/chat/useChatHub';
 
 // Role-specific tab navigators
 import AdminTabs    from './AdminTabs';
@@ -15,6 +16,7 @@ import StaffTabs    from './StaffTabs';
  */
 export default function RoleRouter() {
   const role = useAuthStore((s) => s.activeRole);
+  useChatHub();          // one live connection for every role view: chat, visitor and emergency alerts
 
   switch (role) {
     case 'admin':

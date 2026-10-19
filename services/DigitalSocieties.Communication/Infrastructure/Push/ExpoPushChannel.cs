@@ -40,17 +40,13 @@ public sealed class ExpoPushChannel : INotificationChannel
             return false;
         }
 
-        var tokens = await _tokenStore.GetTokensAsync(userId, ct);
+        // A visitor alert is addressed to a flat: every resident of that flat gets it.
+        var tokens = ExpoPushPayloads.IsFlatRecipient(message)
+            ? await _tokenStore.GetTokensForFlatAsync(userId, ct)
+            : await _tokenStore.GetTokensAsync(userId, ct);
         if (tokens.Count == 0) return true; // no tokens registered — not an error
 
-        var payloads = tokens.Select(token => new
-        {
-            to      = token,
-            title   = message.Subject,
-            body    = message.Body,
-            sound   = "default",
-            data    = message.Data ?? new Dictionary<string, string>(),
-        }).ToList();
+        var payloads = ExpoPushPayloads.Build(message, tokens);
 
         using var client = _httpFactory.CreateClient("expo");
         try
@@ -73,10 +69,56 @@ public sealed class ExpoPushChannel : INotificationChannel
     }
 }
 
+/// <summary>
+/// How a notification is shaped for the Expo push service. The channel decides the ring and the vibration on Android,
+/// so a visitor at the gate uses the loud "visitors" channel and chat uses a softer one.
+/// </summary>
+public static class ExpoPushPayloads
+{
+    public const string ChannelKey = "channelId";
+    public const string RecipientKindKey = "recipientKind";
+
+    public static bool IsFlatRecipient(NotificationMessage m)
+        => m.Data is not null && m.Data.TryGetValue(RecipientKindKey, out var k) && k == "flat";
+
+    /// <summary>The channel named in the message, else one chosen from its type, else the default.</summary>
+    public static string ChannelOf(NotificationMessage m)
+    {
+        if (m.Data is { } d)
+        {
+            if (d.TryGetValue(ChannelKey, out var c) && !string.IsNullOrWhiteSpace(c)) return c;
+            if (d.TryGetValue("type", out var t))
+                return t switch { "visitor" => "visitors", "emergency" => "emergency", "chat" => "chat", _ => "general" };
+        }
+        return "general";
+    }
+
+    public static List<object> Build(NotificationMessage m, IEnumerable<string> tokens)
+    {
+        var channel = ChannelOf(m);
+        var loud = channel is "visitors" or "emergency";
+        var data = new Dictionary<string, string>(m.Data ?? new Dictionary<string, string>());
+        data.Remove(RecipientKindKey);
+        return tokens.Select(token => (object)new
+        {
+            to        = token,
+            title     = m.Subject,
+            body      = m.Body,
+            sound     = "default",
+            priority  = "high",          // delivered at once, even when the phone is dozing
+            channelId = channel,         // Android: decides the ring and the vibration
+            ttl       = loud ? 120 : 3600, // a visitor alert that is two minutes old is no longer useful
+            data,
+        }).ToList();
+    }
+}
+
 /// <summary>Abstraction for storing and retrieving Expo push tokens per user.</summary>
 public interface IPushTokenStore
 {
     Task<List<string>> GetTokensAsync(Guid userId, CancellationToken ct);
+    /// <summary>Tokens of every resident of a flat (anyone with an active membership on that flat).</summary>
+    Task<List<string>> GetTokensForFlatAsync(Guid flatId, CancellationToken ct);
     Task UpsertAsync(Guid userId, Guid societyId, string expoPushToken, CancellationToken ct);
     Task RemoveAsync(Guid userId, string expoPushToken, CancellationToken ct);
 }

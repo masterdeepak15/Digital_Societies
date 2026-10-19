@@ -17,6 +17,12 @@ public sealed class PostgresPushTokenStore : IPushTokenStore
             .Select(t => t.ExpoPushToken)
             .ToListAsync(ct);
 
+    public async Task<List<string>> GetTokensForFlatAsync(Guid flatId, CancellationToken ct)
+        => await _db.Database.SqlQueryRaw<string>(
+            "SELECT t.expo_push_token AS \"Value\" FROM communication.push_tokens t " +
+            "WHERE t.is_active AND t.user_id IN (SELECT m.\"UserId\" FROM identity.memberships m " +
+            "WHERE m.\"FlatId\" = {0} AND m.\"IsActive\" AND NOT m.\"IsDeleted\")", flatId).ToListAsync(ct);
+
     public async Task UpsertAsync(Guid userId, Guid societyId,
                                   string expoPushToken, CancellationToken ct)
     {

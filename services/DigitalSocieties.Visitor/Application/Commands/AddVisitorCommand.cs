@@ -147,7 +147,7 @@ public sealed class AddVisitorCommandHandler
         //    Recipient = FlatId (resolved to user push tokens by ExpoPushChannel).
         //    recipientPhone used only if push fails — passed from the visitor's host phone
         //    (cmd.HostPhone is populated by the sync endpoint from Identity flat owner lookup).
-        if (!string.IsNullOrEmpty(cmd.HostPhone))
+        // The push goes to every resident of the flat (their phones ring and vibrate). A phone number is only for the SMS fallback.
         {
             var notifMessage = new NotificationMessage(
                 Recipient:  cmd.FlatId.ToString(),
@@ -156,12 +156,22 @@ public sealed class AddVisitorCommandHandler
                 TemplateId: null,
                 Data:       new Dictionary<string, string>
                 {
-                    ["visitorId"] = visitor.Id.ToString(),
-                    ["purpose"]   = visitor.Purpose,
+                    ["type"]          = "visitor",
+                    ["channelId"]     = "visitors",
+                    ["recipientKind"] = "flat",
+                    ["visitorId"]     = visitor.Id.ToString(),
+                    ["purpose"]       = visitor.Purpose,
                 });
 
-            // Fire-and-forget — don't block the gate operation on notification delivery
-            _ = _dispatcher.DispatchAsync(notifMessage, cmd.HostPhone, ct);
+            // Sent before the request ends (a request-scoped service cannot be used after it), but never allowed to hold up
+            // the gate: a slow or failed push is given up on after a few seconds and the visitor is still recorded.
+            try
+            {
+                using var limit = CancellationTokenSource.CreateLinkedTokenSource(ct);
+                limit.CancelAfter(TimeSpan.FromSeconds(4));
+                await _dispatcher.DispatchAsync(notifMessage, cmd.HostPhone, limit.Token);
+            }
+            catch (Exception) { /* the live (SignalR) alert above already went out */ }
         }
 
         return Result<AddVisitorResponse>.Ok(

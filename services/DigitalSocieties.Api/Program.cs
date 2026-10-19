@@ -34,6 +34,7 @@ using DigitalSocieties.Calling.Infrastructure;
 using DigitalSocieties.Api.Endpoints.Calling;
 using DigitalSocieties.Marketplace.Infrastructure;
 using DigitalSocieties.Api.Endpoints.Marketplace;
+using DigitalSocieties.Api.Endpoints.Chat;
 using DigitalSocieties.Wallet.Infrastructure;
 using DigitalSocieties.Api.Endpoints.Wallet;
 using DigitalSocieties.Api.Endpoints.Setup;
@@ -276,6 +277,7 @@ try
     app.MapGroup("/api/v1/parking").MapParkingEndpoints();
     app.MapGroup("/api/v1/calling").MapCallingEndpoints();
     app.MapGroup("/api/v1/marketplace").MapMarketplaceEndpoints();
+    app.MapGroup("/api/v1/chat").MapChatEndpoints();
     app.MapGroup("/api/v1/wallet").MapWalletEndpoints();
     app.MapGroup("/api/v1/settings").MapSettingsEndpoints();
     app.MapGroup("/api/v1/sync").MapSyncEndpoints();

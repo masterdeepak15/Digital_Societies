@@ -1,6 +1,7 @@
 import React from 'react';
 import { Alert, Pressable, ScrollView, Text, View } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
+import { ViewSwitcher } from '../../ui/ViewSwitcher';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '../../services/api/apiClient';
 import { useAuthStore } from '../../store/authStore';
@@ -20,6 +21,7 @@ const TILES: { key: 'mint' | 'sky' | 'peach' | 'lilac'; icon: IconName; title: s
   { key: 'mint',  icon: 'truck',    title: 'Parking',    hint: 'Your slot and vehicles', route: 'Parking' },
   { key: 'peach', icon: 'users',    title: 'Services',   hint: 'Plumber, cleaner, more', route: 'Marketplace' },
   { key: 'lilac', icon: 'credit-card', title: 'Wallet',  hint: 'Balance and top-ups',    route: 'Wallet' },
+  { key: 'sky',   icon: 'shopping-bag', title: 'Market', hint: 'Sell, buy or borrow',    route: 'Market' },
 ];
 
 export default function HomeScreen() {
@@ -67,6 +69,8 @@ export default function HomeScreen() {
           </Pressable>
         }
       />
+
+      <ViewSwitcher />
 
       {/* Maintenance */}
       <View style={{ backgroundColor: colors.primary, borderRadius: radius.card + 4, padding: 22 }}>

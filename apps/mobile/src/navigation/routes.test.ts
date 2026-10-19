@@ -1,8 +1,8 @@
 import { RESIDENT_TABS, RESIDENT_DETAIL, GUARD_TABS } from './routes';
 
 describe('navigation routes', () => {
-  it('gives residents exactly four tabs', () => {
-    expect([...RESIDENT_TABS]).toEqual(['Home', 'Bills', 'Community', 'Me']);
+  it('gives residents exactly five tabs, with chat next to the community feed', () => {
+    expect([...RESIDENT_TABS]).toEqual(['Home', 'Bills', 'Community', 'Chats', 'Me']);
   });
 
   it('gives guards exactly four tabs', () => {

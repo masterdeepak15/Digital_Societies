@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { View, Text, Pressable, Alert, Vibration, ScrollView, AppState } from 'react-native';
 import NetInfo from '@react-native-community/netinfo';
+import { ViewSwitcher } from '../../ui/ViewSwitcher';
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system';
 import { Q } from '@nozbe/watermelondb';
@@ -204,6 +205,8 @@ export default function GateScreen() {
           </View>
         }
       />
+
+      <ViewSwitcher />
 
       {showCounts && (
         <View style={{ flexDirection: 'row', gap: 12 }}>

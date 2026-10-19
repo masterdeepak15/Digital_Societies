@@ -1,13 +1,17 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.SignalR;
 using DigitalSocieties.Shared.Contracts;
+using Microsoft.EntityFrameworkCore;
 using DigitalSocieties.Visitor.Infrastructure.Hubs;
+using DigitalSocieties.Communication.Domain.Entities;
+using DigitalSocieties.Communication.Infrastructure.Chat;
+using DigitalSocieties.Communication.Infrastructure.Persistence;
 
 namespace DigitalSocieties.Communication.Infrastructure.Hubs;
 
 /// <summary>
 /// SignalR hub — real-time push for the entire society platform.
-/// Groups: "flat_{flatId}", "guards_{societyId}", "society_{societyId}"
+/// Groups: "flat_{flatId}", "guards_{societyId}", "society_{societyId}", "user_{userId}" (chat, one per person)
 ///
 /// Implements ISocietyHubNotifier (from Visitor module) — DIP + LSP.
 /// Registered as the concrete implementation of ISocietyHubNotifier in API host.
@@ -16,8 +20,11 @@ namespace DigitalSocieties.Communication.Infrastructure.Hubs;
 public sealed class SocietyHub : Hub
 {
     private readonly ICurrentUser _currentUser;
+    private readonly PresenceTracker _presence;
+    private readonly CommunicationDbContext _db;
 
-    public SocietyHub(ICurrentUser currentUser) => _currentUser = currentUser;
+    public SocietyHub(ICurrentUser currentUser, PresenceTracker presence, CommunicationDbContext db)
+        => (_currentUser, _presence, _db) = (currentUser, presence, db);
 
     public override async Task OnConnectedAsync()
     {
@@ -40,7 +47,35 @@ public sealed class SocietyHub : Hub
         if (roles.Contains("admin") && societyId.HasValue)
             await Groups.AddToGroupAsync(Context.ConnectionId, $"admins_{societyId}");
 
+        // Chat: each person has their own group, and everyone in the society hears when they come online.
+        if (_currentUser.UserId is { } userId)
+        {
+            await Groups.AddToGroupAsync(Context.ConnectionId, ChatNotifier.GroupOf(userId));
+            if (_presence.Connected(userId) && societyId.HasValue)
+                await Clients.Group($"society_{societyId}").SendAsync("Presence", new { userId, online = true, lastSeenAt = (DateTimeOffset?)null });
+        }
+
         await base.OnConnectedAsync();
+    }
+
+    public override async Task OnDisconnectedAsync(Exception? exception)
+    {
+        if (_currentUser.UserId is { } userId && _presence.Disconnected(userId))
+        {
+            var now = DateTimeOffset.UtcNow;
+            try
+            {
+                var row = await _db.UserPresences.FirstOrDefaultAsync(p => p.UserId == userId);
+                if (row is null) _db.UserPresences.Add(new UserPresence { UserId = userId, LastSeenAt = now });
+                else row.LastSeenAt = now;
+                await _db.SaveChangesAsync();
+            }
+            catch { /* last-seen is a nicety: never let it break a disconnect */ }
+
+            if (_currentUser.SocietyId is { } societyId)
+                await Clients.Group($"society_{societyId}").SendAsync("Presence", new { userId, online = false, lastSeenAt = (DateTimeOffset?)now });
+        }
+        await base.OnDisconnectedAsync(exception);
     }
 }
 

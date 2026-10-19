@@ -7,6 +7,8 @@ using DigitalSocieties.Communication.Infrastructure.Channels;
 using DigitalSocieties.Communication.Infrastructure.Hubs;
 using DigitalSocieties.Communication.Infrastructure.Push;
 using DigitalSocieties.Visitor.Infrastructure.Hubs;
+using DigitalSocieties.Communication.Application.Chat;
+using DigitalSocieties.Communication.Infrastructure.Chat;
 
 namespace DigitalSocieties.Communication.Infrastructure;
 
@@ -52,6 +54,12 @@ public static class CommunicationServiceExtensions
 
         // SignalR hub notifier (overrides NullHubNotifier from VisitorServiceExtensions)
         services.AddScoped<ISocietyHubNotifier, SignalRHubNotifier>();
+
+        // Chat: the people list, who is online, and live / push delivery
+        services.AddSingleton<PresenceTracker>();
+        services.AddScoped<IChatDirectory, PostgresChatDirectory>();
+        services.AddScoped<IChatPresence, ChatPresence>();
+        services.AddScoped<IChatNotifier, ChatNotifier>();
 
         services.AddMediatR(cfg =>
             cfg.RegisterServicesFromAssembly(typeof(CommunicationServiceExtensions).Assembly));

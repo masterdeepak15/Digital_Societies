@@ -4,9 +4,10 @@ import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import {
-  Building2, LayoutDashboard, CreditCard, Users, MessageSquare, ShieldAlert, Megaphone, BarChart3,
-  CalendarCheck, Car, Globe, ShoppingBag, Wallet, Settings, LogOut, Building, type LucideIcon,
+  LayoutDashboard, CreditCard, Users, MessageSquare, ShieldAlert, Megaphone, BarChart3,
+  CalendarCheck, Car, Globe, ShoppingBag, Tag, Wallet, Settings, LogOut, Building, type LucideIcon,
 } from 'lucide-react'
+import { BrandMark } from '@/components/BrandMark'
 import { cn } from '@/lib/utils'
 import { initialsOf } from '@/lib/utils'
 import { getUser, logout as authLogout, type AdminUser } from '@/lib/auth'
@@ -36,6 +37,7 @@ const groups: NavGroup[] = [
     { label: 'Parking',     href: '/parking',     icon: Car },
     { label: 'Social feed', href: '/social',      icon: Globe },
     { label: 'Marketplace', href: '/marketplace', icon: ShoppingBag },
+    { label: 'Society market', href: '/market',   icon: Tag },
     { label: 'Settings',    href: '/settings',    icon: Settings },
   ] },
 ]
@@ -65,9 +67,7 @@ export function Sidebar({ open, onNavigate }: { open: boolean; onNavigate: () =>
       )}
     >
       <div className="flex items-center gap-2.5 px-2 pb-5">
-        <div className="rounded-lg bg-saffron p-2">
-          <Building2 className="h-[18px] w-[18px] text-[#12203B]" aria-hidden="true" />
-        </div>
+        <BrandMark className="h-9 w-9 shrink-0 text-white" />
         <div>
           <p className="text-sm font-bold leading-tight text-white">Digital Societies</p>
           <p className="text-xs text-nav-text">Admin console</p>

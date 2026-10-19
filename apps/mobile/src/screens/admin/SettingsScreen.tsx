@@ -6,6 +6,7 @@ import { authService } from '../../services/api/authService';
 import { useAuthStore } from '../../store/authStore';
 import { useTheme } from '../../theme/ThemeProvider';
 import { Button, Card, ScreenHeader, TextField, ThemeModeSelector } from '../../ui';
+import { ViewSwitcher } from '../../ui/ViewSwitcher';
 import { apiFetch } from '../../utils/api';
 import { errorMessage } from '../../utils/errorMessage';
 

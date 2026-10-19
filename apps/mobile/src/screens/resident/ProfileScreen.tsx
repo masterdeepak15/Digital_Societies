@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Alert, ScrollView, Text, View } from 'react-native';
 import { router } from 'expo-router';
+import { ViewSwitcher } from '../../ui/ViewSwitcher';
 import { authService } from '../../services/api/authService';
 import { useAuthStore } from '../../store/authStore';
 import { getServerOrigin } from '../../config/serverConfig';
@@ -58,6 +59,8 @@ export default function ProfileScreen() {
   return (
     <ScrollView style={{ flex: 1, backgroundColor: colors.ground }} contentContainerStyle={{ padding: 22, paddingTop: 56, gap: 18 }} keyboardShouldPersistTaps="handled">
       <ScreenHeader title="Me" subtitle={email ?? undefined} />
+
+      <ViewSwitcher />
 
       <Card style={{ gap: 14 }}>
         <TextField label="Name" value={nameDraft} onChangeText={setNameDraft} autoCapitalize="words" maxLength={200} />
