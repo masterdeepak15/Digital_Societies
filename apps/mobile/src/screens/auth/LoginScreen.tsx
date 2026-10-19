@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, View } from 'react-native';
+import { Alert, Image, KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import { authService, AuthTokenResponse } from '../../services/api/authService';
 import { useAuthStore } from '../../store/authStore';
@@ -178,9 +178,7 @@ export default function LoginScreen() {
         <View style={{ backgroundColor: bandBg, paddingTop: 56, paddingHorizontal: 28, paddingBottom: 32, borderBottomLeftRadius: 28, borderBottomRightRadius: 28 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-              <View style={{ width: 36, height: 36, borderRadius: 9, backgroundColor: colors.accent, alignItems: 'center', justifyContent: 'center' }}>
-                <Icon name="home" size={20} color={colors.onAccent} />
-              </View>
+              <Image source={require('../../../assets/icon.png')} accessibilityLabel="Digital Societies" style={{ width: 40, height: 40, borderRadius: 10 }} />
               <Text style={{ color: bandFg, fontFamily: fonts.extrabold, fontSize: 17 }}>Digital Societies</Text>
             </View>
             <Pressable

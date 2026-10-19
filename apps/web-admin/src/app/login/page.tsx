@@ -6,7 +6,7 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { toast } from 'sonner'
-import { Building2 } from 'lucide-react'
+import { BrandMark } from '@/components/BrandMark'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { AppDownload } from '@/components/AppDownload'
@@ -126,24 +126,20 @@ export default function LoginPage() {
     <div className="grid min-h-screen lg:grid-cols-[minmax(0,5fr)_minmax(0,6fr)]">
       <aside className="hidden flex-col justify-between bg-nav p-12 text-nav-text lg:flex">
         <div className="flex items-center gap-3">
-          <div className="rounded-xl bg-saffron p-2.5">
-            <Building2 className="h-6 w-6 text-[#12203B]" aria-hidden="true" />
-          </div>
+          <BrandMark className="h-11 w-11 text-white" />
           <span className="text-lg font-bold text-white">Digital Societies</span>
         </div>
         <div className="max-w-md">
           <h2 className="text-3xl font-extrabold leading-tight tracking-tight text-white">Run your society from one place.</h2>
           <p className="mt-3 text-[15px] leading-relaxed">Bills, visitors, complaints and notices for the managing committee, with every resident one tap away on the mobile app.</p>
         </div>
-        <p className="text-xs">Admin console</p>
+        <p className="text-xs">Admin console · a SpyderEye product</p>
       </aside>
 
       <main className="flex items-center justify-center bg-paper p-6">
         <div className="w-full max-w-sm">
           <div className="mb-8 flex items-center gap-3 lg:hidden">
-            <div className="rounded-xl bg-saffron p-2.5">
-              <Building2 className="h-6 w-6 text-[#12203B]" aria-hidden="true" />
-            </div>
+            <BrandMark className="h-11 w-11 text-ink" />
             <div>
               <p className="text-lg font-bold leading-tight text-ink">Digital Societies</p>
               <p className="text-xs text-mute">Admin console</p>

@@ -7,6 +7,7 @@ import { z } from 'zod'
 import { toast } from 'sonner'
 import { useRouter } from 'next/navigation'
 import { Building2, UserRound, Mail, CreditCard, Server, CheckCircle2, Loader2, ArrowRight, ArrowLeft, Sparkles, Settings2 } from 'lucide-react'
+import { BrandMark } from '@/components/BrandMark'
 import { api } from '@/lib/api'
 import { saveSession, type AdminUser } from '@/lib/auth'
 
@@ -141,7 +142,7 @@ export default function SetupPage() {
         {/* Header */}
         <div className="bg-brand-600 rounded-t-2xl p-6 text-white">
           <div className="flex items-center gap-3 mb-4">
-            <Building2 className="w-7 h-7" />
+            <BrandMark className="h-10 w-10 text-white" />
             <div>
               <p className="font-bold text-lg">Digital Societies</p>
               <p className="text-brand-200 text-sm">

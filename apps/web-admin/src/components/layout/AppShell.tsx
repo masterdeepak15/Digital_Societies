@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import { Menu } from 'lucide-react'
 import { Sidebar } from './Sidebar'
+import { BrandMark } from '@/components/BrandMark'
 import { getUser } from '@/lib/auth'
 import { canOpen } from '@/lib/roles'
 
@@ -59,6 +60,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         >
           <Menu className="h-5 w-5" aria-hidden="true" />
         </button>
+        <BrandMark className="h-8 w-8 text-ink" />
         <span className="text-sm font-bold text-ink">Digital Societies</span>
       </header>
 
