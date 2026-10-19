@@ -32,6 +32,25 @@ public static class SettingsEndpoints
         .WithSummary("Get the society profile and its settings")
         .WithTags("Settings");
 
+        // What every member of the society may see: how to reach the office, and the two rules the guard's phone follows.
+        // GET /api/v1/settings/public
+        g.MapGet("/public", async (ISocietyDirectory directory, ISocietySettingsReader settings, ICurrentUser cu, CancellationToken ct) =>
+        {
+            if (cu.SocietyId is not { } societyId) return Results.BadRequest("Society context required.");
+            var profile = await directory.ProfileAsync(societyId, ct);
+            if (profile is null) return Results.NotFound("Society not found.");
+            var rules = await settings.GetAsync(societyId, ct);
+            return Results.Ok(new
+            {
+                profile.Name, profile.Address, profile.City, profile.Pincode, profile.ContactEmail, profile.ContactPhone,
+                rules.OfflineSyncEnabled, rules.PiiWipeDays,
+            });
+        })
+        .RequireAuthorization()
+        .WithName("GetPublicSettings")
+        .WithSummary("The society's contact details and the rules the guard app follows (any member)")
+        .WithTags("Settings");
+
         g.MapPatch("/", async ([FromBody] UpdateSettingsRequest body, IdentityDbContext db, ICurrentUser cu, CancellationToken ct) =>
         {
             if (cu.SocietyId is null) return Results.BadRequest("Society context required.");

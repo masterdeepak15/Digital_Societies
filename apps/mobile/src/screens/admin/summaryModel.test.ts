@@ -27,6 +27,12 @@ describe('toBillSummary', () => {
   });
 });
 
+describe('toGenerateBody due days', () => {
+  it('uses the due days the society chose, when given', () => {
+    expect(toGenerateBody(2026, 11, 350000, new Date('2026-10-18T10:00:00Z'), 10).dueDate).toBe('2026-10-28');
+  });
+});
+
 describe('toGenerateBody', () => {
   it('builds the API request: YYYY-MM period, rupees per flat, a description and a due date 15 days out', () => {
     expect(toGenerateBody(2026, 11, 350000, new Date('2026-10-18T10:00:00Z'))).toEqual({

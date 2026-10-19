@@ -27,11 +27,20 @@ public sealed record SocietySettings
     public decimal LatePenaltyPercent { get; init; }
     public bool    GstEnabled         { get; init; }
     public string  GstNumber          { get; init; } = string.Empty;
+    /// <summary>GST added to every bill when GST is on (18% is the usual rate for maintenance above the exemption).</summary>
+    public decimal GstPercent         { get; init; } = 18m;
+    /// <summary>Days a resident has to pay: a generated bill falls due this many days after it goes out.</summary>
+    public int     DueDays            { get; init; } = 10;
+    /// <summary>When on, bills go out by themselves on the billing day. Off by default: money is never created silently.</summary>
+    public bool    AutoGenerateBills  { get; init; }
+    /// <summary>When on, the late fee is added by itself once a bill is past its grace period.</summary>
+    public bool    AutoLateFees       { get; init; }
 
     // Notifications
     public bool PushEnabled      { get; init; } = true;
     public bool SmsEnabled       { get; init; }
-    public bool EmailEnabled     { get; init; } = true;
+    /// <summary>Email each new notice to every member who has an email address. Off until the society turns it on.</summary>
+    public bool EmailEnabled     { get; init; }
     public bool VisitorAlerts    { get; init; } = true;
     public bool PaymentReminders { get; init; } = true;
 
@@ -58,6 +67,10 @@ public sealed record SocietySettings
         if (GracePeriodDays is < 0 or > 30) return "The grace period must be between 0 and 30 days.";
         if (LatePenaltyPercent < 0 || LatePenaltyPercent > 36) return "The late penalty must be between 0 and 36 percent.";
         if (GstEnabled && GstNumber.Trim().Length != 15) return "A GST number has 15 characters. Add it, or switch GST off.";
+        if (GstEnabled && (GstPercent <= 0 || GstPercent > 28)) return "The GST rate must be between 0 and 28 percent.";
+        if (DueDays is < 1 or > 60) return "A bill must fall due between 1 and 60 days after it goes out.";
+        if (AutoGenerateBills && MaintenanceAmount <= 0) return "Set the monthly maintenance before turning on automatic bills.";
+        if (AutoLateFees && LatePenaltyPercent <= 0) return "Set a late penalty before turning on automatic late fees.";
         if (VisitorQrTtlMinutes is < 1 or > 30) return "The visitor QR code lifetime must be between 1 and 30 minutes.";
         if (PiiWipeDays is < 1 or > 30) return "Visitor details are kept for 1 to 30 days on the guard's phone.";
         return null;
@@ -81,3 +94,15 @@ public interface ISocietySettingsReader
 {
     Task<SocietySettings> GetAsync(Guid societyId, CancellationToken ct);
 }
+
+/// <summary>Who belongs to a society, for jobs that run for every society and for notices sent by email.</summary>
+public interface ISocietyDirectory
+{
+    Task<IReadOnlyList<Guid>> ActiveSocietyIdsAsync(CancellationToken ct);
+    /// <summary>Email addresses of the members of a society (one per person, only those who have one).</summary>
+    Task<IReadOnlyList<string>> MemberEmailsAsync(Guid societyId, CancellationToken ct);
+    /// <summary>The society's public face for residents: name, address and contact details.</summary>
+    Task<SocietyProfile?> ProfileAsync(Guid societyId, CancellationToken ct);
+}
+
+public sealed record SocietyProfile(string Name, string Address, string City, string Pincode, string ContactEmail, string ContactPhone);

@@ -34,9 +34,9 @@ export function toBillSummary(raw: any, labels: Record<string, string>): BillSum
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
-/** The request body POST /billing/generate expects. The due date is 15 days after `today`. */
-export function toGenerateBody(year: number, month: number, amountPaise: number, today: Date = new Date()) {
-  const due = new Date(today.getTime() + 15 * 24 * 60 * 60 * 1000);
+/** The request body POST /billing/generate expects. The due date is `dueDays` after `today` (the society's setting; 15 when none is given). */
+export function toGenerateBody(year: number, month: number, amountPaise: number, today: Date = new Date(), dueDays = 15) {
+  const due = new Date(today.getTime() + dueDays * 24 * 60 * 60 * 1000);
   return {
     period: `${year}-${String(month).padStart(2, '0')}`,
     amountPerFlat: amountPaise / 100,

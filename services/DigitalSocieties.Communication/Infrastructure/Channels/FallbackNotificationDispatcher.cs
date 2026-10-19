@@ -22,13 +22,16 @@ public sealed class FallbackNotificationDispatcher : INotificationDispatcher
 {
     private readonly ExpoPushChannel    _push;
     private readonly INotificationChannel? _sms;   // null when SMS is not configured
+    private readonly ISocietySettingsReader? _settings;
     private readonly ILogger<FallbackNotificationDispatcher> _log;
 
     public FallbackNotificationDispatcher(
         ExpoPushChannel  push,
         IEnumerable<INotificationChannel> channels,
-        ILogger<FallbackNotificationDispatcher> log)
+        ILogger<FallbackNotificationDispatcher> log,
+        ISocietySettingsReader? settings = null)
     {
+        _settings = settings;
         _push = push;
         _sms  = channels.FirstOrDefault(c => c.ChannelName == "sms");
         _log  = log;
@@ -39,8 +42,13 @@ public sealed class FallbackNotificationDispatcher : INotificationDispatcher
         string?             recipientPhone,
         CancellationToken   ct = default)
     {
+        // A message for a society follows that society's switches (Settings > Notifications): push on, SMS off by default.
+        var rules = message.SocietyId is { } society && _settings is not null ? await _settings.GetAsync(society, ct) : null;
+        var pushAllowed = rules?.PushEnabled ?? true;
+        var smsAllowed  = rules?.SmsEnabled  ?? true;
+
         // ── 1. Try push first (free, instant, rich) ───────────────────────
-        if (_push.IsEnabled)
+        if (_push.IsEnabled && pushAllowed)
         {
             try
             {
@@ -60,7 +68,7 @@ public sealed class FallbackNotificationDispatcher : INotificationDispatcher
         }
 
         // ── 2. Fall back to SMS (always reaches the phone number) ─────────
-        if (_sms is { IsEnabled: true } && !string.IsNullOrWhiteSpace(recipientPhone))
+        if (_sms is { IsEnabled: true } && smsAllowed && !string.IsNullOrWhiteSpace(recipientPhone))
         {
             // SMS recipient = phone number, not userId
             var smsMessage = message with { Recipient = recipientPhone };

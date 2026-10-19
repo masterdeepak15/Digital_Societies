@@ -55,6 +55,12 @@ public static class CommunicationServiceExtensions
         // SignalR hub notifier (overrides NullHubNotifier from VisitorServiceExtensions)
         services.AddScoped<ISocietyHubNotifier, SignalRHubNotifier>();
 
+        // Notices by email, sent in the background
+        services.AddScoped<DigitalSocieties.Communication.Application.Notices.NoticeEmailer>();
+        services.AddSingleton<DigitalSocieties.Communication.Infrastructure.Notices.NoticeEmailWorker>();
+        services.AddSingleton<DigitalSocieties.Communication.Application.Notices.INoticeEmailQueue>(sp => sp.GetRequiredService<DigitalSocieties.Communication.Infrastructure.Notices.NoticeEmailWorker>());
+        services.AddHostedService(sp => sp.GetRequiredService<DigitalSocieties.Communication.Infrastructure.Notices.NoticeEmailWorker>());
+
         // Chat: the people list, who is online, and live / push delivery
         services.AddSingleton<PresenceTracker>();
         services.AddScoped<IChatDirectory, PostgresChatDirectory>();

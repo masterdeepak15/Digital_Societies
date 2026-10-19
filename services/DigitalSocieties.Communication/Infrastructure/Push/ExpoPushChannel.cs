@@ -41,9 +41,9 @@ public sealed class ExpoPushChannel : INotificationChannel
         }
 
         // A visitor alert is addressed to a flat: every resident of that flat gets it.
-        var tokens = ExpoPushPayloads.IsFlatRecipient(message)
-            ? await _tokenStore.GetTokensForFlatAsync(userId, ct)
-            : await _tokenStore.GetTokensAsync(userId, ct);
+        var tokens = ExpoPushPayloads.IsFlatRecipient(message)    ? await _tokenStore.GetTokensForFlatAsync(userId, ct)
+                   : ExpoPushPayloads.IsSocietyRecipient(message) ? await _tokenStore.GetTokensForSocietyAsync(userId, ct)
+                   : await _tokenStore.GetTokensAsync(userId, ct);
         if (tokens.Count == 0) return true; // no tokens registered — not an error
 
         var payloads = ExpoPushPayloads.Build(message, tokens);
@@ -80,6 +80,10 @@ public static class ExpoPushPayloads
 
     public static bool IsFlatRecipient(NotificationMessage m)
         => m.Data is not null && m.Data.TryGetValue(RecipientKindKey, out var k) && k == "flat";
+
+    /// <summary>Addressed to a whole society: the recipient is the society id and every phone registered in it gets it.</summary>
+    public static bool IsSocietyRecipient(NotificationMessage m)
+        => m.Data is not null && m.Data.TryGetValue(RecipientKindKey, out var k) && k == "society";
 
     /// <summary>The channel named in the message, else one chosen from its type, else the default.</summary>
     public static string ChannelOf(NotificationMessage m)
@@ -119,6 +123,8 @@ public interface IPushTokenStore
     Task<List<string>> GetTokensAsync(Guid userId, CancellationToken ct);
     /// <summary>Tokens of every resident of a flat (anyone with an active membership on that flat).</summary>
     Task<List<string>> GetTokensForFlatAsync(Guid flatId, CancellationToken ct);
+    /// <summary>Tokens of every phone registered in a society.</summary>
+    Task<List<string>> GetTokensForSocietyAsync(Guid societyId, CancellationToken ct);
     Task UpsertAsync(Guid userId, Guid societyId, string expoPushToken, CancellationToken ct);
     Task RemoveAsync(Guid userId, string expoPushToken, CancellationToken ct);
 }

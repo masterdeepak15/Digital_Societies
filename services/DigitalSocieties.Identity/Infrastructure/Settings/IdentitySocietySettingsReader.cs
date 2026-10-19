@@ -5,7 +5,7 @@ using DigitalSocieties.Identity.Infrastructure.Persistence;
 namespace DigitalSocieties.Identity.Infrastructure.Settings;
 
 /// <summary>Reads a society's rules for any module that needs them (visitor QR lifetime, bill amounts, alerts).</summary>
-internal sealed class IdentitySocietySettingsReader : ISocietySettingsReader
+public sealed class IdentitySocietySettingsReader : ISocietySettingsReader
 {
     private readonly IdentityDbContext _db;
     public IdentitySocietySettingsReader(IdentityDbContext db) => _db = db;

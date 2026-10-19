@@ -11,6 +11,7 @@ public class SocietySettingsTests
         var s = SocietySettings.Parse(null);
         (s.BillingCycleDay, s.GracePeriodDays, s.LatePenaltyPercent, s.MaintenanceAmount).Should().Be((1, 7, 0m, 0m));
         (s.PushEnabled, s.VisitorAlerts, s.SmsEnabled, s.VisitorQrTtlMinutes, s.OfflineSyncEnabled).Should().Be((true, true, false, 2, true));
+        (s.EmailEnabled, s.AutoGenerateBills, s.AutoLateFees, s.DueDays, s.GstPercent).Should().Be((false, false, false, 10, 18m));   // anything that sends mail or creates charges starts off
         s.Validate().Should().BeNull();
     }
 
@@ -82,4 +83,21 @@ public class SocietySettingsTests
 
     [Fact] public void TheQrLifetime_IsInMinutes()
         => new SocietySettings { VisitorQrTtlMinutes = 5 }.VisitorQrTtl.Should().Be(TimeSpan.FromMinutes(5));
+
+    [Fact] public void TheAutomaticSwitches_NeedTheirNumbersFirst()
+    {
+        new SocietySettings { AutoGenerateBills = true }.Validate().Should().Contain("maintenance");
+        new SocietySettings { AutoGenerateBills = true, MaintenanceAmount = 3500 }.Validate().Should().BeNull();
+        new SocietySettings { AutoLateFees = true }.Validate().Should().Contain("penalty");
+        new SocietySettings { AutoLateFees = true, LatePenaltyPercent = 2 }.Validate().Should().BeNull();
+    }
+
+    [Fact] public void TheGstRate_AndTheDueDays_AreChecked()
+    {
+        new SocietySettings { GstEnabled = true, GstNumber = "27AAPFU0939F1ZV", GstPercent = 0 }.Validate().Should().Contain("GST rate");
+        new SocietySettings { GstEnabled = true, GstNumber = "27AAPFU0939F1ZV", GstPercent = 29 }.Validate().Should().Contain("GST rate");
+        new SocietySettings { GstEnabled = true, GstNumber = "27AAPFU0939F1ZV", GstPercent = 18 }.Validate().Should().BeNull();
+        new SocietySettings { DueDays = 0 }.Validate().Should().Contain("fall due");
+        new SocietySettings { DueDays = 61 }.Validate().Should().Contain("fall due");
+    }
 }

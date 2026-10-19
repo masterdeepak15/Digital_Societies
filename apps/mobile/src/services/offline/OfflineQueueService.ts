@@ -24,7 +24,7 @@ import VisitorModel              from '../../database/models/VisitorModel'
 import { SyncService }           from '../../database/sync/SyncService'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
-const WIPE_AFTER_DAYS  = 7
+let   wipeAfterDays    = 7      // the society sets this in Settings > Security (see configure)
 const RETRY_INTERVAL   = 30_000    // ms — minimum time between retry attempts
 const WIPE_INTERVAL    = 6 * 60 * 60 * 1000   // 6 h — how often we check for old records
 
@@ -43,6 +43,15 @@ export class OfflineQueueService {
     OfflineQueueService._startWipeScheduler()
     // Run an immediate wipe on startup to clear any stale data from previous sessions
     OfflineQueueService._wipeOldVisitors().catch(console.warn)
+  }
+
+  /** The society's rule for how long visitor details stay on this phone (1 to 30 days). Applied at once. */
+  static configure(opts: { wipeAfterDays: number }): void {
+    if (Number.isFinite(opts.wipeAfterDays) && opts.wipeAfterDays >= 1 && opts.wipeAfterDays <= 30) {
+      const changed = wipeAfterDays !== opts.wipeAfterDays
+      wipeAfterDays = Math.floor(opts.wipeAfterDays)
+      if (changed) OfflineQueueService._wipeOldVisitors().catch(console.warn)
+    }
   }
 
   /** Clean up listeners (call on app unmount / logout). */
@@ -117,7 +126,7 @@ export class OfflineQueueService {
    * PII indefinitely. 7 days is enough for audit reference.
    */
   private static async _wipeOldVisitors(): Promise<void> {
-    const cutoff     = Date.now() - WIPE_AFTER_DAYS * 24 * 60 * 60 * 1000
+    const cutoff     = Date.now() - wipeAfterDays * 24 * 60 * 60 * 1000
     const collection = database.get<VisitorModel>('visitors')
 
     // Find synced records older than the cutoff
@@ -135,6 +144,6 @@ export class OfflineQueueService {
       await database.batch(...deletions)
     })
 
-    console.info(`[OfflineQueue] Auto-wiped ${stale.length} visitor record(s) older than ${WIPE_AFTER_DAYS} days.`)
+    console.info(`[OfflineQueue] Auto-wiped ${stale.length} visitor record(s) older than ${wipeAfterDays} days.`)
   }
 }

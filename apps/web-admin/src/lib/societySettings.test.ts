@@ -40,8 +40,26 @@ describe('rulesError', () => {
 })
 
 describe('ACTIVE_RULES', () => {
-  it('names the settings that already change how the system behaves', () => {
-    for (const k of ['maintenanceAmount', 'gracePeriodDays', 'latePenaltyPercent', 'visitorAlerts', 'visitorQrTtlMinutes'] as const) expect(ACTIVE_RULES.has(k)).toBe(true)
-    expect(ACTIVE_RULES.has('city')).toBe(false)
+  it('covers every setting on the page: none is kept without being used', () => {
+    for (const k of Object.keys(RULE_DEFAULTS)) expect(ACTIVE_RULES.has(k as keyof SocietyRules)).toBe(true)
+  })
+})
+
+describe('the automatic switches and the new numbers', () => {
+  const ok: SocietyRules = { ...RULE_DEFAULTS, maintenanceAmount: 3500, latePenaltyPercent: 2 }
+  it('start off for anything that sends mail or creates charges', () => {
+    expect(RULE_DEFAULTS).toMatchObject({ autoGenerateBills: false, autoLateFees: false, emailEnabled: false, dueDays: 10, gstPercent: 18 })
+  })
+  it('need their numbers first', () => {
+    expect(rulesError({ ...RULE_DEFAULTS, autoGenerateBills: true })).toMatch(/maintenance/i)
+    expect(rulesError({ ...ok, autoGenerateBills: true })).toBeNull()
+    expect(rulesError({ ...RULE_DEFAULTS, autoLateFees: true })).toMatch(/penalty/i)
+    expect(rulesError({ ...ok, autoLateFees: true })).toBeNull()
+  })
+  it('check the due days and the GST rate', () => {
+    expect(rulesError({ ...ok, dueDays: 0 })).toMatch(/fall due/i)
+    expect(rulesError({ ...ok, dueDays: 61 })).toMatch(/fall due/i)
+    expect(rulesError({ ...ok, gstEnabled: true, gstNumber: '27AAPFU0939F1ZV', gstPercent: 0 })).toMatch(/GST rate/i)
+    expect(rulesError({ ...ok, gstEnabled: true, gstNumber: '27AAPFU0939F1ZV', gstPercent: 18 })).toBeNull()
   })
 })

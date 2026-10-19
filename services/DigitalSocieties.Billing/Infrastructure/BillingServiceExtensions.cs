@@ -32,6 +32,10 @@ public static class BillingServiceExtensions
         // Cross-module service (DIP — billing doesn't depend on Identity project)
         services.AddScoped<IFlatQueryService, PostgresFlatQueryService>();
 
+        // The society's billing rules acting on their own (bills on the billing day, late fees, reminders), once a day
+        services.AddScoped<DigitalSocieties.Billing.Application.BillingAutomation>();
+        services.AddHostedService<BillingAutomationService>();
+
         services.AddMediatR(cfg =>
             cfg.RegisterServicesFromAssembly(typeof(BillingServiceExtensions).Assembly));
 

@@ -169,7 +169,8 @@ public sealed class AddVisitorCommandHandler
                     ["recipientKind"] = "flat",
                     ["visitorId"]     = visitor.Id.ToString(),
                     ["purpose"]       = visitor.Purpose,
-                });
+                },
+                SocietyId: cmd.SocietyId);
 
             // Sent before the request ends (a request-scoped service cannot be used after it), but never allowed to hold up
             // the gate: a slow or failed push is given up on after a few seconds and the visitor is still recorded.

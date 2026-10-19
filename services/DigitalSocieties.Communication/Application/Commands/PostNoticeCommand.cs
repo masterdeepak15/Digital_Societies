@@ -5,6 +5,7 @@ using DigitalSocieties.Shared.Contracts;
 using DigitalSocieties.Communication.Domain.Entities;
 using DigitalSocieties.Communication.Infrastructure.Persistence;
 using DigitalSocieties.Visitor.Infrastructure.Hubs;
+using DigitalSocieties.Communication.Application.Notices;
 
 namespace DigitalSocieties.Communication.Application.Commands;
 
@@ -38,11 +39,15 @@ public sealed class PostNoticeCommandHandler
     private readonly ICurrentUser            _currentUser;
     private readonly ISocietyHubNotifier     _hub;
     private readonly IEnumerable<INotificationChannel> _channels;
+    private readonly ISocietySettingsReader  _settings;
+    private readonly INotificationDispatcher _dispatcher;
+    private readonly INoticeEmailQueue       _email;
 
     public PostNoticeCommandHandler(
         CommunicationDbContext db, ICurrentUser cu,
-        ISocietyHubNotifier hub, IEnumerable<INotificationChannel> channels)
-    { _db = db; _currentUser = cu; _hub = hub; _channels = channels; }
+        ISocietyHubNotifier hub, IEnumerable<INotificationChannel> channels,
+        ISocietySettingsReader settings, INotificationDispatcher dispatcher, INoticeEmailQueue email)
+    { _db = db; _currentUser = cu; _hub = hub; _channels = channels; _settings = settings; _dispatcher = dispatcher; _email = email; }
 
     public async Task<Result<PostNoticeResponse>> Handle(
         PostNoticeCommand cmd, CancellationToken ct)
@@ -66,8 +71,40 @@ public sealed class PostNoticeCommandHandler
             postedAt  = DateTimeOffset.UtcNow,
         }, ct);
 
-        // Emergency = also send SMS to all residents (fire-and-forget)
-        if (type == NoticeType.Emergency)
+        // How the society wants to be told (Settings > Notifications)
+        var rules = await _settings.GetAsync(cmd.SocietyId, ct);
+        var emergency = type == NoticeType.Emergency;
+
+        // An emergency rings every phone that has the app open
+        if (emergency)
+            await _hub.NotifySocietyAsync(cmd.SocietyId, "EmergencyAlert", new { noticeId = notice.Id, title = notice.Title, message = notice.Body }, ct);
+
+        // A push to every phone in the society, for the ones where the app is closed (an emergency uses the loud channel)
+        if (rules.PushEnabled)
+        {
+            try
+            {
+                await _dispatcher.DispatchAsync(new NotificationMessage(
+                    Recipient: cmd.SocietyId.ToString(),
+                    Subject:   emergency ? $"🚨 {cmd.Title}" : cmd.Title,
+                    Body:      cmd.Body.Length <= 140 ? cmd.Body : cmd.Body[..140] + "…",
+                    TemplateId: null,
+                    Data: new Dictionary<string, string>
+                    {
+                        ["type"] = emergency ? "emergency" : "notice", ["channelId"] = emergency ? "emergency" : "general",
+                        ["recipientKind"] = "society", ["noticeId"] = notice.Id.ToString(),
+                    },
+                    SocietyId: cmd.SocietyId), null, ct);
+            }
+            catch (Exception) { /* the notice is saved and shown live; a failed push is not a failed post */ }
+        }
+
+        // Email the notice to every member, when the society turned that on
+        if (rules.EmailEnabled)
+            _email.Enqueue(new NoticeEmail(cmd.SocietyId, cmd.Title, cmd.Body, cmd.Type));
+
+        // Emergency = also send SMS to all residents (only when the society switched SMS on)
+        if (emergency && rules.SmsEnabled)
         {
             var sms = _channels.FirstOrDefault(c => c.ChannelName == "sms");
             if (sms?.IsEnabled == true)

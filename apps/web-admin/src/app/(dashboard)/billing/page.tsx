@@ -88,7 +88,7 @@ export default function BillingPage() {
   }
 
   // The monthly maintenance, grace period and late penalty the society saved in Settings > Billing.
-  const { data: defaults } = useQuery<{ maintenanceAmount: number; gracePeriodDays: number; latePenaltyPercent: number }>({
+  const { data: defaults } = useQuery<{ maintenanceAmount: number; gracePeriodDays: number; latePenaltyPercent: number; dueDays: number; gstEnabled: boolean; gstPercent: number }>({
     queryKey: ['billing-defaults'],
     queryFn:  () => api.get('/billing/defaults'),
   })
@@ -264,6 +264,8 @@ export default function BillingPage() {
         <GenerateBillsModal
           key={defaults?.maintenanceAmount ?? 'loading'}
           defaultAmount={defaults?.maintenanceAmount ?? 0}
+          dueDays={defaults?.dueDays ?? 10}
+          gstPercent={defaults?.gstEnabled ? defaults.gstPercent : 0}
           onClose={() => setShowGen(false)}
           onGenerate={input => generateMutation.mutate(input)}
           isPending={generateMutation.isPending}
@@ -277,12 +279,12 @@ export default function BillingPage() {
 interface GenerateInput { period: string; amountPerFlat: number; description: string; dueDate: string }
 
 function GenerateBillsModal({
-  onClose, onGenerate, isPending, defaultAmount,
-}: { onClose: () => void; onGenerate: (input: GenerateInput) => void; isPending: boolean; defaultAmount: number }) {
+  onClose, onGenerate, isPending, defaultAmount, dueDays, gstPercent,
+}: { onClose: () => void; onGenerate: (input: GenerateInput) => void; isPending: boolean; defaultAmount: number; dueDays: number; gstPercent: number }) {
   const today      = new Date()
   const defPeriod  = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}`
-  // Default due date = 10th of the period month
-  const defDue     = `${defPeriod}-10`
+  // Due the number of days after today that the society chose in Settings > Billing
+  const defDue     = new Date(today.getTime() + dueDays * 86_400_000).toISOString().slice(0, 10)
 
   const [period,        setPeriod]        = useState(defPeriod)
   // Starts at the monthly maintenance saved in Settings (empty when none is saved yet), never a made-up figure.
@@ -302,9 +304,10 @@ function GenerateBillsModal({
         </div>
 
         <div>
-          <label className="block text-sm font-medium mb-1">Amount per flat (₹)</label>
+          <label className="block text-sm font-medium mb-1">Amount per flat (₹){gstPercent > 0 ? ' before GST' : ''}</label>
           <input type="number" min={1} value={amount} onChange={e => setAmount(Number(e.target.value))}
             className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" />
+          {gstPercent > 0 && <p className="text-xs text-gray-500 mt-1">GST {gstPercent}% is added: each flat is billed ₹{(amount * (1 + gstPercent / 100)).toLocaleString('en-IN', { maximumFractionDigits: 2 })}.</p>}
         </div>
 
         <div>

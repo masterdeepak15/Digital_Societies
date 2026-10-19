@@ -98,7 +98,7 @@ internal sealed class ChatNotifier : IChatNotifier
                 var preview = message.Kind == "Image" ? (string.IsNullOrWhiteSpace(message.Body) ? "📷 Photo" : $"📷 {message.Body}") : message.Body;
                 await _dispatcher.DispatchAsync(new NotificationMessage(r.ToString(), conversationTitle,
                     conversationTitle == message.SenderName ? preview : $"{message.SenderName}: {preview}", null,
-                    new Dictionary<string, string> { ["type"] = "chat", ["channelId"] = "chat", ["conversationId"] = message.ConversationId.ToString() }), null, ct);
+                    new Dictionary<string, string> { ["type"] = "chat", ["channelId"] = "chat", ["conversationId"] = message.ConversationId.ToString() }, societyId), null, ct);
             }
             catch (Exception e) { _log.LogWarning(e, "[Chat] push to {User} failed", r); }   // a failed notification never fails the send
         }

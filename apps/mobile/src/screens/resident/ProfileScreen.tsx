@@ -2,6 +2,9 @@ import React, { useState } from 'react';
 import { Alert, ScrollView, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import { ViewSwitcher } from '../../ui/ViewSwitcher';
+import { Linking, Pressable } from 'react-native';
+import { useQuery } from '@tanstack/react-query';
+import { dialable, fetchOffice, officeAddress } from '../../services/settings/societyRules';
 import { authService } from '../../services/api/authService';
 import { useAuthStore } from '../../store/authStore';
 import { getServerOrigin } from '../../config/serverConfig';
@@ -62,6 +65,8 @@ export default function ProfileScreen() {
 
       <ViewSwitcher />
 
+      <SocietyOfficeCard />
+
       <Card style={{ gap: 14 }}>
         <TextField label="Name" value={nameDraft} onChangeText={setNameDraft} autoCapitalize="words" maxLength={200} />
         <TextField label="Mobile number (optional)" value={phoneDraft} onChangeText={setPhoneDraft}
@@ -87,5 +92,28 @@ export default function ProfileScreen() {
 
       <View><Button title="Sign out" variant="secondary" icon="log-out" onPress={signOut} /></View>
     </ScrollView>
+  );
+}
+
+/** How to reach the society's office: the contact details its admin saved in Settings. Hidden until there is something to show. */
+function SocietyOfficeCard() {
+  const { colors, fonts } = useTheme();
+  const { data } = useQuery({ queryKey: ['society-office'], queryFn: fetchOffice, staleTime: 10 * 60_000 });
+  if (!data) return null;
+  const address = officeAddress(data);
+  if (!data.name && !address && !data.contactPhone && !data.contactEmail) return null;
+  const link = (label: string, url: string) => (
+    <Pressable accessibilityRole="link" accessibilityLabel={label} onPress={() => Linking.openURL(url).catch(() => {})} style={{ minHeight: 44, justifyContent: 'center' }}>
+      <Text style={{ color: colors.primary, fontFamily: fonts.bold, fontSize: 15 }}>{label}</Text>
+    </Pressable>
+  );
+  return (
+    <Card style={{ gap: 4 }}>
+      <Text style={{ color: colors.muted, fontFamily: fonts.semibold, fontSize: 13 }}>Society office</Text>
+      {!!data.name && <Text style={{ color: colors.text, fontFamily: fonts.bold, fontSize: 16 }}>{data.name}</Text>}
+      {!!address && <Text style={{ color: colors.muted, fontFamily: fonts.regular, fontSize: 14 }}>{address}</Text>}
+      {!!data.contactPhone && link(data.contactPhone, 'tel:' + dialable(data.contactPhone))}
+      {!!data.contactEmail && link(data.contactEmail, 'mailto:' + data.contactEmail)}
+    </Card>
   );
 }

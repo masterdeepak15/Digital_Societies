@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { View, Text, Pressable, Alert, Vibration, ScrollView, AppState } from 'react-native';
 import NetInfo from '@react-native-community/netinfo';
 import { ViewSwitcher } from '../../ui/ViewSwitcher';
+import { DEFAULT_OFFICE, fetchOffice, mayAddVisitor } from '../../services/settings/societyRules';
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system';
 import { Q } from '@nozbe/watermelondb';
@@ -80,6 +81,9 @@ export default function GateScreen() {
   const [localHistory, setLocalHistory] = useState<History | null>(null);
   const set = <K extends keyof EntryForm>(k: K, v: EntryForm[K]) => setForm((f) => ({ ...f, [k]: v }));
 
+  // The society can switch offline entry off (Settings > Security). The last answer is kept, so it still applies with no signal.
+  const office = useQuery({ queryKey: ['society-office'], queryFn: fetchOffice, staleTime: 10 * 60_000 });
+
   const refreshStatus = useCallback(async () => {
     const net   = await NetInfo.fetch();
     setIsOnline(!!net.isConnected && net.isInternetReachable !== false);
@@ -144,6 +148,11 @@ export default function GateScreen() {
     if (!check.ok) {
       Vibration.vibrate(300);
       Alert.alert('Check the entry', check.message);
+      return;
+    }
+    if (!mayAddVisitor(isOnline, office.data ?? DEFAULT_OFFICE)) {
+      Vibration.vibrate(300);
+      Alert.alert('No internet', 'Your society has switched off offline entry. Connect to the internet to add this visitor.');
       return;
     }
     setSaving(true);

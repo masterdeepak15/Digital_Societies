@@ -23,6 +23,9 @@ public sealed class PostgresPushTokenStore : IPushTokenStore
             "WHERE t.is_active AND t.user_id IN (SELECT m.\"UserId\" FROM identity.memberships m " +
             "WHERE m.\"FlatId\" = {0} AND m.\"IsActive\" AND NOT m.\"IsDeleted\")", flatId).ToListAsync(ct);
 
+    public async Task<List<string>> GetTokensForSocietyAsync(Guid societyId, CancellationToken ct)
+        => await _db.PushTokens.Where(t => t.SocietyId == societyId && t.IsActive).Select(t => t.ExpoPushToken).Distinct().ToListAsync(ct);
+
     public async Task UpsertAsync(Guid userId, Guid societyId,
                                   string expoPushToken, CancellationToken ct)
     {

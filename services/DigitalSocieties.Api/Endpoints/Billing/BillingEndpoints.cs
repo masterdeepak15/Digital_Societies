@@ -121,13 +121,17 @@ public static class BillingEndpoints
             if (currentUser.SocietyId is null) return Results.BadRequest("Society context required.");
 
             // No amount given: use the monthly maintenance the society saved in Settings > Billing.
+            var rules = await settings.GetAsync(currentUser.SocietyId.Value, ct);
             if (cmd.AmountPerFlat <= 0)
             {
-                var rules = await settings.GetAsync(currentUser.SocietyId.Value, ct);
                 if (rules.MaintenanceAmount <= 0)
                     return Results.BadRequest(new { code = "BILLING.NO_AMOUNT", message = "Enter the amount, or set the monthly maintenance in Settings > Billing." });
                 cmd = cmd with { AmountPerFlat = rules.MaintenanceAmount };
             }
+
+            // GST is added on top when the society charges it, and the bill says so.
+            var (amount, gstNote) = DigitalSocieties.Billing.Application.BillAmounts.For(cmd.AmountPerFlat, rules);
+            cmd = cmd with { AmountPerFlat = amount, Description = cmd.Description + gstNote };
             var result = await mediator.Send(cmd with { SocietyId = currentUser.SocietyId.Value }, ct);
             return result.IsSuccess
                 ? Results.Ok(new { generated = result.Value })
@@ -144,7 +148,7 @@ public static class BillingEndpoints
         {
             if (currentUser.SocietyId is null) return Results.BadRequest("Society context required.");
             var r = await settings.GetAsync(currentUser.SocietyId.Value, ct);
-            return Results.Ok(new { r.MaintenanceAmount, r.BillingCycleDay, r.GracePeriodDays, r.LatePenaltyPercent });
+            return Results.Ok(new { r.MaintenanceAmount, r.BillingCycleDay, r.GracePeriodDays, r.LatePenaltyPercent, r.GstEnabled, r.GstPercent, r.DueDays, r.AutoGenerateBills, r.AutoLateFees });
         })
         .RequireAuthorization("FinanceStaff")
         .WithName("BillingDefaults")

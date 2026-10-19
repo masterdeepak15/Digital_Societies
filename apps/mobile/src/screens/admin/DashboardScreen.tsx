@@ -69,8 +69,9 @@ const generateBills = async (payload: {
   periodYear: number;
   periodMonth: number;
   amountPaise: number;
+  dueDays?: number;
 }) => {
-  const { data } = await apiClient.post('/billing/generate', toGenerateBody(payload.periodYear, payload.periodMonth, payload.amountPaise));
+  const { data } = await apiClient.post('/billing/generate', toGenerateBody(payload.periodYear, payload.periodMonth, payload.amountPaise, new Date(), payload.dueDays));
   return data;
 };
 
@@ -120,7 +121,7 @@ export default function AdminDashboardScreen() {
   // The monthly maintenance the society saved in Settings > Billing (0 = not set).
   const { data: defaults } = useQuery({
     queryKey: ['billing-defaults'],
-    queryFn: async () => (await apiClient.get<{ maintenanceAmount: number }>('/billing/defaults')).data,
+    queryFn: async () => (await apiClient.get<{ maintenanceAmount: number; dueDays: number; gstEnabled: boolean; gstPercent: number }>('/billing/defaults')).data,
     enabled: !!societyId,
     staleTime: 60_000,
   });
@@ -138,6 +139,11 @@ export default function AdminDashboardScreen() {
   // Same amount as the current bills (or Rs 1,500 for a society with none yet), confirmed before anything is created.
   const confirmGenerate = () => {
     const configured = Math.round((defaults?.maintenanceAmount ?? 0) * 100);
+    // With GST on, the server adds the tax to the amount it is given, so a figure averaged from existing bills (which already include it) would be taxed twice.
+    if (configured === 0 && defaults?.gstEnabled) {
+      Alert.alert('Set the monthly maintenance', 'GST is switched on for this society. Set the monthly maintenance (before GST) in Settings > Billing, then generate the bills.');
+      return;
+    }
     const perFlat = configured > 0 ? configured
       : billing && billing.totalFlats > 0 ? Math.round(billing.totalDuePaise / billing.totalFlats) : 150000;
     const month = new Date().toLocaleDateString('en-IN', { month: 'long', year: 'numeric' });
@@ -146,7 +152,7 @@ export default function AdminDashboardScreen() {
       `Create ${month} bills of ${formatINR(perFlat)} for every flat? Flats that already have one are skipped.`,
       [
         { text: 'Cancel', style: 'cancel' },
-        { text: 'Generate', onPress: () => generateMutation.mutate({ societyId: societyId ?? '', periodYear: currentYear, periodMonth: currentMonth, amountPaise: perFlat }) },
+        { text: 'Generate', onPress: () => generateMutation.mutate({ societyId: societyId ?? '', periodYear: currentYear, periodMonth: currentMonth, amountPaise: perFlat, dueDays: defaults?.dueDays }) },
       ],
     );
   };

@@ -16,4 +16,6 @@ public sealed record NotificationMessage(
     string  Subject,
     string  Body,
     string? TemplateId = null,
-    Dictionary<string, string>? Data = null);
+    Dictionary<string, string>? Data = null,
+    /// <summary>The society the message is for, so its notification settings (push, SMS) are respected.</summary>
+    Guid? SocietyId = null);

@@ -10,6 +10,10 @@ export interface SocietyRules {
   latePenaltyPercent: number
   gstEnabled: boolean
   gstNumber: string
+  gstPercent: number
+  dueDays: number
+  autoGenerateBills: boolean
+  autoLateFees: boolean
   pushEnabled: boolean
   smsEnabled: boolean
   emailEnabled: boolean
@@ -35,7 +39,8 @@ export interface ApiSettings {
 export const RULE_DEFAULTS: SocietyRules = {
   contactEmail: '', contactPhone: '', city: '', pincode: '',
   maintenanceAmount: 0, billingCycleDay: 1, gracePeriodDays: 7, latePenaltyPercent: 0, gstEnabled: false, gstNumber: '',
-  pushEnabled: true, smsEnabled: false, emailEnabled: true, visitorAlerts: true, paymentReminders: true,
+  gstPercent: 18, dueDays: 10, autoGenerateBills: false, autoLateFees: false,
+  pushEnabled: true, smsEnabled: false, emailEnabled: false, visitorAlerts: true, paymentReminders: true,
   visitorQrTtlMinutes: 2, piiWipeDays: 7, offlineSyncEnabled: true,
 }
 
@@ -58,12 +63,14 @@ export function rulesError(r: SocietyRules): string | null {
   if (!Number.isInteger(r.gracePeriodDays) || r.gracePeriodDays < 0 || r.gracePeriodDays > 30) return 'The grace period must be between 0 and 30 days.'
   if (!(r.latePenaltyPercent >= 0 && r.latePenaltyPercent <= 36)) return 'The late penalty must be between 0 and 36 percent.'
   if (r.gstEnabled && r.gstNumber.trim().length !== 15) return 'A GST number has 15 characters. Add it, or switch GST off.'
+  if (r.gstEnabled && !(r.gstPercent > 0 && r.gstPercent <= 28)) return 'The GST rate must be between 0 and 28 percent.'
+  if (!Number.isInteger(r.dueDays) || r.dueDays < 1 || r.dueDays > 60) return 'A bill must fall due between 1 and 60 days after it goes out.'
+  if (r.autoGenerateBills && r.maintenanceAmount <= 0) return 'Set the monthly maintenance before turning on automatic bills.'
+  if (r.autoLateFees && r.latePenaltyPercent <= 0) return 'Set a late penalty before turning on automatic late fees.'
   if (!Number.isInteger(r.visitorQrTtlMinutes) || r.visitorQrTtlMinutes < 1 || r.visitorQrTtlMinutes > 30) return 'The visitor QR code lifetime must be between 1 and 30 minutes.'
   if (!Number.isInteger(r.piiWipeDays) || r.piiWipeDays < 1 || r.piiWipeDays > 30) return 'Visitor details are kept for 1 to 30 days on the guard’s phone.'
   return null
 }
 
-/** Which settings act on the system today and which are only kept, so the page can say so honestly. */
-export const ACTIVE_RULES: ReadonlySet<keyof SocietyRules> = new Set<keyof SocietyRules>([
-  'maintenanceAmount', 'gracePeriodDays', 'latePenaltyPercent', 'visitorAlerts', 'pushEnabled', 'visitorQrTtlMinutes',
-])
+/** Every setting on the page is acted on by the system: this lists them so the page (and a test) can say so. */
+export const ACTIVE_RULES: ReadonlySet<keyof SocietyRules> = new Set(Object.keys(RULE_DEFAULTS) as (keyof SocietyRules)[])
