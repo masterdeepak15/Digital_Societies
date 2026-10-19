@@ -119,6 +119,9 @@ try
         opts.AddPolicy("GuardOrAdmin",    p => p.RequireClaim("role", "guard", "admin"));
     });
 
+    // Times of day are accepted as people and forms write them ("06:00"); the built-in reader demanded seconds and answered 400.
+    builder.Services.ConfigureHttpJsonOptions(o => o.SerializerOptions.Converters.Add(new DigitalSocieties.Shared.Serialization.LenientTimeOnlyConverter()));
+
     // HttpContext accessor (for ICurrentUser middleware)
     builder.Services.AddHttpContextAccessor();
 

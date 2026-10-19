@@ -295,10 +295,8 @@ namespace DigitalSocieties.Marketplace.Infrastructure.Persistence.Migrations
 
                     b.Property<string>("Approval")
                         .IsRequired()
-                        .ValueGeneratedOnAdd()
                         .HasMaxLength(20)
                         .HasColumnType("character varying(20)")
-                        .HasDefaultValue("Approved")
                         .HasColumnName("approval");
 
                     b.Property<float>("AverageRating")
