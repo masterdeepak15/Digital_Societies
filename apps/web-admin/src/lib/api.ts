@@ -109,8 +109,12 @@ async function request<T>(
     throw new ApiError(res.status, msg)
   }
 
-  if (res.status === 204) return undefined as T
-  const json = await res.json()
+  // A successful write may answer with no body at all (204, or a bare 200 such as pinning a notice).
+  // That is a success, not a parse error.
+  if (res.status === 204 || res.status === 205) return undefined as T
+  const text = await res.text()
+  if (text.trim() === '') return undefined as T
+  const json = JSON.parse(text)
   // GET list responses are normalised once here (see adapters.ts); writes pass through untouched.
   const method = (fetchOptions.method ?? 'GET').toUpperCase()
   if (method !== 'GET') return json as T
